@@ -5,6 +5,10 @@ struct IndicatorView: View {
     @ObservedObject var controller: DictationController
     @ObservedObject private var settings = AppSettings.shared
 
+    private var isDark: Bool {
+        settings.isDarkMode
+    }
+
     static let width: CGFloat = 380
     static let listeningSize = NSSize(width: 112, height: 32)
     static let noteSavedSize = NSSize(width: 154, height: 32)
@@ -40,7 +44,7 @@ struct IndicatorView: View {
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .strokeBorder(Palette.hairline, lineWidth: 1)
                             )
-                            .shadow(color: Palette.hudShadow, radius: 16, y: 6)
+                            .shadow(color: Palette.hudShadow(isDark: isDark), radius: 16, y: 6)
                     )
             } else if controller.noteSavedText != nil {
                 noteSavedToast
@@ -56,17 +60,17 @@ struct IndicatorView: View {
                     .background(capsuleBg)
             }
         }
-        .preferredColorScheme(settings.appTheme.colorScheme)
+        .preferredColorScheme(isDark ? .dark : .light)
     }
 
     private var capsuleBg: some View {
         Capsule()
-            .fill(Palette.hudBg)
+            .fill(Palette.hudBg(isDark: isDark))
             .overlay(
                 Capsule()
-                    .strokeBorder(Palette.hudBorder, lineWidth: 0.75)
+                    .strokeBorder(Palette.hudBorder(isDark: isDark), lineWidth: 0.75)
             )
-            .shadow(color: Palette.hudShadow, radius: 10, y: 3)
+            .shadow(color: Palette.hudShadow(isDark: isDark), radius: 10, y: 3)
     }
 
     // MARK: - Компактный эстетичный спектр и индикатор записи
@@ -77,25 +81,25 @@ struct IndicatorView: View {
             case .recording:
                 Image(systemName: "mic.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Palette.hudIcon)
+                    .foregroundStyle(Palette.hudIcon(isDark: isDark))
 
-                CompactEqualizer(level: controller.level)
+                CompactEqualizer(level: controller.level, isDark: isDark)
                     .frame(width: 18, height: 12)
 
                 Text(controller.elapsedText)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Palette.hudTextMuted)
+                    .foregroundStyle(Palette.hudTextMuted(isDark: isDark))
 
             case .transcribing:
                 ProgressView()
                     .controlSize(.mini)
                     .scaleEffect(0.7)
-                    .tint(Palette.hudIcon)
+                    .tint(Palette.hudIcon(isDark: isDark))
                     .frame(width: 12, height: 12)
 
                 Text("Распознаю…")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.hudText)
+                    .foregroundStyle(Palette.hudText(isDark: isDark))
                     .lineLimit(1)
                     .fixedSize()
 
@@ -116,7 +120,7 @@ struct IndicatorView: View {
 
             Text("Заметка сохранена")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudText)
+                .foregroundStyle(Palette.hudText(isDark: isDark))
         }
         .padding(.horizontal, 12)
     }
@@ -131,11 +135,11 @@ struct IndicatorView: View {
 
             Text("Напоминание:")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudText)
+                .foregroundStyle(Palette.hudText(isDark: isDark))
 
             Text(text)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudTextMuted)
+                .foregroundStyle(Palette.hudTextMuted(isDark: isDark))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
@@ -194,13 +198,14 @@ struct IndicatorView: View {
 /// динамически адаптирующийся под светлую и тёмную темы оформления.
 struct CompactEqualizer: View {
     let level: Float
+    var isDark: Bool = true
 
     var body: some View {
         HStack(spacing: 2) {
-            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.6)
-            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 1.0)
-            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 0.85)
-            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.55)
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.6, isDark: isDark)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 1.0, isDark: isDark)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 0.85, isDark: isDark)
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.55, isDark: isDark)
         }
     }
 }
@@ -210,6 +215,7 @@ private struct EqualizerBar: View {
     let minH: CGFloat
     let maxH: CGFloat
     let weight: CGFloat
+    let isDark: Bool
 
     private var calculatedHeight: CGFloat {
         let raw = CGFloat(max(0, min(1, level)))
@@ -222,8 +228,8 @@ private struct EqualizerBar: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        Palette.hudEqTop,
-                        Palette.hudEqBottom
+                        Palette.hudEqTop(isDark: isDark),
+                        Palette.hudEqBottom(isDark: isDark)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -319,6 +325,10 @@ final class IndicatorPanel {
         hide()
 
         let hosting = NSHostingView(rootView: IndicatorView(controller: controller))
+        let isDark = AppSettings.shared.isDarkMode
+        let targetAppearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
+        hosting.appearance = targetAppearance
+
         let size: NSSize
         if interactive {
             size = IndicatorView.copySize(for: controller.pendingText ?? "")
@@ -334,6 +344,7 @@ final class IndicatorPanel {
         let p = KeyablePanel(contentRect: hosting.frame,
                              styleMask: [.borderless, .nonactivatingPanel],
                              backing: .buffered, defer: false)
+        p.appearance = targetAppearance
         p.acceptsKey = interactive
         p.contentView = hosting
         p.isOpaque = false

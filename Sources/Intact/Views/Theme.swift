@@ -28,14 +28,45 @@ enum Palette {
     static let toggleKnob     = dynamic(light: (1.000, 1.000, 1.000), dark: (0.110, 0.105, 0.100))
 
     // HUD Pill (плавающий мини-индикатор записи и тосты)
-    static let hudBg          = dynamicAlpha(light: (0.975, 0.968, 0.952, 0.95), dark: (0.105, 0.102, 0.098, 0.92))
-    static let hudBorder      = dynamicAlpha(light: (0, 0, 0, 0.11), dark: (1, 1, 1, 0.14))
-    static let hudShadow      = dynamicAlpha(light: (0, 0, 0, 0.12), dark: (0, 0, 0, 0.35))
-    static let hudIcon        = dynamicAlpha(light: (0.12, 0.11, 0.10, 0.90), dark: (1, 1, 1, 0.90))
-    static let hudText        = dynamicAlpha(light: (0.16, 0.15, 0.14, 0.90), dark: (1, 1, 1, 0.90))
-    static let hudTextMuted   = dynamicAlpha(light: (0.35, 0.33, 0.31, 0.78), dark: (1, 1, 1, 0.75))
-    static let hudEqTop       = dynamic(light: (0.22, 0.20, 0.18), dark: (0.96, 0.96, 0.99))
-    static let hudEqBottom    = dynamic(light: (0.45, 0.48, 0.58), dark: (0.78, 0.84, 0.96))
+    static func hudBg(isDark: Bool) -> Color {
+        isDark ? Color(red: 0.110, green: 0.108, blue: 0.105).opacity(0.92)
+               : Color(red: 0.975, green: 0.968, blue: 0.952).opacity(0.96)
+    }
+
+    static func hudBorder(isDark: Bool) -> Color {
+        isDark ? Color.white.opacity(0.14)
+               : Color.black.opacity(0.12)
+    }
+
+    static func hudShadow(isDark: Bool) -> Color {
+        isDark ? Color.black.opacity(0.35)
+               : Color.black.opacity(0.12)
+    }
+
+    static func hudIcon(isDark: Bool) -> Color {
+        isDark ? Color.white.opacity(0.90)
+               : Color(red: 0.12, green: 0.11, blue: 0.10).opacity(0.90)
+    }
+
+    static func hudText(isDark: Bool) -> Color {
+        isDark ? Color.white.opacity(0.90)
+               : Color(red: 0.16, green: 0.15, blue: 0.14).opacity(0.90)
+    }
+
+    static func hudTextMuted(isDark: Bool) -> Color {
+        isDark ? Color.white.opacity(0.75)
+               : Color(red: 0.35, green: 0.33, blue: 0.31).opacity(0.78)
+    }
+
+    static func hudEqTop(isDark: Bool) -> Color {
+        isDark ? Color(red: 0.96, green: 0.96, blue: 0.99)
+               : Color(red: 0.22, green: 0.20, blue: 0.18)
+    }
+
+    static func hudEqBottom(isDark: Bool) -> Color {
+        isDark ? Color(red: 0.78, green: 0.84, blue: 0.96)
+               : Color(red: 0.45, green: 0.48, blue: 0.58)
+    }
 
     private static func dynamic(light: (CGFloat, CGFloat, CGFloat),
                                 dark: (CGFloat, CGFloat, CGFloat)) -> Color {

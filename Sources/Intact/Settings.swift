@@ -174,9 +174,25 @@ final class AppSettings: ObservableObject {
     /// Вызывается при переключении значка в Dock.
     var onDockIconChange: (() -> Void)?
 
+    var isDarkMode: Bool {
+        switch appTheme {
+        case .dark: return true
+        case .light: return false
+        case .system:
+            if let style = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"), style.lowercased().contains("dark") {
+                return true
+            }
+            return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        }
+    }
+
     func applyTheme() {
         DispatchQueue.main.async {
             NSApp.appearance = self.appTheme.nsAppearance
+            let targetAppearance = self.isDarkMode ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
+            for window in NSApp.windows {
+                window.appearance = targetAppearance
+            }
         }
     }
 
@@ -220,7 +236,18 @@ final class AppSettings: ObservableObject {
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
         showDockIcon = d.object(forKey: "showDockIcon") == nil ? true : d.bool(forKey: "showDockIcon")
-
         applyTheme()
+
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            if self.appTheme == .system {
+                self.objectWillChange.send()
+                self.applyTheme()
+            }
+        }
     }
 }
