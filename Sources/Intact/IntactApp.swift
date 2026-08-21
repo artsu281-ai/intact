@@ -167,8 +167,11 @@ struct MenuContent: View {
 
         Divider()
 
+        Button(L10n.chatMenuTitle) { ChatWindow.shared.show() }
+            .keyboardShortcut("i", modifiers: [.command, .shift])
+
         Button("Настройки…") { SettingsWindow.shared.show() }
-        .keyboardShortcut(",")
+            .keyboardShortcut(",")
 
         Button("Выйти") { NSApp.terminate(nil) }
             .keyboardShortcut("q")

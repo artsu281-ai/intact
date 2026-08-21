@@ -1,6 +1,13 @@
 import AppKit
 import Foundation
 
+struct NoteItem: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let body: String
+    let date: String
+}
+
 /// Сервис создания заметок в Apple Notes (Заметки macOS / iOS) по голосовым командам.
 enum AppleNotesService {
 
@@ -45,6 +52,73 @@ enum AppleNotesService {
             DispatchQueue.main.async {
                 completion?(success)
             }
+        }
+    }
+
+    /// Асинхронно читает последние заметки из Apple Notes
+    static func fetchRecentNotes(folderName: String = "Intact", limit: Int = 15, completion: @escaping ([NoteItem]) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let notes = fetchRecentNotesSync(folderName: folderName, limit: limit)
+            DispatchQueue.main.async {
+                completion(notes)
+            }
+        }
+    }
+
+    private static func fetchRecentNotesSync(folderName: String, limit: Int) -> [NoteItem] {
+        let folderEscaped = folderName
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        let script = """
+        tell application "Notes"
+            tell default account
+                set targetFolder to missing value
+                if "\(folderEscaped)" is not "" then
+                    repeat with f in folders
+                        if name of f is "\(folderEscaped)" then
+                            set targetFolder to f
+                            exit repeat
+                        end if
+                    end repeat
+                end if
+                if targetFolder is missing value then
+                    set targetFolder to default folder
+                end if
+                set res to ""
+                set noteList to (notes of targetFolder)
+                set c to count of noteList
+                if c > \(limit) then set c to \(limit)
+                repeat with i from 1 to c
+                    set n to item i of noteList
+                    set nName to name of n
+                    set nBody to plaintext of n
+                    set nDate to ((modification date of n) as string)
+                    set res to res & nName & "<NOTE_FIELD>" & nBody & "<NOTE_FIELD>" & nDate & "<NOTE_SEP>"
+                end repeat
+                return res
+            end tell
+        end tell
+        """
+
+        guard let appleScript = NSAppleScript(source: script) else { return [] }
+        var error: NSDictionary?
+        let output = appleScript.executeAndReturnError(&error)
+        if let error {
+            Log.write("ошибка чтения заметок из Notes: \(error)")
+            return []
+        }
+
+        guard let rawStr = output.stringValue, !rawStr.isEmpty else { return [] }
+        let rawNotes = rawStr.components(separatedBy: "<NOTE_SEP>").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        return rawNotes.compactMap { rawNote in
+            let fields = rawNote.components(separatedBy: "<NOTE_FIELD>")
+            guard fields.count >= 2 else { return nil }
+            let name = fields[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let body = fields[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            let date = fields.count > 2 ? fields[2].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            return NoteItem(id: UUID().uuidString, name: name, body: body, date: date)
         }
     }
 

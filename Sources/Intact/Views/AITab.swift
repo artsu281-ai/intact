@@ -48,6 +48,11 @@ struct AITab: View {
                         .toggleStyle(WisprToggleStyle())
                         .disabled(settings.aiProviderKind == .none)
                 }
+                Row(title: "Чат с ассистентом", subtitle: "Диалог с ИИ, анализ ваших заметок и истории диктовок") {
+                    PillButton(title: "Открыть чат", symbol: "sparkles") {
+                        ChatWindow.shared.show()
+                    }
+                }
             }
 
             experimentCard

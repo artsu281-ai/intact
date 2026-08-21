@@ -7,6 +7,13 @@ struct ParsedReminder {
     let dueDate: Date?
 }
 
+struct ReminderItem: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let dueDate: Date?
+    let isCompleted: Bool
+}
+
 /// Сервис создания напоминаний в Apple Reminders (Напоминания macOS / iOS) по голосовым командам.
 enum AppleRemindersService {
 
@@ -189,6 +196,35 @@ enum AppleRemindersService {
         } else {
             eventStore.requestAccess(to: .reminder) { granted, _ in
                 DispatchQueue.main.async { completion(granted) }
+            }
+        }
+    }
+
+    /// Асинхронно получает список незавершенных напоминаний
+    static func fetchPendingReminders(completion: @escaping ([ReminderItem]) -> Void) {
+        requestAccess { granted in
+            guard granted else {
+                completion([])
+                return
+            }
+
+            let predicate = eventStore.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
+            eventStore.fetchReminders(matching: predicate) { ekReminders in
+                let items = (ekReminders ?? []).map { ek in
+                    var due: Date? = nil
+                    if let comps = ek.dueDateComponents {
+                        due = Calendar.current.date(from: comps)
+                    }
+                    return ReminderItem(
+                        id: ek.calendarItemIdentifier,
+                        title: ek.title ?? "",
+                        dueDate: due,
+                        isCompleted: ek.isCompleted
+                    )
+                }
+                DispatchQueue.main.async {
+                    completion(items)
+                }
             }
         }
     }
