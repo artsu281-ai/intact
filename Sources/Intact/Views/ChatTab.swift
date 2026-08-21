@@ -168,8 +168,7 @@ struct ChatTab: View {
                 Toggle("Напоминания Reminders", isOn: contextBinding(for: .appleReminders))
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 11))
+                    IntactIcon(kind: .context, size: 12)
                     Text("Контекст: \(chat.selectedContextSources.count)")
                         .font(.system(size: 12, weight: .medium))
                 }
@@ -191,8 +190,7 @@ struct ChatTab: View {
                 onOpenSection?(.ai)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11))
+                    IntactIcon(kind: .settings, size: 12)
                     Text("Настройки ИИ")
                         .font(.system(size: 12))
                 }
@@ -264,8 +262,7 @@ struct ChatTab: View {
 
     private var emptyStateView: some View {
         HStack(spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 22))
+            IntactIcon(kind: .aiStar, size: 24)
                 .foregroundStyle(Palette.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Ассистент готов к работе")
@@ -300,8 +297,7 @@ struct ChatTab: View {
                 // Метка и бейджи
                 HStack(spacing: 5) {
                     if !isUser {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 10, weight: .semibold))
+                        IntactIcon(kind: .aiStar, size: 11)
                             .foregroundStyle(Palette.accent)
                         Text("Intact ИИ")
                             .font(.system(size: 11, weight: .semibold))
@@ -359,8 +355,7 @@ struct ChatTab: View {
                         }
                     } label: {
                         HStack(spacing: 3) {
-                            Image(systemName: copiedMessageID == msg.id ? "checkmark" : "doc.on.doc")
-                                .font(.system(size: 10))
+                            IntactIcon(kind: copiedMessageID == msg.id ? .copied : .copy, size: 12)
                             Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать")
                                 .font(.system(size: 10))
                         }
@@ -401,8 +396,7 @@ struct ChatTab: View {
 
             let canSend = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !chat.isGenerating
             Button { sendMessage() } label: {
-                Image(systemName: chat.isGenerating ? "stop.fill" : "arrow.up")
-                    .font(.system(size: 13, weight: .semibold))
+                IntactIcon(kind: chat.isGenerating ? .stop : .send, size: 14)
                     .foregroundStyle(canSend ? .white : Palette.textTertiary)
                     .frame(width: 34, height: 34)
                     .background(

@@ -20,6 +20,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
+    /// SF Symbol — используется везде, кроме сайдбара для разделов с кастомной иконкой.
     var icon: String {
         switch self {
         case .chat:       return "bubble.left.and.bubble.right"
@@ -32,6 +33,15 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .system:     return "macwindow"
         case .appearance: return "paintpalette"
         case .about:      return "info.circle"
+        }
+    }
+
+    /// Кастомная иконка из IntactIcons для сайдбара (nil → использовать SF Symbol).
+    var customIcon: IntactIconKind? {
+        switch self {
+        case .chat:    return .chat
+        case .history: return .history
+        default:       return nil
         }
     }
 
@@ -448,12 +458,20 @@ struct SidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 11) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
-                    .frame(width: 20)
-                    .scaleEffect(selected ? 1.08 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
+                // Используем кастомную иконку, если задана — иначе SF Symbol
+                if let customKind = item.customIcon {
+                    SidebarIntactIcon(kind: customKind, selected: selected, size: 18)
+                        .frame(width: 20)
+                        .scaleEffect(selected ? 1.06 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
+                } else {
+                    Image(systemName: item.icon)
+                        .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
+                        .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
+                        .frame(width: 20)
+                        .scaleEffect(selected ? 1.08 : 1.0)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
+                }
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
