@@ -9,25 +9,27 @@ struct IndicatorView: View {
         settings.isDarkMode
     }
 
-    static let width: CGFloat = 380
+    static let width: CGFloat = 460
     static let listeningSize = NSSize(width: 112, height: 32)
     static let noteSavedSize = NSSize(width: 154, height: 32)
     static let reminderSavedSize = NSSize(width: 196, height: 32)
     private static let copyPad: CGFloat = 16
-    private static let bodyFont = NSFont.systemFont(ofSize: 13.5)
+    private static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .regular)
 
     static func copySize(for text: String) -> NSSize {
-        let h = copyPad + 22 + 10 + textHeight(text) + 14 + 28 + copyPad
-        return NSSize(width: width, height: max(118, h))
+        let textH = textHeight(text)
+        let h = copyPad + 24 + 10 + textH + 14 + 30 + copyPad
+        return NSSize(width: width, height: max(124, h))
     }
 
     static func textHeight(_ text: String) -> CGFloat {
-        let lineHeight = ceil(bodyFont.boundingRectForFont.height) + 3
+        let lineHeight = ceil(bodyFont.boundingRectForFont.height) + 4
         let box = (text as NSString).boundingRect(
-            with: NSSize(width: width - copyPad * 2, height: lineHeight * 4),
+            with: NSSize(width: width - copyPad * 2, height: lineHeight * 12),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: bodyFont])
-        return min(ceil(box.height), lineHeight * 4)
+        let rawH = ceil(box.height)
+        return min(max(24, rawH), 220)
     }
 
     var body: some View {
@@ -146,19 +148,25 @@ struct IndicatorView: View {
         .padding(.horizontal, 12)
     }
 
-    // MARK: - Вставлять некуда (Карточка копирования)
+    // MARK: - Вставлять некуда (Просторная карточка копирования)
 
     private func noPlaceToInsert(text: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "doc.on.clipboard")
+                Image(systemName: "doc.on.clipboard.fill")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
 
-                Text("Поле для ввода не выбрано")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.textSecondary)
-                    .lineLimit(1)
+                Text("Текст готов к копированию")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+
+                let words = text.split { $0.isWhitespace || $0.isNewline }.count
+                if words > 0 {
+                    Text("• \(words) \(wordsCountLabel(words))")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.textSecondary)
+                }
 
                 Spacer(minLength: 8)
 
@@ -166,29 +174,49 @@ struct IndicatorView: View {
                     controller.dismissPending()
                 }
             }
-            .frame(height: 22)
+            .frame(height: 24)
 
             Spacer().frame(height: 10)
 
-            Text(text)
-                .font(.system(size: 13.5))
-                .foregroundStyle(Palette.textPrimary)
-                .lineSpacing(3)
-                .lineLimit(4)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: Self.textHeight(text), alignment: .top)
+            ScrollView(.vertical, showsIndicators: Self.textHeight(text) >= 200) {
+                Text(text)
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Palette.textPrimary)
+                    .lineSpacing(3.5)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: Self.textHeight(text))
 
             Spacer().frame(height: 14)
 
-            HStack {
+            HStack(spacing: 8) {
+                HStack(spacing: 4) {
+                    Image(systemName: "command")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("C или Enter")
+                        .font(.system(size: 11.5, weight: .medium))
+                }
+                .foregroundStyle(Palette.textSecondary)
+
                 Spacer()
+
                 SoftButton(title: "Скопировать", symbol: "doc.on.doc") {
                     controller.copyPending()
                 }
+                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut("c", modifiers: .command)
             }
-            .frame(height: 28)
+            .frame(height: 30)
         }
+    }
+
+    private func wordsCountLabel(_ count: Int) -> String {
+        let rem10 = count % 10
+        let rem100 = count % 100
+        if rem10 == 1 && rem100 != 11 { return "слово" }
+        if (2...4).contains(rem10) && !(12...14).contains(rem100) { return "слова" }
+        return "слов"
     }
 }
 
@@ -251,8 +279,8 @@ struct SoftButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 11, weight: .medium))
-                Text(title).font(.system(size: 12.5, weight: .medium))
+                Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                Text(title).font(.system(size: 12.5, weight: .semibold))
             }
             .foregroundStyle(Palette.textPrimary)
             .padding(.horizontal, 14)
