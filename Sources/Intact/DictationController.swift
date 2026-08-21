@@ -425,6 +425,9 @@ final class DictationController: ObservableObject {
             lastError = "Речь не распознана — тишина или слишком тихий микрофон."
             return
         }
+        // «Напомни...» / «Заметка: ...» через правый Option — это команда,
+        // а не вопрос, на который нужен текстовый ответ ИИ.
+        if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
         guard AIRouter.shared.isReady else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
             lastError = "Чтобы спрашивать ИИ, сначала настрой провайдера во вкладке «ИИ»."
@@ -482,6 +485,43 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Общая для обычной диктовки и хоткея «Спросите ИИ» проверка: фраза похожа на
+    /// команду заметки/напоминания? Если да — создаёт её и возвращает true. Правый
+    /// Option тоже должен её ловить: «напомни мне...» через него — это не вопрос,
+    /// на который нужен текстовый ответ, а такая же команда, как и с обычной диктовки.
+    private func handleNoteOrReminderCommand(text: String, seconds: TimeInterval) -> Bool {
+        if settings.enableVoiceNotes, let noteContent = AppleNotesService.extractNoteText(from: text) {
+            AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
+            if settings.playSounds { NSSound(named: "Glass")?.play() }
+            if settings.keepHistory {
+                // В историю кладём произнесённую фразу целиком, а не обрезок после
+                // команды: если команда сработала ошибочно, это единственный способ
+                // вернуть текст — вставка-то не состоялась.
+                History.shared.add(HistoryEntry(text: "📝 \(text)",
+                                                seconds: seconds,
+                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+            }
+            showNoteSavedToast(title: noteContent)
+            return true
+        }
+
+        if settings.enableVoiceReminders, let rem = AppleRemindersService.extractReminder(from: text) {
+            AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList)
+            if settings.playSounds { NSSound(named: "Glass")?.play() }
+            if settings.keepHistory {
+                let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
+                // Как и с заметками — сохраняем сказанное целиком, срок дописываем справкой.
+                History.shared.add(HistoryEntry(text: "⏰ \(text)\(dueInfo)",
+                                                seconds: seconds,
+                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+            }
+            showReminderSavedToast(title: rem.title, dueDate: rem.dueDate)
+            return true
+        }
+
+        return false
+    }
+
     private func finishRouting(text: String, seconds: TimeInterval, latencyMs: Int) {
         lastResult = text.trimmingCharacters(in: .whitespaces)
 
@@ -508,36 +548,7 @@ final class DictationController: ObservableObject {
             return
         }
 
-        // Проверяем команду создания заметки в Apple Notes
-        if settings.enableVoiceNotes, let noteContent = AppleNotesService.extractNoteText(from: text) {
-            AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
-            if settings.playSounds { NSSound(named: "Glass")?.play() }
-            if settings.keepHistory {
-                // В историю кладём произнесённую фразу целиком, а не обрезок после
-                // команды: если команда сработала ошибочно, это единственный способ
-                // вернуть текст — вставка-то не состоялась.
-                History.shared.add(HistoryEntry(text: "📝 \(text)",
-                                                seconds: seconds,
-                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
-            }
-            showNoteSavedToast(title: noteContent)
-            return
-        }
-
-        // Проверяем команду создания напоминания в Apple Reminders
-        if settings.enableVoiceReminders, let rem = AppleRemindersService.extractReminder(from: text) {
-            AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList)
-            if settings.playSounds { NSSound(named: "Glass")?.play() }
-            if settings.keepHistory {
-                let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
-                // Как и с заметками — сохраняем сказанное целиком, срок дописываем справкой.
-                History.shared.add(HistoryEntry(text: "⏰ \(text)\(dueInfo)",
-                                                seconds: seconds,
-                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
-            }
-            showReminderSavedToast(title: rem.title, dueDate: rem.dueDate)
-            return
-        }
+        if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
 
         // Проверяем, доступно ли активное окно/поле для вставки
         let insertable = FocusInspector.canInsertText
