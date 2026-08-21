@@ -345,47 +345,99 @@ struct KeyCapBadge: View {
     }
 }
 
-/// Элегантный выпадающий список в стиле Wispr Flow (кнопка с текущим значением и chevron).
+/// Элегантный кастомный выпадающий список в стиле современной дизайн-системы Intact:
+/// - Кнопка-триггер с текущим значением и векторным шевроном.
+/// - Плавающий поповер со списком элементов, увеличенными отступами,
+///   выделением выбранного элемента галочкой слева, плавным ховером и отличной читаемостью.
 struct WisprDropdown<T: Hashable, Label: View>: View {
     @Binding var selection: T
     let options: [T]
     @ViewBuilder let label: (T) -> Label
+    @State private var isOpen = false
     @State private var hovering = false
 
     var body: some View {
-        Menu {
-            ForEach(options, id: \.self) { item in
-                Button {
-                    selection = item
-                } label: {
-                    label(item)
-                }
-            }
+        Button {
+            isOpen.toggle()
         } label: {
             HStack(spacing: 8) {
                 label(selection)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+
+                IntactIcon(kind: isOpen ? .chevronUp : .chevronDown, size: 8)
                     .foregroundStyle(Palette.textSecondary)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.vertical, 7.5)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(hovering ? Palette.pillHover : Palette.dropdownBg)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .stroke(Palette.hairline, lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.02), radius: 2, y: 1)
             )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(options, id: \.self) { item in
+                    let isSelected = item == selection
+                    WisprDropdownItemRow(
+                        isSelected: isSelected,
+                        action: {
+                            selection = item
+                            isOpen = false
+                        }
+                    ) {
+                        label(item)
+                    }
+                }
+            }
+            .padding(6)
+            .frame(minWidth: 200)
+            .background(Palette.card)
+        }
+    }
+}
+
+struct WisprDropdownItemRow<Label: View>: View {
+    let isSelected: Bool
+    let action: () -> Void
+    @ViewBuilder let content: () -> Label
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                // Чекмарк слева
+                ZStack {
+                    if isSelected {
+                        IntactIcon(kind: .copied, size: 12)
+                            .foregroundStyle(Palette.accent)
+                    }
+                }
+                .frame(width: 14, height: 14)
+
+                content()
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Palette.textPrimary : Palette.textSecondary)
+
+                Spacer(minLength: 12)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovered ? Palette.hover : (isSelected ? Palette.accent.opacity(0.08) : Color.clear))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -447,17 +499,16 @@ struct SearchableLanguageDropdown: View {
                             .fill(Palette.pill)
                     )
 
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                IntactIcon(kind: isOpen ? .chevronUp : .chevronDown, size: 8)
                     .foregroundStyle(Palette.textSecondary)
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.vertical, 7.5)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(hovering ? Palette.pillHover : Palette.dropdownBg)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .stroke(Palette.hairline, lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.02), radius: 2, y: 1)
@@ -542,14 +593,23 @@ struct SearchableLanguageDropdown: View {
     }
 
     private func languageRow(_ lang: Language) -> some View {
-        Button {
+        let isSelected = lang.code == selection
+        return Button {
             selection = lang.code
             isOpen = false
             search = ""
         } label: {
             HStack(spacing: 8) {
+                ZStack {
+                    if isSelected {
+                        IntactIcon(kind: .copied, size: 12)
+                            .foregroundStyle(Palette.accent)
+                    }
+                }
+                .frame(width: 14, height: 14)
+
                 Text(lang.displayName)
-                    .font(.system(size: 13, weight: lang.code == selection ? .semibold : .regular))
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(Palette.textPrimary)
 
                 Spacer()
@@ -563,19 +623,13 @@ struct SearchableLanguageDropdown: View {
                         Capsule()
                             .fill(Palette.pill)
                     )
-
-                if lang.code == selection {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Palette.accent)
-                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7.5)
             .contentShape(Rectangle())
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(lang.code == selection ? Palette.accent.opacity(0.10) : Color.clear)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isSelected ? Palette.accent.opacity(0.10) : Color.clear)
             )
         }
         .buttonStyle(.plain)

@@ -33,6 +33,7 @@ enum IntactIconKind: CaseIterable {
     case user           // пользователь (силуэт)
     case close          // крестик / закрыть
     case chevronDown    // шеврон вниз
+    case chevronUp      // шеврон вверх
     // Опции очистки истории
     case clearHour      // за последний час (часы со стрелкой отката)
     case clearToday     // за сегодня (календарь с цифрой 1)
@@ -69,6 +70,7 @@ extension IntactIconKind {
         case .user:          return UserIconShape()
         case .close:         return CloseIconShape()
         case .chevronDown:   return ChevronDownIconShape()
+        case .chevronUp:     return ChevronUpIconShape()
         case .clearHour:     return ClearHourIconShape()
         case .clearToday:    return ClearTodayIconShape()
         case .clearWeek:     return ClearWeekIconShape()
@@ -709,3 +711,16 @@ struct ClearAllIconShape: Shape {
         return p
     }
 }
+
+// MARK: - 31. ChevronUp
+struct ChevronUpIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.15, y: h * 0.65))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.30))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.65))
+        return p
+    }
+}
+
