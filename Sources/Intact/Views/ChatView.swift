@@ -6,6 +6,8 @@ import SwiftUI
 struct ChatView: View {
     @ObservedObject var chat = AIChatService.shared
     @ObservedObject var settings = AppSettings.shared
+    var onOpenSettings: ((SettingsSection?) -> Void)? = nil
+
     @State private var inputText: String = ""
     @State private var copiedMessageID: UUID? = nil
     @State private var showContextSettings = false
@@ -52,14 +54,23 @@ struct ChatView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Palette.textPrimary)
 
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(providerStatusColor)
-                        .frame(width: 6, height: 6)
-                    Text(providerStatusText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Palette.textSecondary)
+                Button {
+                    if let onOpenSettings {
+                        onOpenSettings(.ai)
+                    } else {
+                        SettingsWindow.shared.show()
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(providerStatusColor)
+                            .frame(width: 6, height: 6)
+                        Text(providerStatusText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Palette.textSecondary)
+                    }
                 }
+                .buttonStyle(.plain)
             }
 
             Spacer()
@@ -71,7 +82,11 @@ struct ChatView: View {
             }
 
             Button {
-                SettingsWindow.shared.show()
+                if let onOpenSettings {
+                    onOpenSettings(nil)
+                } else {
+                    SettingsWindow.shared.show()
+                }
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .medium))

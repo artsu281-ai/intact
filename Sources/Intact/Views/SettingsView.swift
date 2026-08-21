@@ -46,8 +46,16 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject private var controller = DictationController.shared
-    @State private var section: SettingsSection = .general
+    @Binding var section: SettingsSection
     @State private var searchText = ""
+
+    init(section: Binding<SettingsSection>? = nil) {
+        if let section {
+            self._section = section
+        } else {
+            self._section = .constant(.general)
+        }
+    }
 
     var body: some View {
         HStack(spacing: 0) {

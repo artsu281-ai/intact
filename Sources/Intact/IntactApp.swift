@@ -224,10 +224,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             LocalAIProvider.killAllOrphanedServers()
         }
 
-        // Если моделей ещё нет (первый запуск) — сразу открываем окно настроек для скачивания
+        // Если моделей ещё нет (первый запуск) — сразу открываем окно моделей для скачивания
         if !ModelManager.shared.hasAnyModelInstalled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                SettingsWindow.shared.show()
+                MainWindow.shared.show(tab: .settings, section: .models)
             }
         }
 
@@ -283,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Клик по значку в Dock, когда открытых окон нет.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        SettingsWindow.shared.show()
+        MainWindow.shared.show(tab: .chat)
         return true
     }
 
@@ -291,6 +291,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         let ctl = DictationController.shared
+
+        let chat = NSMenuItem(title: "Чат с ИИ…", action: #selector(dockOpenChat), keyEquivalent: "")
+        chat.target = self
+        menu.addItem(chat)
 
         let dictate = NSMenuItem(
             title: ctl.state == .recording ? "Остановить и распознать" : "Начать диктовку",
@@ -327,9 +331,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
+    @objc private func dockOpenChat() { MainWindow.shared.show(tab: .chat) }
     @objc private func dockToggleDictation() { DictationController.shared.toggle() }
     @objc private func dockCancel() { DictationController.shared.cancel() }
-    @objc private func dockOpenSettings() { SettingsWindow.shared.show() }
+    @objc private func dockOpenSettings() { MainWindow.shared.show(tab: .settings) }
     @objc private func dockCopyLast() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(DictationController.shared.lastResult, forType: .string)
