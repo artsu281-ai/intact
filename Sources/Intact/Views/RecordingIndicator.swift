@@ -158,7 +158,9 @@ struct IndicatorView: View {
 
                 Spacer(minLength: 8)
 
-                CircleIconButton(symbol: "xmark") { controller.dismissPending() }
+                DismissCountdownButton(seconds: controller.pendingRemainingSeconds) {
+                    controller.dismissPending()
+                }
             }
             .frame(height: 22)
 
@@ -251,6 +253,35 @@ struct SoftButton: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hovering ? Palette.pillHover : Palette.pill)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+struct DismissCountdownButton: View {
+    let seconds: Int
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if seconds > 0 {
+                    Text("\(seconds)с")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                Image(systemName: "xmark")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(Palette.textSecondary)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
                     .fill(hovering ? Palette.pillHover : Palette.pill)
             )
         }

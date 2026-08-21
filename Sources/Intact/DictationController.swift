@@ -33,6 +33,8 @@ final class DictationController: ObservableObject {
     @Published var noteSavedText: String? = nil
     /// Текст сохраненного напоминания для всплывающего статуса.
     @Published var reminderSavedText: String? = nil
+    /// Секунды до авто-закрытия карточки копирования.
+    @Published var pendingRemainingSeconds: Int = 0
 
     /// Было ли в фокусе редактируемое поле, когда начиналась диктовка.
     private var canInsert = true
@@ -394,13 +396,18 @@ final class DictationController: ObservableObject {
     private func offerCopy(_ text: String) {
         Log.write("вставить некуда — показываю кнопку копирования")
         pendingText = text
+        let timeout = max(2, settings.copyDismissTimeoutSeconds)
+        pendingRemainingSeconds = timeout
         indicator.show(controller: self, interactive: true)
         if settings.playSounds { NSSound(named: "Funk")?.play() }
 
         pendingTimer?.invalidate()
-        let timeout = Double(max(2, settings.copyDismissTimeoutSeconds))
-        pendingTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
-            self?.dismissPending()
+        pendingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.pendingRemainingSeconds -= 1
+            if self.pendingRemainingSeconds <= 0 {
+                self.dismissPending()
+            }
         }
     }
 
@@ -414,6 +421,7 @@ final class DictationController: ObservableObject {
     func dismissPending() {
         pendingTimer?.invalidate()
         pendingTimer = nil
+        pendingRemainingSeconds = 0
         pendingText = nil
         indicator.hide()
     }
