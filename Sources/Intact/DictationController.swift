@@ -340,7 +340,7 @@ final class DictationController: ObservableObject {
         }
 
         // Проверяем, доступно ли активное окно/поле для вставки
-        let insertable = canInsert || FocusInspector.canInsertText
+        let insertable = FocusInspector.canInsertText
         if !insertable && settings.outputMode != .clipboard {
             offerCopy(lastResult)
             return
