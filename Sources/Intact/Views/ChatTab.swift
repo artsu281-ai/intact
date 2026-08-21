@@ -10,6 +10,7 @@ struct ChatTab: View {
     @ObservedObject private var chat = AIChatService.shared
     @State private var inputText: String = ""
     @State private var copiedMessageID: UUID? = nil
+    @State private var showContextPopover: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,7 +35,7 @@ struct ChatTab: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
-                        // Быстрые действия — горизонтальные чипы
+                        // Быстрые действия — горизонтальные чипы с кастомными векторными иконками
                         VStack(alignment: .leading, spacing: 10) {
                             Text("БЫСТРЫЙ АНАЛИЗ")
                                 .font(.system(size: 11, weight: .semibold))
@@ -48,7 +49,7 @@ struct ChatTab: View {
                         // Ошибка
                         if let err = chat.errorMessage {
                             HStack(spacing: 8) {
-                                IntactIcon(kind: .warning, size: 13)
+                                IntactIcon(kind: .warning, size: 14)
                                     .foregroundStyle(.orange)
                                 Text(err)
                                     .font(.system(size: 12))
@@ -158,29 +159,28 @@ struct ChatTab: View {
 
             Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
 
-            // Контекст
-            Menu {
-                Toggle("Диктовки за сегодня", isOn: contextBinding(for: .dictationToday))
-                Toggle("Все недавние диктовки", isOn: contextBinding(for: .dictationRecent))
-                Toggle("Заметки Apple Notes", isOn: contextBinding(for: .appleNotes))
-                Toggle("Напоминания Reminders", isOn: contextBinding(for: .appleReminders))
+            // Кнопка контекста с кастомным поповером
+            Button {
+                showContextPopover.toggle()
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     IntactIcon(kind: .context, size: 12)
                     Text("Контекст: \(chat.selectedContextSources.count)")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4.5)
                 .background(
                     Capsule()
                         .fill(Palette.pill)
                         .overlay(Capsule().stroke(Palette.hairline, lineWidth: 1))
                 )
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
+            .buttonStyle(.plain)
+            .popover(isPresented: $showContextPopover, arrowEdge: .bottom) {
+                contextSelectionPopover
+            }
 
             Spacer()
 
@@ -198,6 +198,85 @@ struct ChatTab: View {
         }
         .padding(.horizontal, 40)
         .padding(.vertical, 10)
+    }
+
+    // MARK: - Поповер выбора источников контекста
+
+    private var contextSelectionPopover: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("ИСТОЧНИКИ ДАННЫХ ДЛЯ ИИ")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Palette.textTertiary)
+                .kerning(0.6)
+                .padding(.horizontal, 6)
+                .padding(.bottom, 2)
+
+            contextToggleRow(
+                source: .dictationToday,
+                icon: .voice,
+                title: "Диктовки за сегодня",
+                subtitle: "Анализировать голосовые записи сегодняшнего дня"
+            )
+            contextToggleRow(
+                source: .dictationRecent,
+                icon: .history,
+                title: "Все диктовки",
+                subtitle: "История прошлых дней"
+            )
+            contextToggleRow(
+                source: .appleNotes,
+                icon: .briefs,
+                title: "Заметки Apple Notes",
+                subtitle: "Заметки из папки Intact"
+            )
+            contextToggleRow(
+                source: .appleReminders,
+                icon: .quickTasks,
+                title: "Напоминания",
+                subtitle: "Задачи из Apple Reminders"
+            )
+        }
+        .padding(14)
+        .frame(width: 280)
+    }
+
+    private func contextToggleRow(source: AIContextSource, icon: IntactIconKind, title: String, subtitle: String) -> some View {
+        let isSelected = chat.selectedContextSources.contains(source)
+        return Button {
+            if isSelected { chat.selectedContextSources.remove(source) }
+            else { chat.selectedContextSources.insert(source) }
+        } label: {
+            HStack(spacing: 10) {
+                IntactIcon(kind: icon, size: 15)
+                    .foregroundStyle(isSelected ? Palette.accent : Palette.textTertiary)
+                    .frame(width: 18)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(subtitle)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(Palette.textTertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    IntactIcon(kind: .copied, size: 13)
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Palette.accent.opacity(0.08) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var providerStatusColor: Color {
@@ -223,17 +302,18 @@ struct ChatTab: View {
 
     private var quickChipsRow: some View {
         HStack(spacing: 10) {
-            quickChip(icon: "⚡️", label: "Сводка за сегодня")  { chat.analyzeTodayDictations() }
-            quickChip(icon: "📋", label: "Извлечь задачи")      { chat.extractTasksFromHistoryAndNotes() }
-            quickChip(icon: "📝", label: "Сводка Notes")        { chat.summarizeNotes() }
+            quickChip(iconKind: .quickSummary, label: "Сводка за сегодня")  { chat.analyzeTodayDictations() }
+            quickChip(iconKind: .quickTasks,   label: "Извлечь задачи")      { chat.extractTasksFromHistoryAndNotes() }
+            quickChip(iconKind: .quickNotes,   label: "Сводка Notes")        { chat.summarizeNotes() }
             Spacer()
         }
     }
 
-    private func quickChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
+    private func quickChip(iconKind: IntactIconKind, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Text(icon).font(.system(size: 14))
+            HStack(spacing: 7) {
+                IntactIcon(kind: iconKind, size: 14)
+                    .foregroundStyle(Palette.accent)
                 Text(label)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
@@ -312,6 +392,8 @@ struct ChatTab: View {
                     }
 
                     if isUser {
+                        IntactIcon(kind: .user, size: 11)
+                            .foregroundStyle(Palette.textTertiary)
                         Text("Вы")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Palette.textTertiary)
@@ -352,7 +434,7 @@ struct ChatTab: View {
                             if copiedMessageID == msg.id { copiedMessageID = nil }
                         }
                     } label: {
-                        HStack(spacing: 3) {
+                        HStack(spacing: 4) {
                             IntactIcon(kind: copiedMessageID == msg.id ? .copied : .copy, size: 12)
                             Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать")
                                 .font(.system(size: 10))
@@ -416,16 +498,6 @@ struct ChatTab: View {
         guard !text.isEmpty else { return }
         inputText = ""
         chat.send(prompt: text)
-    }
-
-    private func contextBinding(for source: AIContextSource) -> Binding<Bool> {
-        Binding(
-            get: { chat.selectedContextSources.contains(source) },
-            set: { enabled in
-                if enabled { chat.selectedContextSources.insert(source) }
-                else { chat.selectedContextSources.remove(source) }
-            }
-        )
     }
 
     private func timeString(from date: Date) -> String {

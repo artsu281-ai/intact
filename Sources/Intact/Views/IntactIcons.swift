@@ -30,6 +30,7 @@ enum IntactIconKind {
     case search         // лупа
     case warning        // предупреждение
     case lock           // замок / приватность
+    case user           // пользователь (силуэт)
 }
 
 struct IntactIcon: View {
@@ -67,6 +68,7 @@ struct IntactIcon: View {
         case .search:        SearchIconShape().aspectRatio(contentMode: .fit)
         case .warning:       WarningIconShape().aspectRatio(contentMode: .fit)
         case .lock:          LockIconShape().aspectRatio(contentMode: .fit)
+        case .user:          UserIconShape().aspectRatio(contentMode: .fit)
         }
     }
 }
@@ -435,6 +437,7 @@ struct SidebarIntactIcon: View {
             case .search:       shape = SearchIconShape()
             case .warning:      shape = WarningIconShape()
             case .lock:         shape = LockIconShape()
+            case .user:         shape = UserIconShape()
             }
             let path = shape.path(in: rect)
             ctx.stroke(path,
@@ -642,4 +645,21 @@ struct LockIconShape: Shape {
         return p
     }
 }
+
+// MARK: - User (силуэт пользователя: голова и плечи)
+struct UserIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let cx = w * 0.50
+        var p = Path()
+        // Голова
+        let hr = w * 0.22
+        p.addEllipse(in: CGRect(x: cx - hr, y: h * 0.08, width: hr * 2, height: hr * 2))
+        // Плечи
+        p.addArc(center: CGPoint(x: cx, y: h * 0.90), radius: w * 0.36,
+                 startAngle: .degrees(190), endAngle: .degrees(350), clockwise: false)
+        return p
+    }
+}
+
 

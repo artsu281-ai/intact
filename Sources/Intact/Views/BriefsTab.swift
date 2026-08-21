@@ -14,19 +14,19 @@ struct BriefsTab: View {
                 Row(title: "Сводка за сегодня",
                     subtitle: "ИИ анализирует все диктовки за сегодня и даёт краткое резюме",
                     first: true) {
-                    quickChip(icon: "⚡️", label: "Запустить") {
+                    quickChip(iconKind: .quickSummary, label: "Запустить") {
                         chat.analyzeTodayDictations()
                     }
                 }
                 Row(title: "Извлечь задачи и TODO",
                     subtitle: "Находит действия, которые нужно сделать, из голосовых записей") {
-                    quickChip(icon: "📋", label: "Извлечь") {
+                    quickChip(iconKind: .quickTasks, label: "Извлечь") {
                         chat.extractTasksFromHistoryAndNotes()
                     }
                 }
                 Row(title: "Сводка Apple Notes",
                     subtitle: "Краткое резюме всех заметок из папки Intact в Apple Notes") {
-                    quickChip(icon: "📝", label: "Сводка") {
+                    quickChip(iconKind: .quickNotes, label: "Сводка") {
                         chat.summarizeNotes()
                     }
                 }
@@ -137,10 +137,11 @@ struct BriefsTab: View {
         }
     }
 
-    private func quickChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
+    private func quickChip(iconKind: IntactIconKind, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Text(icon).font(.system(size: 13))
+            HStack(spacing: 6) {
+                IntactIcon(kind: iconKind, size: 14)
+                    .foregroundStyle(Palette.accent)
                 Text(label)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
