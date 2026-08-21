@@ -1,5 +1,39 @@
+import AppKit
+import SwiftUI
 import Foundation
 import Carbon.HIToolbox
+
+enum AppTheme: String, CaseIterable, Identifiable {
+    case system = "system"
+    case light = "light"
+    case dark = "dark"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return "Системная"
+        case .light:  return "Светлая (Sand)"
+        case .dark:   return "Тёмная (Onyx)"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light:  return NSAppearance(named: .aqua)
+        case .dark:   return NSAppearance(named: .darkAqua)
+        }
+    }
+}
 
 enum OutputMode: String, CaseIterable, Identifiable {
     case live, paste, type, clipboard
@@ -114,6 +148,7 @@ final class AppSettings: ObservableObject {
     @Published var playSounds: Bool { didSet { d.set(playSounds, forKey: "playSounds") } }
     @Published var muteAudioWhileDictating: Bool { didSet { d.set(muteAudioWhileDictating, forKey: "muteAudioWhileDictating") } }
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
+    @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
@@ -125,6 +160,10 @@ final class AppSettings: ObservableObject {
     var onEngineChange: (() -> Void)?
     /// Вызывается при переключении значка в Dock.
     var onDockIconChange: (() -> Void)?
+
+    func applyTheme() {
+        NSApp.appearance = appTheme.nsAppearance
+    }
 
     private init() {
         let defaultModel = NSString(string: "~/Models/whisper/ggml-large-v3.bin").expandingTildeInPath
@@ -156,9 +195,12 @@ final class AppSettings: ObservableObject {
         playSounds = d.object(forKey: "playSounds") == nil ? true : d.bool(forKey: "playSounds")
         muteAudioWhileDictating = d.object(forKey: "muteAudioWhileDictating") == nil ? true : d.bool(forKey: "muteAudioWhileDictating")
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
+        appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .system
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
         showDockIcon = d.object(forKey: "showDockIcon") == nil ? true : d.bool(forKey: "showDockIcon")
+
+        applyTheme()
     }
 }

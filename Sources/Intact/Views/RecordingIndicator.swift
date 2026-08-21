@@ -3,22 +3,21 @@ import SwiftUI
 
 struct IndicatorView: View {
     @ObservedObject var controller: DictationController
+    @ObservedObject private var settings = AppSettings.shared
 
-    static let width: CGFloat = 470
-    static let listeningSize = NSSize(width: 380, height: 58)
-    private static let pad: CGFloat = 20
-    private static let bodyFont = NSFont.systemFont(ofSize: 15)
+    static let width: CGFloat = 420
+    static let listeningSize = NSSize(width: 156, height: 40)
+    private static let copyPad: CGFloat = 16
+    private static let bodyFont = NSFont.systemFont(ofSize: 14)
 
-    /// Высота считается по реальному тексту: fittingSize у NSHostingView
-    /// до попадания в окно врёт, а фиксированная высота оставляла пустую полосу.
     static func copySize(for text: String) -> NSSize {
-        NSSize(width: width, height: pad + 22 + 14 + textHeight(text) + 16 + 30 + pad)
+        NSSize(width: width, height: copyPad + 20 + 12 + textHeight(text) + 14 + 28 + copyPad)
     }
 
     static func textHeight(_ text: String) -> CGFloat {
         let lineHeight = ceil(bodyFont.boundingRectForFont.height) + 3
         let box = (text as NSString).boundingRect(
-            with: NSSize(width: width - pad * 2, height: lineHeight * 3),
+            with: NSSize(width: width - copyPad * 2, height: lineHeight * 3),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: bodyFont])
         return min(ceil(box.height), lineHeight * 3)
@@ -28,47 +27,66 @@ struct IndicatorView: View {
         Group {
             if let pending = controller.pendingText {
                 noPlaceToInsert(text: pending)
+                    .padding(Self.copyPad)
+                    .frame(width: Self.copySize(for: pending).width,
+                           height: Self.copySize(for: pending).height)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
+                    )
             } else {
                 listening
+                    .padding(.horizontal, 14)
+                    .frame(width: Self.listeningSize.width, height: Self.listeningSize.height)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.88))
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+                            )
+                            .shadow(color: Color.black.opacity(0.22), radius: 12, y: 4)
+                    )
             }
         }
-        .padding(Self.pad)
-        .frame(width: size.width, height: size.height)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.black.opacity(0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-                )
-        )
+        .preferredColorScheme(settings.appTheme.colorScheme)
     }
 
-    private var size: NSSize {
-        if let pending = controller.pendingText { return Self.copySize(for: pending) }
-        return Self.listeningSize
-    }
-
-    // MARK: - Идёт запись
+    // MARK: - Компактный эстетичный спектр и индикатор записи
 
     private var listening: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             switch controller.state {
             case .recording:
                 Image(systemName: "mic.fill")
-                    .foregroundStyle(.white.opacity(0.85))
-                    .font(.system(size: 14, weight: .medium))
-                Waveform(samples: controller.waveform)
-                    .frame(height: 30)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+
+                CompactEqualizer(level: controller.level)
+                    .frame(width: 34, height: 16)
+
+                Spacer(minLength: 0)
+
+                Text(controller.elapsedText)
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.75))
+
             case .transcribing:
                 ProgressView()
-                    .controlSize(.small)
+                    .controlSize(.mini)
                     .tint(.white)
+
                 Text("Распознаю…")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
                     .fixedSize()
+
             case .idle:
                 EmptyView()
             }
@@ -79,34 +97,34 @@ struct IndicatorView: View {
 
     private func noPlaceToInsert(text: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: "waveform")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.primary)
 
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
 
-                Text("Поставь курсор в поле и продиктуй снова")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.45))
+                Text("Поставьте курсор в поле ввода")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color.secondary)
                     .lineLimit(1)
 
                 CircleIconButton(symbol: "xmark") { controller.dismissPending() }
             }
-            .frame(height: 22)
+            .frame(height: 20)
 
-            Spacer().frame(height: 14)
+            Spacer().frame(height: 12)
 
             Text(text)
-                .font(.system(size: 15))
-                .foregroundStyle(.white.opacity(0.95))
+                .font(.system(size: 14))
+                .foregroundStyle(Color.primary)
                 .lineSpacing(3)
                 .lineLimit(3)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: Self.textHeight(text), alignment: .top)
 
-            Spacer().frame(height: 16)
+            Spacer().frame(height: 14)
 
             HStack {
                 Spacer()
@@ -114,13 +132,61 @@ struct IndicatorView: View {
                     controller.copyPending()
                 }
             }
-            .frame(height: 30)
+            .frame(height: 28)
         }
     }
 }
 
-/// Свои кнопки вместо системных: в неактивной панели те рисуются серыми
-/// и выглядят сломанными, а вид не должен зависеть от того, какое окно активно.
+// MARK: - Компактный анимированный эквалайзер
+
+/// Короткий, ультра-эстетичный спектр из 5 живых анимированных столбиков,
+/// реагирующих на громкость голоса в реальном времени.
+struct CompactEqualizer: View {
+    let level: Float
+
+    var body: some View {
+        HStack(spacing: 3) {
+            EqualizerBar(index: 0, level: level, minH: 3, maxH: 10, weight: 0.6)
+            EqualizerBar(index: 1, level: level, minH: 4, maxH: 15, weight: 0.9)
+            EqualizerBar(index: 2, level: level, minH: 5, maxH: 18, weight: 1.0)
+            EqualizerBar(index: 3, level: level, minH: 4, maxH: 15, weight: 0.85)
+            EqualizerBar(index: 4, level: level, minH: 3, maxH: 10, weight: 0.55)
+        }
+    }
+}
+
+private struct EqualizerBar: View {
+    let index: Int
+    let level: Float
+    let minH: CGFloat
+    let maxH: CGFloat
+    let weight: CGFloat
+
+    private var calculatedHeight: CGFloat {
+        let raw = CGFloat(max(0, min(1, level)))
+        let h = minH + (maxH - minH) * (raw * weight * 1.8)
+        return min(maxH, max(minH, h))
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.95, green: 0.95, blue: 0.98),
+                        Color(red: 0.78, green: 0.84, blue: 0.96)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 2.8, height: calculatedHeight)
+            .animation(.spring(response: 0.12, dampingFraction: 0.65), value: calculatedHeight)
+    }
+}
+
+// MARK: - Кнопки панели
+
 struct SoftButton: View {
     let title: String
     let symbol: String
@@ -129,14 +195,16 @@ struct SoftButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 12, weight: .medium))
-                Text(title).font(.system(size: 13, weight: .medium))
+            HStack(spacing: 5) {
+                Image(systemName: symbol).font(.system(size: 11, weight: .medium))
+                Text(title).font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(Color.white.opacity(hovering ? 0.26 : 0.16)))
+            .foregroundStyle(Color.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(
+                Capsule().fill(Color.primary.opacity(hovering ? 0.14 : 0.08))
+            )
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -151,51 +219,18 @@ struct CircleIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white.opacity(hovering ? 0.95 : 0.6))
-                .frame(width: 22, height: 22)
-                .background(Circle().fill(Color.white.opacity(hovering ? 0.22 : 0.12)))
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color.secondary.opacity(hovering ? 1.0 : 0.7))
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0.06)))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
     }
 }
 
-/// Бегущая волна: новые отсчёты вплывают справа, старые уходят влево.
-/// Тишина остаётся точками, громкая речь вытягивается в высокие штрихи —
-/// сразу видно, что микрофон слышит именно голос, а не шум.
-struct Waveform: View {
-    let samples: [Float]
-    var color: Color = Color(red: 0.36, green: 0.62, blue: 1.0)
-    var bars: Int = 48
+// MARK: - Панель NSPanel
 
-    var body: some View {
-        Canvas { context, size in
-            let slot = size.width / CGFloat(bars)
-            let width = max(2, slot * 0.44)
-            let middle = size.height / 2
-
-            for i in 0..<bars {
-                let index = samples.count - bars + i
-                let value = (index >= 0 && index < samples.count) ? CGFloat(samples[index]) : 0
-
-                // Минимум — точка размером в толщину штриха.
-                let height = max(width, value * size.height)
-                let x = CGFloat(i) * slot + (slot - width) / 2
-                let rect = CGRect(x: x, y: middle - height / 2, width: width, height: height)
-
-                context.fill(Path(roundedRect: rect, cornerRadius: width / 2),
-                             with: .color(color.opacity(0.35 + 0.65 * min(1, value * 3))))
-            }
-        }
-        .animation(.linear(duration: 0.05), value: samples.count)
-    }
-}
-
-/// Плавающая панель поверх всех окон.
-///
-/// Во время записи она не должна перехватывать клики, а когда показывает
-/// кнопку «Скопировать» — обязана, поэтому пересоздаётся при смене режима.
 final class IndicatorPanel {
     private var panel: NSPanel?
     private var isInteractive = false
@@ -217,13 +252,11 @@ final class IndicatorPanel {
         p.contentView = hosting
         p.isOpaque = false
         p.backgroundColor = .clear
-        p.hasShadow = true
+        p.hasShadow = false
         p.level = .statusBar
         p.ignoresMouseEvents = !interactive
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         reposition(p)
-        // Фокус у чужого приложения не отнимаем: кнопки нарисованы своими стилями
-        // и не зависят от того, активно окно или нет.
         p.orderFrontRegardless()
 
         panel = p
@@ -245,8 +278,6 @@ final class IndicatorPanel {
     }
 }
 
-/// Обычная NSPanel не становится активной; здесь это включаемо,
-/// чтобы работал Enter на кнопке по умолчанию.
 final class KeyablePanel: NSPanel {
     var acceptsKey = false
     override var canBecomeKey: Bool { acceptsKey }

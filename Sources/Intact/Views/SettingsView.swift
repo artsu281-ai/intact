@@ -52,6 +52,7 @@ struct SettingsView: View {
         }
         .frame(minWidth: 920, minHeight: 680)
         .background(Palette.page)
+        .preferredColorScheme(settings.appTheme.colorScheme)
     }
 
     // MARK: Боковик
@@ -313,16 +314,24 @@ struct SystemTab: View {
     var body: some View {
         SettingsPage(title: "System") {
             Card(header: "Настройки приложения") {
-                Row(title: "Запускать при входе в систему",
-                    subtitle: "Автоматический запуск VoiceInput вместе с macOS",
+                Row(title: "Тема оформления",
+                    subtitle: "Светлая (Sand), тёмная (Onyx) или системная",
                     first: true) {
+                    WisprDropdown(selection: $settings.appTheme,
+                                  options: AppTheme.allCases) { theme in
+                        Text(theme.title)
+                    }
+                }
+
+                Row(title: "Запускать при входе в систему",
+                    subtitle: "Автоматический запуск Intact вместе с macOS") {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .toggleStyle(WisprToggleStyle())
                         .onChange(of: settings.launchAtLogin) { _, new in LoginItem.set(enabled: new) }
                 }
 
-                Row(title: "Показывать панель во время записи",
-                    subtitle: "Плавающий индикатор с бегущей волной звука") {
+                Row(title: "Показывать индикатор во время записи",
+                    subtitle: "Компактный плавающий статус с живым мини-эквалайзером") {
                     Toggle("", isOn: $settings.showIndicator)
                         .toggleStyle(WisprToggleStyle())
                 }
@@ -747,11 +756,11 @@ struct MicrophoneTab: View {
                     first: true) {
                     HStack(spacing: 12) {
                         if controller.state == .recording {
-                            Waveform(samples: controller.waveform)
-                                .frame(width: 140, height: 26)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.85)))
+                            CompactEqualizer(level: controller.level)
+                                .frame(width: 36, height: 18)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Capsule().fill(Color.black.opacity(0.85)))
                         }
                         if controller.state == .transcribing {
                             ProgressView().controlSize(.small)
