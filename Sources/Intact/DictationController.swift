@@ -332,7 +332,8 @@ final class DictationController: ObservableObject {
         if settings.playSounds { NSSound(named: "Funk")?.play() }
 
         pendingTimer?.invalidate()
-        pendingTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+        let timeout = Double(max(2, settings.copyDismissTimeoutSeconds))
+        pendingTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
             self?.dismissPending()
         }
     }

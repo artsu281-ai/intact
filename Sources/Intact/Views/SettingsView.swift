@@ -383,6 +383,14 @@ struct SystemTab: View {
                     Toggle("", isOn: $settings.keepHistory)
                         .toggleStyle(WisprToggleStyle())
                 }
+
+                Row(title: "Таймаут карточки копирования",
+                    subtitle: "Через сколько секунд скрывать окно, если поле ввода не было выбрано") {
+                    WisprDropdown(selection: $settings.copyDismissTimeoutSeconds,
+                                  options: [3, 5, 10, 15, 30]) { sec in
+                        Text("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")")
+                    }
+                }
             }
 
             AdvancedBlock(expanded: $advanced) {

@@ -149,6 +149,7 @@ final class AppSettings: ObservableObject {
     @Published var muteAudioWhileDictating: Bool { didSet { d.set(muteAudioWhileDictating, forKey: "muteAudioWhileDictating") } }
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
     @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
+    @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
@@ -198,6 +199,7 @@ final class AppSettings: ObservableObject {
         muteAudioWhileDictating = d.object(forKey: "muteAudioWhileDictating") == nil ? true : d.bool(forKey: "muteAudioWhileDictating")
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
         appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .system
+        copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
