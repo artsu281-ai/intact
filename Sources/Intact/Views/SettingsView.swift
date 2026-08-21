@@ -22,7 +22,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .chat:       return "bubble.left.and.sparkles"
+        case .chat:       return "bubble.left.and.bubble.right"
         case .history:    return "clock.arrow.circlepath"
         case .general:    return "slider.horizontal.3"
         case .models:     return "square.stack.3d.up"
