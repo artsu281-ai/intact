@@ -7,7 +7,7 @@ final class ChatWindow {
     private init() {}
 
     func show() {
-        MainWindow.shared.show(tab: .chat)
+        MainWindow.shared.show(section: .chat)
     }
 
     func toggle() {

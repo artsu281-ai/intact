@@ -2,40 +2,44 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, system, models, ai, language, microphone, history, about
+    case chat, history, general, models, ai, language, microphone, system, appearance, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .chat:       return L10n.tabChat
+        case .history:    return L10n.tabHistory
         case .general:    return L10n.tabGeneral
-        case .appearance: return L10n.tabAppearance
-        case .system:     return L10n.tabSystem
         case .models:     return L10n.tabModels
         case .ai:         return L10n.tabAI
         case .language:   return L10n.tabLanguage
         case .microphone: return L10n.tabMicrophone
-        case .history:    return L10n.tabHistory
+        case .system:     return L10n.tabSystem
+        case .appearance: return L10n.tabAppearance
         case .about:      return L10n.tabAbout
         }
     }
 
     var icon: String {
         switch self {
+        case .chat:       return "bubble.left.and.sparkles"
+        case .history:    return "clock.arrow.circlepath"
         case .general:    return "slider.horizontal.3"
-        case .appearance: return "paintpalette"
-        case .system:     return "macwindow"
         case .models:     return "square.stack.3d.up"
         case .ai:         return "sparkles"
         case .language:   return "character.bubble"
         case .microphone: return "mic"
-        case .history:    return "clock.arrow.circlepath"
+        case .system:     return "macwindow"
+        case .appearance: return "paintpalette"
         case .about:      return "info.circle"
         }
     }
 
     var category: String {
         switch self {
-        case .general, .appearance, .system, .models, .ai, .language, .microphone, .history:
+        case .chat, .history:
+            return "WORKSPACE"
+        case .general, .models, .ai, .language, .microphone, .system, .appearance:
             return "SETTINGS"
         case .about:
             return "ABOUT"
@@ -110,8 +114,8 @@ struct SettingsView: View {
             .padding(.bottom, 6)
 
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Обычный сайдбар
-                Text(L10n.sectionSettings)
+                // Рабочее пространство: Ассистент и История
+                Text(L10n.sectionWorkspace)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
@@ -119,16 +123,30 @@ struct SettingsView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 8)
 
+                ForEach(SettingsSection.allCases.filter { $0.category == "WORKSPACE" }) { item in
+                    SidebarRow(item: item, selected: item == section) { section = item }
+                }
+
+                // Настройки
+                Text(L10n.sectionSettings)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 18)
+                    .padding(.bottom, 8)
+
                 ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
                     SidebarRow(item: item, selected: item == section) { section = item }
                 }
 
+                // О программе
                 Text(L10n.sectionInfo)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
                     .padding(.horizontal, 14)
-                    .padding(.top, 22)
+                    .padding(.top, 18)
                     .padding(.bottom, 8)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
@@ -228,14 +246,15 @@ struct SettingsView: View {
     private var detail: some View {
         Group {
             switch section {
+            case .chat:       ChatTab(settings: settings, onOpenSection: { section = $0 })
+            case .history:    HistoryTab()
             case .general:    GeneralTab(settings: settings)
-            case .appearance: AppearanceTab(settings: settings)
-            case .system:     SystemTab(settings: settings)
             case .models:     ModelsHub(settings: settings)
             case .ai:         AITab(settings: settings, onOpenModels: { section = .models })
             case .language:   LanguageTab(settings: settings)
             case .microphone: MicrophoneTab(settings: settings)
-            case .history:    HistoryTab()
+            case .system:     SystemTab(settings: settings)
+            case .appearance: AppearanceTab(settings: settings)
             case .about:      AboutTab(settings: settings)
             }
         }
@@ -256,6 +275,11 @@ final class SettingsSearchIndex {
     static let shared = SettingsSearchIndex()
 
     let entries: [SettingsSearchEntry] = [
+        // Чат и ассистент (Chat & Workspace)
+        .init(title: "Чат с ИИ", subtitle: "Диалог с персональным ассистентом", section: .chat,
+              keywords: ["чат", "chat", "ии", "ai", "ассистент", "assistant", "диалог", "вопрос", "сообщение"]),
+        .init(title: "Анализ записей", subtitle: "Сводка голосовых диктовок и заметок", section: .chat,
+              keywords: ["анализ", "сводка", "заметки", "задачи", "todo", "выжимка", "история", "диктовки"]),
         // Основное (General)
         .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .general,
               keywords: ["горячая", "клавиша", "hotkey", "hot key", "shortcut", "шорткат", "клавиатура", "keyboard", "модификатор", "modifier", "option", "alt"]),

@@ -227,7 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Если моделей ещё нет (первый запуск) — сразу открываем окно моделей для скачивания
         if !ModelManager.shared.hasAnyModelInstalled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                MainWindow.shared.show(tab: .settings, section: .models)
+                MainWindow.shared.show(section: .models)
             }
         }
 
@@ -283,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Клик по значку в Dock, когда открытых окон нет.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MainWindow.shared.show(tab: .chat)
+        MainWindow.shared.show(section: .general)
         return true
     }
 
@@ -331,10 +331,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
-    @objc private func dockOpenChat() { MainWindow.shared.show(tab: .chat) }
+    @objc private func dockOpenChat() { MainWindow.shared.show(section: .chat) }
     @objc private func dockToggleDictation() { DictationController.shared.toggle() }
     @objc private func dockCancel() { DictationController.shared.cancel() }
-    @objc private func dockOpenSettings() { MainWindow.shared.show(tab: .settings) }
+    @objc private func dockOpenSettings() { MainWindow.shared.show(section: .general) }
     @objc private func dockCopyLast() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(DictationController.shared.lastResult, forType: .string)
