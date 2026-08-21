@@ -91,7 +91,7 @@ struct SettingsView: View {
 
                 TextField(L10n.isRu ? "Поиск настроек…" : "Search settings…", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13.5))
                     .foregroundStyle(Palette.textPrimary)
 
                 if !searchText.isEmpty {
@@ -197,7 +197,7 @@ struct SettingsView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.8), value: searchText.isEmpty)
         .padding(.horizontal, 12)
         .padding(.bottom, 16)
-        .frame(width: 236)
+        .frame(width: 244)
         .background(Palette.sidebar)
     }
 
@@ -461,7 +461,7 @@ struct SidebarRow: View {
                     .scaleEffect(selected ? 1.06 : 1.0)
                     .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
                 Text(item.title)
-                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
+                    .font(.system(size: 14, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
                 Spacer(minLength: 0)
             }
@@ -1672,13 +1672,14 @@ struct HistoryRow: View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(entry.text)
-                        .font(.system(size: 13.5))
+                        .font(.system(size: 14))
                         .foregroundStyle(Palette.textPrimary)
                         .textSelection(.enabled)
                         .lineLimit(3)
+                        .lineSpacing(2.5)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)")
-                        .font(.system(size: 11.5))
+                        .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 }
                 Spacer(minLength: 12)

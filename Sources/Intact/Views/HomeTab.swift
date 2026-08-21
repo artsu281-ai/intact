@@ -114,12 +114,12 @@ struct HomeTab: View {
             // Текст
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16.5, weight: .semibold))
                     .foregroundStyle(Palette.textPrimary)
                 Text(description)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundStyle(Palette.textSecondary)
-                    .lineSpacing(2)
+                    .lineSpacing(2.5)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -130,29 +130,29 @@ struct HomeTab: View {
                 HStack(spacing: 5) {
                     Circle().fill(statusColor).frame(width: 6, height: 6)
                     Text(status)
-                        .font(.system(size: 11))
+                        .font(.system(size: 11.5))
                         .foregroundStyle(Palette.textTertiary)
                 }
                 Button(action: action) {
                     Text(actionLabel)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
                         .foregroundStyle(accentColor)
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
+                        .padding(.vertical, 7.5)
                         .background(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .fill(accentColor.opacity(0.10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                                         .strokeBorder(accentColor.opacity(0.22), lineWidth: 1)
-                                )
+                                        )
                         )
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: 204, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Palette.card)
@@ -191,10 +191,10 @@ struct HomeTab: View {
     private func statItem(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
                 .foregroundStyle(Palette.textPrimary)
             Text(label)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(Palette.textTertiary)
         }
         .padding(.horizontal, 18)
@@ -211,7 +211,7 @@ struct HomeTab: View {
     private var recentEntriesSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ПОСЛЕДНИЕ ЗАПИСИ")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
 
@@ -233,7 +233,7 @@ struct HomeTab: View {
                 onOpenSection(.history)
             } label: {
                 Text("Вся история →")
-                    .font(.system(size: 12))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.accent)
             }
             .buttonStyle(.plain)
@@ -243,14 +243,14 @@ struct HomeTab: View {
     private func recentRow(_ entry: HistoryEntry) -> some View {
         HStack(spacing: 12) {
             Text(timeString(from: entry.date))
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(Palette.textTertiary)
                 .frame(width: 42, alignment: .trailing)
             Rectangle()
                 .fill(Palette.hairline)
                 .frame(width: 1, height: 22)
             Text(entry.text)
-                .font(.system(size: 13))
+                .font(.system(size: 13.5))
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -265,7 +265,7 @@ struct HomeTab: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 10.5)
         .overlay(
             Rectangle()
                 .fill(Palette.hairline)
@@ -280,10 +280,10 @@ struct HomeTab: View {
             SidebarIntactIcon(kind: .voice, selected: false, size: 20)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Начни диктовку")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13.5, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
                 Text("Удержи \(settings.triggerKey.symbol) и скажи что-нибудь — здесь появятся твои записи")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(Palette.textSecondary)
             }
             Spacer()

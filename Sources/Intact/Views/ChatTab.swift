@@ -315,11 +315,11 @@ struct ChatTab: View {
                 IntactIcon(kind: iconKind, size: 14)
                     .foregroundStyle(Palette.accent)
                 Text(label)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 7.5)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Palette.card)
@@ -344,10 +344,10 @@ struct ChatTab: View {
                 .foregroundStyle(Palette.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Ассистент готов к работе")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14.5, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
                 Text("Задайте вопрос ниже или запустите быстрый анализ выше")
-                    .font(.system(size: 12))
+                    .font(.system(size: 12.5))
                     .foregroundStyle(Palette.textSecondary)
             }
             Spacer()
@@ -378,15 +378,15 @@ struct ChatTab: View {
                         IntactIcon(kind: .aiStar, size: 11)
                             .foregroundStyle(Palette.accent)
                         Text("Intact ИИ")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(Palette.accent)
                     }
 
                     ForEach(msg.contextBadges, id: \.self) { badge in
                         Text(badge)
-                            .font(.system(size: 9.5, weight: .medium))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
+                            .font(.system(size: 10, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
                             .background(Capsule().fill(Palette.pill))
                             .foregroundStyle(Palette.textSecondary)
                     }
@@ -395,23 +395,23 @@ struct ChatTab: View {
                         IntactIcon(kind: .user, size: 11)
                             .foregroundStyle(Palette.textTertiary)
                         Text("Вы")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(Palette.textTertiary)
                     }
 
                     Text(timeString(from: msg.timestamp))
-                        .font(.system(size: 10))
+                        .font(.system(size: 10.5))
                         .foregroundStyle(Palette.textTertiary)
                 }
 
                 // Тело пузыря
                 Text(msg.content)
-                    .font(.system(size: 13))
+                    .font(.system(size: 14))
                     .foregroundStyle(Palette.textPrimary)
                     .textSelection(.enabled)
-                    .lineSpacing(3)
+                    .lineSpacing(3.5)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 10.5)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(isUser ? Palette.accent.opacity(0.11) : Palette.card)
@@ -437,7 +437,7 @@ struct ChatTab: View {
                         HStack(spacing: 4) {
                             IntactIcon(kind: copiedMessageID == msg.id ? .copied : .copy, size: 12)
                             Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать")
-                                .font(.system(size: 10))
+                                .font(.system(size: 11))
                         }
                         .foregroundStyle(Palette.textTertiary)
                     }
@@ -460,10 +460,10 @@ struct ChatTab: View {
             TextField("Спросите что-нибудь или сформулируйте задачу…", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
                 .lineLimit(1...5)
-                .font(.system(size: 13))
+                .font(.system(size: 14))
                 .foregroundStyle(Palette.textPrimary)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Palette.card)
@@ -478,7 +478,7 @@ struct ChatTab: View {
             Button { sendMessage() } label: {
                 IntactIcon(kind: chat.isGenerating ? .stop : .send, size: 14)
                     .foregroundStyle(canSend ? .white : Palette.textTertiary)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 36, height: 36)
                     .background(
                         Circle().fill(canSend ? Palette.accent : Palette.pill)
                     )

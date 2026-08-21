@@ -209,11 +209,11 @@ struct SettingsPage<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 32, weight: .regular, design: .serif))
+                .font(.system(size: 34, weight: .regular, design: .serif))
                 .foregroundStyle(Palette.textPrimary)
                 .padding(.horizontal, 40)
                 .padding(.top, 46)
-                .padding(.bottom, 28)
+                .padding(.bottom, 24)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
@@ -237,7 +237,7 @@ struct Card<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) {
             if let header {
                 Text(header.uppercased())
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
                     .padding(.leading, 4)
@@ -276,16 +276,17 @@ struct Row<Control: View>: View {
             HStack(alignment: .center, spacing: 18) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 14.5, weight: .medium))
                         .foregroundStyle(Palette.textPrimary)
                     if let subtitle {
                         Text(subtitle)
                             .font(.system(size: 13))
                             .foregroundStyle(Palette.textSecondary)
+                            .lineSpacing(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Spacer(minLength: 14)
+                Spacer(minLength: 16)
                 control
             }
             .padding(.horizontal, 22)
@@ -306,14 +307,14 @@ struct PillButton: View {
             HStack(spacing: 6) {
                 if let symbol {
                     Image(systemName: symbol)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 11.5, weight: .medium))
                 }
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 13.5, weight: .medium))
             }
             .foregroundStyle(Palette.textPrimary)
             .padding(.horizontal, 18)
-            .padding(.vertical, 7.5)
+            .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(hovering ? Palette.pillHover : Palette.pill)
@@ -330,10 +331,10 @@ struct KeyCapBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .font(.system(size: 12.5, weight: .medium, design: .rounded))
             .foregroundStyle(Palette.textPrimary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4.5)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Palette.pill)
