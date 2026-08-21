@@ -6,8 +6,8 @@ enum AppleNotesService {
 
     /// Регулярные выражения для распознавания команд создания заметки в начале фразы
     private static let commandPatterns: [String] = [
-        "^(делаем заметку|сделай заметку|создай заметку|запиши в заметки|запиши в заметку|запиши заметку|новая заметка|заметка|заметку)[\\s:,-]+(о|про|что)?[\\s:,-]*",
-        "^(take a note|make a note|create a note|new note|quick note|note)[\\s:,-]+(that|about)?[\\s:,-]*"
+        "^(делаем заметку|сделай заметку|сделать заметку|создай заметку|создать заметку|запиши в заметки|запиши в заметку|записать в заметки|запиши заметку|записать заметку|новая заметка|заметка|заметку)(\\s*(о|про|что|:|-|—|\\.)\\s*|\\s+)",
+        "^(take a note|make a note|create a note|new note|quick note|note)(\\s*(that|about|:|-|—|\\.)\\s*|\\s+)"
     ]
 
     /// Проверяет, является ли продиктованный текст командой создания заметки,
@@ -26,9 +26,9 @@ enum AppleNotesService {
                     let startIndex = trimmed.utf16.index(trimmed.utf16.startIndex, offsetBy: matchLength)
                     let remaining = String(trimmed[startIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
                     
-                    // Удаляем лишнее двоеточие/тире в начале оставшейся фразы
+                    // Удаляем лишнее двоеточие/тире/точки в начале оставшейся фразы
                     let cleaned = remaining
-                        .trimmingCharacters(in: CharacterSet(charactersIn: ":,-— \t\n"))
+                        .trimmingCharacters(in: CharacterSet(charactersIn: ":,.-— \t\n"))
                     
                     guard !cleaned.isEmpty else { return nil }
                     return cleaned.prefix(1).uppercased() + cleaned.dropFirst()

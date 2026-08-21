@@ -239,10 +239,13 @@ final class DictationController: ObservableObject {
                     self.draftCoverage = coverage
                     self.lastLatencyMs = ms
                     // Живая печать: отдаём в поле устойчивую часть черновика,
-                    // не дожидаясь конца фразы.
+                    // не дожидаясь конца фразы (только если это не голосовая заметка).
                     if self.settings.outputMode == .live, self.state == .recording, self.canInsert {
-                        LiveTyper.shared.update(draft: text,
-                                                holdBack: self.settings.liveHoldWords)
+                        let isNote = self.settings.enableVoiceNotes && AppleNotesService.extractNoteText(from: text) != nil
+                        if !isNote {
+                            LiveTyper.shared.update(draft: text,
+                                                    holdBack: self.settings.liveHoldWords)
+                        }
                     }
                 }
                 if self.awaitingFinish {
