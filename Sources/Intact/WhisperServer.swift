@@ -93,6 +93,7 @@ final class WhisperServer {
         process = nil
         port = 0
         bootedWith = ""
+        Self.killAllOrphanedServers()
     }
 
     static func killAllOrphanedServers() {

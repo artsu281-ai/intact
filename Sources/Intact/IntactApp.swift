@@ -98,6 +98,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyActivation()
         DictationController.shared.warmUp()
 
+        atexit {
+            WhisperServer.killAllOrphanedServers()
+        }
+
         // ⎋ отменяет запись, если система дала права на слежение за клавишами.
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { event in
             if event.keyCode == UInt16(kVK_Escape),
