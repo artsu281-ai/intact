@@ -16,6 +16,8 @@ mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp ".build/release/$APP_NAME" "$BUNDLE/Contents/MacOS/$APP_NAME"
 cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 cp Resources/* "$BUNDLE/Contents/Resources/" 2>/dev/null || true
+xattr -cr "$BUNDLE"
+xattr -cr Resources/ 2>/dev/null || true
 
 # Стабильная подпись: designated requirement привязывается к сертификату,
 # а не к хешу сборки, поэтому выданные системные разрешения переживают пересборку.
