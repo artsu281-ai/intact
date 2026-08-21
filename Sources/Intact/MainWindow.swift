@@ -3,7 +3,7 @@ import SwiftUI
 
 final class MainWindowState: ObservableObject {
     static let shared = MainWindowState()
-    @Published var section: SettingsSection = .general
+    @Published var section: SettingsSection = .home
 }
 
 /// Главное окно Intact — объединяет ИИ-чат (ассистент, анализ заметок и диктовок),

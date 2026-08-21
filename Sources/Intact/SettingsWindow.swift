@@ -7,6 +7,6 @@ final class SettingsWindow {
     private init() {}
 
     func show(section: SettingsSection? = nil) {
-        MainWindow.shared.show(section: section ?? .general)
+        MainWindow.shared.show(section: section ?? .settings)
     }
 }

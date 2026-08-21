@@ -187,7 +187,7 @@ struct ChatTab: View {
             Spacer()
 
             Button {
-                onOpenSection?(.ai)
+                onOpenSection?(.settings)
             } label: {
                 HStack(spacing: 4) {
                     IntactIcon(kind: .settings, size: 12)

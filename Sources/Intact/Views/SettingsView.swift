@@ -2,20 +2,18 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case chat, history, general, models, ai, language, microphone, system, appearance, about
+    case home, voice, history, chat, briefs, models, settings, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .chat:       return L10n.tabChat
+        case .home:       return L10n.tabHome
+        case .voice:      return L10n.tabVoice
         case .history:    return L10n.tabHistory
-        case .general:    return L10n.tabGeneral
+        case .chat:       return L10n.tabChat
+        case .briefs:     return L10n.tabBriefs
         case .models:     return L10n.tabModels
-        case .ai:         return L10n.tabAI
-        case .language:   return L10n.tabLanguage
-        case .microphone: return L10n.tabMicrophone
-        case .system:     return L10n.tabSystem
-        case .appearance: return L10n.tabAppearance
+        case .settings:   return L10n.tabSettingsUnified
         case .about:      return L10n.tabAbout
         }
     }
@@ -23,15 +21,13 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// SF Symbol — используется везде, кроме сайдбара для разделов с кастомной иконкой.
     var icon: String {
         switch self {
-        case .chat:       return "bubble.left.and.bubble.right"
+        case .home:       return "house"
+        case .voice:      return "mic"
         case .history:    return "clock.arrow.circlepath"
-        case .general:    return "slider.horizontal.3"
+        case .chat:       return "bubble.left.and.bubble.right"
+        case .briefs:     return "note.text"
         case .models:     return "square.stack.3d.up"
-        case .ai:         return "sparkles"
-        case .language:   return "character.bubble"
-        case .microphone: return "mic"
-        case .system:     return "macwindow"
-        case .appearance: return "paintpalette"
+        case .settings:   return "gearshape"
         case .about:      return "info.circle"
         }
     }
@@ -39,18 +35,26 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     /// Кастомная иконка из IntactIcons для сайдбара (nil → использовать SF Symbol).
     var customIcon: IntactIconKind? {
         switch self {
-        case .chat:    return .chat
-        case .history: return .history
-        default:       return nil
+        case .home:     return .home
+        case .voice:    return .voice
+        case .history:  return .history
+        case .chat:     return .chat
+        case .briefs:   return .briefs
+        case .settings: return .settingsPage
+        default:        return nil
         }
     }
 
     var category: String {
         switch self {
-        case .chat, .history:
-            return "WORKSPACE"
-        case .general, .models, .ai, .language, .microphone, .system, .appearance:
-            return "SETTINGS"
+        case .home:
+            return "HOME"
+        case .voice, .history:
+            return "VOICE"
+        case .chat, .briefs:
+            return "ASSISTANT"
+        case .models, .settings:
+            return "MODELS_SETTINGS"
         case .about:
             return "ABOUT"
         }
@@ -116,32 +120,53 @@ struct SettingsView: View {
             .padding(.bottom, 6)
 
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                // Рабочее пространство: Ассистент и История
-                Text(L10n.sectionWorkspace)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Palette.textTertiary)
-                    .kerning(0.8)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 6)
-                    .padding(.bottom, 8)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-
-                ForEach(SettingsSection.allCases.filter { $0.category == "WORKSPACE" }) { item in
+                // Главная
+                ForEach(SettingsSection.allCases.filter { $0.category == "HOME" }) { item in
                     SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
 
-                // Настройки
-                Text(L10n.sectionSettings)
+                // Голос (Диктовка, История)
+                Text(L10n.sectionVoice)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
                     .padding(.horizontal, 14)
-                    .padding(.top, 18)
-                    .padding(.bottom, 8)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
                     .transition(.opacity)
 
-                ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
+                ForEach(SettingsSection.allCases.filter { $0.category == "VOICE" }) { item in
+                    SidebarRow(item: item, selected: item == state.section) { state.section = item }
+                }
+                .transition(.opacity)
+
+                // Ассистент (Чат с ИИ, Брифы и заметки)
+                Text(L10n.sectionAssistant)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+
+                ForEach(SettingsSection.allCases.filter { $0.category == "ASSISTANT" }) { item in
+                    SidebarRow(item: item, selected: item == state.section) { state.section = item }
+                }
+                .transition(.opacity)
+
+                // Модели и настройки
+                Text(L10n.sectionModelsAndSettings)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+
+                ForEach(SettingsSection.allCases.filter { $0.category == "MODELS_SETTINGS" }) { item in
                     SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
                 .transition(.opacity)
@@ -152,8 +177,8 @@ struct SettingsView: View {
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
                     .padding(.horizontal, 14)
-                    .padding(.top, 18)
-                    .padding(.bottom, 8)
+                    .padding(.top, 14)
+                    .padding(.bottom, 6)
                     .transition(.opacity)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
@@ -256,15 +281,13 @@ struct SettingsView: View {
     private var detail: some View {
         Group {
             switch state.section {
-            case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
+            case .home:       HomeTab(settings: settings, onOpenSection: { state.section = $0 })
+            case .voice:      VoiceTab(settings: settings)
             case .history:    HistoryTab()
-            case .general:    GeneralTab(settings: settings)
+            case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
+            case .briefs:     BriefsTab(settings: settings)
             case .models:     ModelsHub(settings: settings)
-            case .ai:         AITab(settings: settings, onOpenModels: { state.section = .models })
-            case .language:   LanguageTab(settings: settings)
-            case .microphone: MicrophoneTab(settings: settings)
-            case .system:     SystemTab(settings: settings)
-            case .appearance: AppearanceTab(settings: settings)
+            case .settings:   SettingsTab(settings: settings, onOpenModels: { state.section = .models })
             case .about:      AboutTab(settings: settings)
             }
         }
@@ -285,62 +308,65 @@ final class SettingsSearchIndex {
     static let shared = SettingsSearchIndex()
 
     let entries: [SettingsSearchEntry] = [
-        // Чат и ассистент (Chat & Workspace)
+        // Главная (Home)
+        .init(title: "Главная", subtitle: "Обзор и быстрый доступ", section: .home,
+              keywords: ["главная", "home", "дашборд", "dashboard", "старт", "обзор"]),
+
+        // Чат и ассистент (Chat & Briefs)
         .init(title: "Чат с ИИ", subtitle: "Диалог с персональным ассистентом", section: .chat,
               keywords: ["чат", "chat", "ии", "ai", "ассистент", "assistant", "диалог", "вопрос", "сообщение"]),
-        .init(title: "Анализ записей", subtitle: "Сводка голосовых диктовок и заметок", section: .chat,
-              keywords: ["анализ", "сводка", "заметки", "задачи", "todo", "выжимка", "история", "диктовки"]),
-        // Основное (General)
-        .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .general,
+        .init(title: "Брифы и заметки", subtitle: "Сводка голосовых диктовок и заметок", section: .briefs,
+              keywords: ["брифы", "briefs", "анализ", "сводка", "заметки", "задачи", "todo", "выжимка", "история", "диктовки", "apple notes", "reminders"]),
+
+        // Диктовка (Voice)
+        .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .voice,
               keywords: ["горячая", "клавиша", "hotkey", "hot key", "shortcut", "шорткат", "клавиатура", "keyboard", "модификатор", "modifier", "option", "alt"]),
-        .init(title: "Режим активации", subtitle: "Удержание / переключатель", section: .general,
+        .init(title: "Режим активации", subtitle: "Удержание / переключатель", section: .voice,
               keywords: ["режим", "активация", "activation", "mode", "удержание", "hold", "toggle", "переключатель"]),
-        .init(title: "Микрофон", subtitle: "Источник записи звука", section: .general,
+        .init(title: "Микрофон", subtitle: "Источник записи звука", section: .voice,
               keywords: ["микрофон", "microphone", "mic", "аудио", "audio", "запись", "recording", "устройство", "device", "вход", "input"]),
-        .init(title: "Язык диктовки", subtitle: "Автоопределение русского / английского", section: .general,
+        .init(title: "Язык диктовки", subtitle: "Автоопределение русского / английского", section: .voice,
               keywords: ["язык", "language", "диктовка", "dictation", "автоопределение", "auto", "русский", "russian", "английский", "english", "распознавание"]),
-        .init(title: "Вставка текста", subtitle: "Способ вставки результата", section: .general,
+        .init(title: "Вставка текста", subtitle: "Способ вставки результата", section: .voice,
               keywords: ["вставка", "paste", "insertion", "текст", "text", "буфер", "clipboard", "посимвольно", "type", "копирование"]),
-        .init(title: "Разрешения", subtitle: "Мониторинг ввода, универсальный доступ", section: .general,
+        .init(title: "Разрешения", subtitle: "Мониторинг ввода, универсальный доступ", section: .voice,
               keywords: ["разрешения", "permissions", "доступ", "accessibility", "мониторинг", "monitoring", "ввод", "input", "права"]),
+        .init(title: "Перевод на английский", subtitle: "Автоперевод речи", section: .voice,
+              keywords: ["перевод", "translate", "translation", "английский", "english", "автоперевод"]),
+        .init(title: "Подавление шума", subtitle: "[МУЗЫКА], [АПЛОДИСМЕНТЫ]", section: .voice,
+              keywords: ["шум", "noise", "подавление", "suppress", "музыка", "music", "аплодисменты", "теги", "tags", "фильтр"]),
+        .init(title: "Пользовательский словарь", subtitle: "Термины и имена для Whisper", section: .voice,
+              keywords: ["словарь", "vocabulary", "dictionary", "термины", "terms", "имена", "names", "подсказки", "prompts", "prompt"]),
+        .init(title: "Тест микрофона", subtitle: "Проверка записи", section: .voice,
+              keywords: ["тест", "test", "проверка", "check", "микрофон", "microphone", "mic", "запись", "record"]),
 
-        // Оформление (Appearance)
-        .init(title: "Язык интерфейса", subtitle: "Русский / English", section: .appearance,
+        // Настройки (Settings)
+        .init(title: "Язык интерфейса", subtitle: "Русский / English", section: .settings,
               keywords: ["язык", "language", "интерфейс", "interface", "русский", "english", "английский", "локализация", "localization"]),
-        .init(title: "Тема", subtitle: "Белая, терракотовая, тёмная", section: .appearance,
+        .init(title: "Тема", subtitle: "Белая, терракотовая, тёмная", section: .settings,
               keywords: ["тема", "theme", "цвет", "color", "оформление", "appearance", "белая", "white", "терракотовая", "terracotta", "тёмная", "dark", "ночная", "светлая", "light", "стиль"]),
-        .init(title: "Иконка приложения", subtitle: "Светлая, чёрная, авто", section: .appearance,
+        .init(title: "Иконка приложения", subtitle: "Светлая, чёрная, авто", section: .settings,
               keywords: ["иконка", "icon", "dock", "док", "значок", "светлая", "light", "чёрная", "black", "приложение", "app"]),
-        .init(title: "Индикатор диктовки", subtitle: "Плавающий индикатор записи", section: .appearance,
+        .init(title: "Индикатор диктовки", subtitle: "Плавающий индикатор записи", section: .settings,
               keywords: ["индикатор", "indicator", "запись", "recording", "плавающий", "floating", "hud", "pill", "спектр", "spectrum"]),
-        .init(title: "Таймаут копирования", subtitle: "Секунды до скрытия окна", section: .appearance,
+        .init(title: "Таймаут копирования", subtitle: "Секунды до скрытия окна", section: .settings,
               keywords: ["таймаут", "timeout", "копирование", "copy", "dismiss", "скрытие", "окно", "window", "секунды"]),
-
-        // Система (System)
-        .init(title: "Запуск при входе", subtitle: "Автозагрузка с macOS", section: .system,
+        .init(title: "Запуск при входе", subtitle: "Автозагрузка с macOS", section: .settings,
               keywords: ["запуск", "launch", "вход", "login", "автозагрузка", "autostart", "startup", "загрузка", "boot"]),
-        .init(title: "Значок в Dock", subtitle: "Отображать / скрывать", section: .system,
+        .init(title: "Значок в Dock", subtitle: "Отображать / скрывать", section: .settings,
               keywords: ["dock", "док", "значок", "icon", "показать", "show", "скрыть", "hide", "панель"]),
-        .init(title: "Заглушать звук", subtitle: "Тишина во время диктовки", section: .system,
+        .init(title: "Заглушать звук", subtitle: "Тишина во время диктовки", section: .settings,
               keywords: ["заглушать", "mute", "звук", "audio", "sound", "тишина", "silence", "динамики", "speakers", "громкость"]),
-        .init(title: "Пауза музыки", subtitle: "Apple Music, Spotify", section: .system,
+        .init(title: "Пауза музыки", subtitle: "Apple Music, Spotify", section: .settings,
               keywords: ["пауза", "pause", "музыка", "music", "видео", "video", "spotify", "apple music", "плеер", "player", "медиа"]),
-        .init(title: "Звуковые сигналы", subtitle: "Звуки начала и конца записи", section: .system,
+        .init(title: "Звуковые сигналы", subtitle: "Звуки начала и конца записи", section: .settings,
               keywords: ["звуковые", "sounds", "сигналы", "effects", "chime", "начало", "start", "конец", "stop", "ошибка"]),
-        .init(title: "Убирать точку", subtitle: "Форматирование коротких фраз", section: .system,
-              keywords: ["точка", "period", "пунктуация", "punctuation", "форматирование", "formatting", "убирать", "trim"]),
-        .init(title: "Пробел после текста", subtitle: "Автоматический пробел", section: .system,
-              keywords: ["пробел", "space", "trailing", "автоматический", "automatic"]),
-        .init(title: "История записей", subtitle: "Сохранение прошлых диктовок", section: .system,
-              keywords: ["история", "history", "записи", "records", "сохранение", "save", "прошлые", "лог", "log"]),
-        .init(title: "Голосовые заметки", subtitle: "Apple Notes", section: .system,
-              keywords: ["заметки", "notes", "apple notes", "голосовые", "voice", "создать", "create", "заметка", "note"]),
-        .init(title: "Голосовые напоминания", subtitle: "Apple Reminders", section: .system,
-              keywords: ["напоминания", "reminders", "apple reminders", "голосовые", "voice", "напомнить", "remind", "задача", "task"]),
-        .init(title: "Минимальное нажатие", subtitle: "Защита от случайных касаний", section: .system,
-              keywords: ["минимальное", "minimum", "нажатие", "press", "случайное", "accidental", "защита", "guard", "мс", "ms"]),
-        .init(title: "Максимальная длина записи", subtitle: "Ограничение длительности", section: .system,
-              keywords: ["максимальная", "maximum", "длина", "length", "запись", "recording", "duration", "ограничение", "limit"]),
+        .init(title: "Провайдер ИИ", subtitle: "Локально или в облаке", section: .settings,
+              keywords: ["ии", "ai", "искусственный интеллект", "провайдер", "provider", "claude", "anthropic", "llm", "локально", "local", "облако", "cloud"]),
+        .init(title: "API-ключ Anthropic", subtitle: "Ключ для облачного ИИ", section: .settings,
+              keywords: ["api", "ключ", "key", "anthropic", "claude", "keychain", "облако", "cloud"]),
+        .init(title: "Причёсывание текста ИИ", subtitle: "Убирает слова-паразиты", section: .settings,
+              keywords: ["причёсывание", "cleanup", "текст", "text", "слова-паразиты", "filler", "форматирование", "formatting"]),
 
         // Модели (Models)
         .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .models,
@@ -349,38 +375,8 @@ final class SettingsSearchIndex {
               keywords: ["потоковое", "streaming", "реалтайм", "realtime", "live", "черновик", "draft", "во время", "речь"]),
         .init(title: "Потоки CPU", subtitle: "Число ядер для распознавания", section: .models,
               keywords: ["потоки", "threads", "cpu", "ядра", "cores", "производительность", "performance", "скорость", "speed"]),
-        .init(title: "Файл модели", subtitle: "Путь к GGML-файлу", section: .models,
-              keywords: ["файл", "file", "путь", "path", "ggml", "модель", "model", "папка", "folder", "выбрать"]),
-        .init(title: "whisper-server", subtitle: "Состояние движка", section: .models,
-              keywords: ["whisper", "server", "сервер", "движок", "engine", "статус", "status", "перезапустить", "restart"]),
         .init(title: "Локальные модели ИИ", subtitle: "Причёсывание текста, GGUF", section: .models,
               keywords: ["llm", "локальная", "модель", "gguf", "причёсывание", "cleanup"]),
-        .init(title: "Экспериментальные аудио-модели", subtitle: "Gemma, всё-в-одном", section: .models,
-              keywords: ["gemma", "аудио", "audio", "эксперимент", "experiment", "всё-в-одном"]),
-
-        // ИИ (AI)
-        .init(title: "Провайдер ИИ", subtitle: "Локально или в облаке", section: .ai,
-              keywords: ["ии", "ai", "искусственный интеллект", "провайдер", "provider", "claude", "anthropic", "llm", "локально", "local", "облако", "cloud"]),
-        .init(title: "API-ключ Anthropic", subtitle: "Ключ для облачного ИИ", section: .ai,
-              keywords: ["api", "ключ", "key", "anthropic", "claude", "keychain", "облако", "cloud"]),
-        .init(title: "Локальная модель ИИ", subtitle: "llama-server, GGUF", section: .ai,
-              keywords: ["локальная", "local", "модель", "model", "llama", "gguf", "homebrew", "сервер", "server"]),
-        .init(title: "Причёсывание текста ИИ", subtitle: "Убирает слова-паразиты", section: .ai,
-              keywords: ["причёсывание", "cleanup", "текст", "text", "слова-паразиты", "filler", "форматирование", "formatting"]),
-
-        // Язык и текст (Language)
-        .init(title: "Перевод на английский", subtitle: "Автоперевод речи", section: .language,
-              keywords: ["перевод", "translate", "translation", "английский", "english", "автоперевод"]),
-        .init(title: "Подавление шума", subtitle: "[МУЗЫКА], [АПЛОДИСМЕНТЫ]", section: .language,
-              keywords: ["шум", "noise", "подавление", "suppress", "музыка", "music", "аплодисменты", "теги", "tags", "фильтр"]),
-        .init(title: "Пользовательский словарь", subtitle: "Термины и имена для Whisper", section: .language,
-              keywords: ["словарь", "vocabulary", "dictionary", "термины", "terms", "имена", "names", "подсказки", "prompts", "prompt"]),
-
-        // Микрофон (Microphone)
-        .init(title: "Тест микрофона", subtitle: "Проверка записи", section: .microphone,
-              keywords: ["тест", "test", "проверка", "check", "микрофон", "microphone", "mic", "запись", "record"]),
-        .init(title: "Обновить устройства", subtitle: "Гарнитура / внешний микрофон", section: .microphone,
-              keywords: ["обновить", "refresh", "устройства", "devices", "гарнитура", "headset", "внешний", "external", "bluetooth", "usb"]),
 
         // История (History)
         .init(title: "История", subtitle: "Просмотр и копирование записей", section: .history,

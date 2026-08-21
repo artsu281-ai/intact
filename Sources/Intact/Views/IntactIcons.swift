@@ -19,6 +19,11 @@ enum IntactIconKind {
     case settings       // настройки (шестерня)
     case statusDot      // индикатор статуса
     case stop           // остановить генерацию
+    // Новые разделы UX-редизайна
+    case home           // домашний экран (домик)
+    case voice          // диктовка (микрофон с волной)
+    case briefs         // брифы и заметки (листы со звёздочкой)
+    case settingsPage   // единый экран настроек (слайдеры)
 }
 
 struct IntactIcon: View {
@@ -47,6 +52,10 @@ struct IntactIcon: View {
         case .settings:      SettingsIconShape().aspectRatio(contentMode: .fit)
         case .statusDot:     StatusDotShape().aspectRatio(contentMode: .fit)
         case .stop:          StopIconShape().aspectRatio(contentMode: .fit)
+        case .home:          HomeIconShape().aspectRatio(contentMode: .fit)
+        case .voice:         VoiceIconShape().aspectRatio(contentMode: .fit)
+        case .briefs:        BriefsIconShape().aspectRatio(contentMode: .fit)
+        case .settingsPage:  SettingsPageIconShape().aspectRatio(contentMode: .fit)
         }
     }
 }
@@ -406,12 +415,117 @@ struct SidebarIntactIcon: View {
             case .settings:     shape = SettingsIconShape()
             case .statusDot:    shape = StatusDotShape()
             case .stop:         shape = StopIconShape()
+            case .home:         shape = HomeIconShape()
+            case .voice:        shape = VoiceIconShape()
+            case .briefs:       shape = BriefsIconShape()
+            case .settingsPage: shape = SettingsPageIconShape()
             }
-            var path = shape.path(in: rect)
+            let path = shape.path(in: rect)
             ctx.stroke(path,
                        with: .color(strokeColor),
                        style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round, lineJoin: .round))
         }
         .frame(width: size, height: size)
+    }
+}
+
+// MARK: - Home (домик с крышей и окошком)
+struct HomeIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Крыша — треугольник
+        p.move(to: CGPoint(x: w * 0.10, y: h * 0.50))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.10))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.50))
+        // Стены и дверь
+        p.move(to: CGPoint(x: w * 0.18, y: h * 0.50))
+        p.addLine(to: CGPoint(x: w * 0.18, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.50))
+        // Дверь
+        let dr = w * 0.06
+        p.addRoundedRect(in: CGRect(x: w * 0.40, y: h * 0.62, width: w * 0.20, height: h * 0.30),
+                         cornerSize: CGSize(width: dr, height: dr))
+        return p
+    }
+}
+
+// MARK: - Voice (микрофон с волнами активности)
+struct VoiceIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let cx = w / 2
+        var p = Path()
+        // Капсула микрофона
+        let mw = w * 0.28, mh = h * 0.46
+        let mx = cx - mw / 2, my = h * 0.06
+        p.addRoundedRect(in: CGRect(x: mx, y: my, width: mw, height: mh),
+                         cornerSize: CGSize(width: mw / 2, height: mw / 2))
+        // Дуга стойки
+        p.addArc(center: CGPoint(x: cx, y: h * 0.52),
+                 radius: w * 0.30,
+                 startAngle: .degrees(180),
+                 endAngle: .degrees(0),
+                 clockwise: true)
+        // Ножка
+        p.move(to: CGPoint(x: cx, y: h * 0.82))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.94))
+        // Подставка
+        p.move(to: CGPoint(x: cx - w * 0.24, y: h * 0.94))
+        p.addLine(to: CGPoint(x: cx + w * 0.24, y: h * 0.94))
+        return p
+    }
+}
+
+// MARK: - Briefs (листок со звёздочкой — заметки + ИИ)
+struct BriefsIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Лист бумаги
+        let fold = w * 0.24
+        p.move(to: CGPoint(x: w * 0.10, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.06 + fold))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.94))
+        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.94))
+        p.closeSubpath()
+        // Загнутый уголок
+        p.move(to: CGPoint(x: w * 0.76, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.06 + fold))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.06 + fold))
+        // Мини-звезда (4 луча) в центре листа
+        let sx = w * 0.50, sy = h * 0.54, sr = w * 0.14, si = sr * 0.40
+        for i in 0..<8 {
+            let a = Double(i) * .pi / 4 - .pi / 2
+            let r = i % 2 == 0 ? sr : si
+            let x = sx + cos(a) * r
+            let y = sy + sin(a) * r
+            if i == 0 { p.move(to: CGPoint(x: x, y: y)) }
+            else { p.addLine(to: CGPoint(x: x, y: y)) }
+        }
+        p.closeSubpath()
+        return p
+    }
+}
+
+// MARK: - SettingsPage (три горизонтальных слайдера)
+struct SettingsPageIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        let rows: [(CGFloat, CGFloat)] = [(0.22, 0.55), (0.50, 0.30), (0.76, 0.70)]
+        for (yf, knobX) in rows {
+            let cy = h * yf
+            // Дорожка слайдера
+            p.move(to: CGPoint(x: w * 0.08, y: cy))
+            p.addLine(to: CGPoint(x: w * 0.92, y: cy))
+            // Кружок-ручка
+            let kx = w * knobX
+            p.addEllipse(in: CGRect(x: kx - w * 0.08, y: cy - h * 0.10,
+                                    width: w * 0.16, height: h * 0.20))
+        }
+        return p
     }
 }

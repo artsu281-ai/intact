@@ -283,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Клик по значку в Dock, когда открытых окон нет.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MainWindow.shared.show(section: .general)
+        MainWindow.shared.show(section: .home)
         return true
     }
 
@@ -334,7 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func dockOpenChat() { MainWindow.shared.show(section: .chat) }
     @objc private func dockToggleDictation() { DictationController.shared.toggle() }
     @objc private func dockCancel() { DictationController.shared.cancel() }
-    @objc private func dockOpenSettings() { MainWindow.shared.show(section: .general) }
+    @objc private func dockOpenSettings() { MainWindow.shared.show(section: .settings) }
     @objc private func dockCopyLast() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(DictationController.shared.lastResult, forType: .string)

@@ -12,9 +12,17 @@ enum L10n {
     }
 
     // MARK: - Разделы бокового меню
+    static var sectionVoice: String { isRu ? "ГОЛОС" : "VOICE" }
+    static var sectionAssistant: String { isRu ? "АССИСТЕНТ" : "ASSISTANT" }
+    static var sectionModelsAndSettings: String { isRu ? "МОДЕЛИ И НАСТРОЙКИ" : "MODELS & SETTINGS" }
     static var sectionWorkspace: String { isRu ? "АССИСТЕНТ И ИСТОРИЯ" : "WORKSPACE" }
     static var sectionSettings: String { isRu ? "НАСТРОЙКИ" : "SETTINGS" }
     static var sectionInfo: String { isRu ? "О ПРОГРАММЕ" : "ABOUT" }
+
+    static var tabHome: String { isRu ? "Главная" : "Home" }
+    static var tabVoice: String { isRu ? "Диктовка" : "Dictation" }
+    static var tabBriefs: String { isRu ? "Брифы и заметки" : "Briefs & Notes" }
+    static var tabSettingsUnified: String { isRu ? "Настройки" : "Settings" }
 
     static var tabGeneral: String { isRu ? "Основное" : "General" }
     static var tabAppearance: String { isRu ? "Оформление" : "Appearance" }
