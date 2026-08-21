@@ -105,6 +105,19 @@ struct IndicatorView: View {
                     .lineLimit(1)
                     .fixedSize()
 
+            case .processingAI:
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.7)
+                    .tint(Palette.hudIcon(theme: settings.appTheme))
+                    .frame(width: 12, height: 12)
+
+                Text(L10n.hudProcessingAI)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                    .lineLimit(1)
+                    .fixedSize()
+
             case .idle:
                 EmptyView()
             }

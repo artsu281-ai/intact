@@ -20,6 +20,7 @@ struct IntactApp: App {
         case .idle:         return "mic"
         case .recording:    return "mic.fill"
         case .transcribing: return "waveform"
+        case .processingAI: return "sparkles"
         }
     }
 }
@@ -57,7 +58,7 @@ struct MenuContent: View {
             controller.toggle()
         }
         .keyboardShortcut("d")
-        .disabled(controller.state == .transcribing)
+        .disabled(controller.state == .transcribing || controller.state == .processingAI)
 
         if controller.state == .recording {
             Button("Отменить запись") { controller.cancel() }
@@ -188,6 +189,7 @@ struct MenuContent: View {
         switch controller.state {
         case .recording:    return (settings.interfaceLanguage == .russian ? "Запись " : "Recording ") + controller.elapsedText
         case .transcribing: return L10n.hudTranscribing
+        case .processingAI: return L10n.hudProcessingAI
         case .idle:
             let key = settings.activationMode == .modifierHold
                 ? settings.triggerKey.symbol
@@ -210,11 +212,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         settings.onHotKeyChange = { [weak self] in self?.applyActivation() }
         settings.onEngineChange = { DictationController.shared.restartEngine() }
+        settings.onAIProviderChange = { DictationController.shared.warmUpLocalAI() }
         applyActivation()
         DictationController.shared.warmUp()
 
         atexit {
             WhisperServer.killAllOrphanedServers()
+            LocalAIProvider.killAllOrphanedServers()
         }
 
         // Если моделей ещё нет (первый запуск) — сразу открываем окно настроек для скачивания
@@ -364,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.unregister()
         ModifierKeyMonitor.shared.stop()
         WhisperServer.shared.stop()
+        LocalAIProvider.shared.stop()
         MediaController.shared.end()
     }
 }

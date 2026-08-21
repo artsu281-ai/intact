@@ -14,7 +14,8 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("AVFoundation"),
-                .linkedFramework("AppKit")
+                .linkedFramework("AppKit"),
+                .linkedFramework("Security")
             ]
         )
     ]

@@ -16,11 +16,21 @@ struct HistoryEntry: Identifiable, Codable, Hashable {
     }
 }
 
+enum HistoryClearRange: String, CaseIterable, Identifiable {
+    case lastHour
+    case today
+    case olderThan7Days
+    case olderThan30Days
+    case all
+
+    var id: String { rawValue }
+}
+
 /// Последние распознавания — чтобы вернуть текст, если вставка ушла не туда.
 final class History: ObservableObject {
     static let shared = History()
     private let key = "history"
-    private let limit = 50
+    private let limit = 500
 
     @Published private(set) var entries: [HistoryEntry] = []
 
@@ -37,8 +47,38 @@ final class History: ObservableObject {
         persist()
     }
 
-    func clear() {
-        entries.removeAll()
+    func delete(id: UUID) {
+        entries.removeAll(where: { $0.id == id })
+        persist()
+    }
+
+    func clear(range: HistoryClearRange = .all) {
+        let now = Date()
+        let calendar = Calendar.current
+
+        switch range {
+        case .lastHour:
+            let oneHourAgo = now.addingTimeInterval(-3600)
+            entries.removeAll(where: { $0.date >= oneHourAgo })
+
+        case .today:
+            let startOfToday = calendar.startOfDay(for: now)
+            entries.removeAll(where: { $0.date >= startOfToday })
+
+        case .olderThan7Days:
+            if let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) {
+                entries.removeAll(where: { $0.date < sevenDaysAgo })
+            }
+
+        case .olderThan30Days:
+            if let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) {
+                entries.removeAll(where: { $0.date < thirtyDaysAgo })
+            }
+
+        case .all:
+            entries.removeAll()
+        }
+
         persist()
     }
 

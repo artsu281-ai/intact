@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, system, model, language, microphone, history, about
+    case general, appearance, system, model, ai, language, microphone, history, about
     var id: String { rawValue }
 
     var title: String {
@@ -11,6 +11,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .appearance: return L10n.tabAppearance
         case .system:     return L10n.tabSystem
         case .model:      return L10n.tabModel
+        case .ai:         return L10n.tabAI
         case .language:   return L10n.tabLanguage
         case .microphone: return L10n.tabMicrophone
         case .history:    return L10n.tabHistory
@@ -24,6 +25,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .appearance: return "paintpalette"
         case .system:     return "macwindow"
         case .model:      return "waveform"
+        case .ai:         return "sparkles"
         case .language:   return "character.bubble"
         case .microphone: return "mic"
         case .history:    return "clock.arrow.circlepath"
@@ -33,7 +35,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var category: String {
         switch self {
-        case .general, .appearance, .system, .model, .language, .microphone, .history:
+        case .general, .appearance, .system, .model, .ai, .language, .microphone, .history:
             return "SETTINGS"
         case .about:
             return "ABOUT"
@@ -45,6 +47,7 @@ struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject private var controller = DictationController.shared
     @State private var section: SettingsSection = .general
+    @State private var searchText = ""
 
     var body: some View {
         HStack(spacing: 0) {
@@ -62,30 +65,70 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 3) {
-            // Раздел: НАСТРОЙКИ
-            Text(L10n.sectionSettings)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Palette.textTertiary)
-                .kerning(0.8)
-                .padding(.horizontal, 14)
-                .padding(.top, 48)
-                .padding(.bottom, 8)
+            // Поле поиска
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Palette.textTertiary)
 
-            ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
-                SidebarRow(item: item, selected: item == section) { section = item }
+                TextField(L10n.isRu ? "Поиск настроек…" : "Search settings…", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textPrimary)
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Palette.dropdownBg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Palette.hairline, lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 2)
+            .padding(.top, 46)
+            .padding(.bottom, 6)
 
-            // Раздел: О ПРИЛОЖЕНИИ
-            Text(L10n.sectionInfo)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Palette.textTertiary)
-                .kerning(0.8)
-                .padding(.horizontal, 14)
-                .padding(.top, 22)
-                .padding(.bottom, 8)
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Обычный сайдбар
+                Text(L10n.sectionSettings)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
 
-            ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
-                SidebarRow(item: item, selected: item == section) { section = item }
+                ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
+                    SidebarRow(item: item, selected: item == section) { section = item }
+                }
+
+                Text(L10n.sectionInfo)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 22)
+                    .padding(.bottom, 8)
+
+                ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
+                    SidebarRow(item: item, selected: item == section) { section = item }
+                }
+            } else {
+                // Результаты поиска
+                searchResultsView
             }
 
             Spacer(minLength: 20)
@@ -95,6 +138,48 @@ struct SettingsView: View {
         .padding(.bottom, 16)
         .frame(width: 236)
         .background(Palette.sidebar)
+    }
+
+    private var searchResultsView: some View {
+        let results = SettingsSearchIndex.shared.search(query: searchText)
+        let grouped = Dictionary(grouping: results) { $0.section }
+        let orderedSections = SettingsSection.allCases.filter { grouped[$0] != nil }
+
+        return Group {
+            if results.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Palette.textTertiary)
+                    Text(L10n.isRu ? "Ничего не найдено" : "No results")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 40)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(orderedSections) { sec in
+                            Text(sec.title.uppercased())
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Palette.textTertiary)
+                                .kerning(0.6)
+                                .padding(.horizontal, 14)
+                                .padding(.top, 10)
+                                .padding(.bottom, 2)
+
+                            ForEach(grouped[sec]!, id: \.id) { entry in
+                                SearchResultRow(entry: entry, isActive: section == sec) {
+                                    section = entry.section
+                                    searchText = ""
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var footer: some View {
@@ -139,12 +224,182 @@ struct SettingsView: View {
             case .appearance: AppearanceTab(settings: settings)
             case .system:     SystemTab(settings: settings)
             case .model:      ModelTab(settings: settings)
+            case .ai:         AITab(settings: settings)
             case .language:   LanguageTab(settings: settings)
             case .microphone: MicrophoneTab(settings: settings)
             case .history:    HistoryTab()
             case .about:      AboutTab(settings: settings)
             }
         }
+    }
+}
+
+// MARK: - Поисковый индекс настроек
+
+struct SettingsSearchEntry: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let section: SettingsSection
+    let keywords: [String]
+}
+
+final class SettingsSearchIndex {
+    static let shared = SettingsSearchIndex()
+
+    let entries: [SettingsSearchEntry] = [
+        // Основное (General)
+        .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .general,
+              keywords: ["горячая", "клавиша", "hotkey", "hot key", "shortcut", "шорткат", "клавиатура", "keyboard", "модификатор", "modifier", "option", "alt"]),
+        .init(title: "Режим активации", subtitle: "Удержание / переключатель", section: .general,
+              keywords: ["режим", "активация", "activation", "mode", "удержание", "hold", "toggle", "переключатель"]),
+        .init(title: "Микрофон", subtitle: "Источник записи звука", section: .general,
+              keywords: ["микрофон", "microphone", "mic", "аудио", "audio", "запись", "recording", "устройство", "device", "вход", "input"]),
+        .init(title: "Язык диктовки", subtitle: "Автоопределение русского / английского", section: .general,
+              keywords: ["язык", "language", "диктовка", "dictation", "автоопределение", "auto", "русский", "russian", "английский", "english", "распознавание"]),
+        .init(title: "Вставка текста", subtitle: "Способ вставки результата", section: .general,
+              keywords: ["вставка", "paste", "insertion", "текст", "text", "буфер", "clipboard", "посимвольно", "type", "копирование"]),
+        .init(title: "Разрешения", subtitle: "Мониторинг ввода, универсальный доступ", section: .general,
+              keywords: ["разрешения", "permissions", "доступ", "accessibility", "мониторинг", "monitoring", "ввод", "input", "права"]),
+
+        // Оформление (Appearance)
+        .init(title: "Язык интерфейса", subtitle: "Русский / English", section: .appearance,
+              keywords: ["язык", "language", "интерфейс", "interface", "русский", "english", "английский", "локализация", "localization"]),
+        .init(title: "Тема", subtitle: "Белая, терракотовая, тёмная", section: .appearance,
+              keywords: ["тема", "theme", "цвет", "color", "оформление", "appearance", "белая", "white", "терракотовая", "terracotta", "тёмная", "dark", "ночная", "светлая", "light", "стиль"]),
+        .init(title: "Иконка приложения", subtitle: "Светлая, чёрная, авто", section: .appearance,
+              keywords: ["иконка", "icon", "dock", "док", "значок", "светлая", "light", "чёрная", "black", "приложение", "app"]),
+        .init(title: "Индикатор диктовки", subtitle: "Плавающий индикатор записи", section: .appearance,
+              keywords: ["индикатор", "indicator", "запись", "recording", "плавающий", "floating", "hud", "pill", "спектр", "spectrum"]),
+        .init(title: "Таймаут копирования", subtitle: "Секунды до скрытия окна", section: .appearance,
+              keywords: ["таймаут", "timeout", "копирование", "copy", "dismiss", "скрытие", "окно", "window", "секунды"]),
+
+        // Система (System)
+        .init(title: "Запуск при входе", subtitle: "Автозагрузка с macOS", section: .system,
+              keywords: ["запуск", "launch", "вход", "login", "автозагрузка", "autostart", "startup", "загрузка", "boot"]),
+        .init(title: "Значок в Dock", subtitle: "Отображать / скрывать", section: .system,
+              keywords: ["dock", "док", "значок", "icon", "показать", "show", "скрыть", "hide", "панель"]),
+        .init(title: "Заглушать звук", subtitle: "Тишина во время диктовки", section: .system,
+              keywords: ["заглушать", "mute", "звук", "audio", "sound", "тишина", "silence", "динамики", "speakers", "громкость"]),
+        .init(title: "Пауза музыки", subtitle: "Apple Music, Spotify", section: .system,
+              keywords: ["пауза", "pause", "музыка", "music", "видео", "video", "spotify", "apple music", "плеер", "player", "медиа"]),
+        .init(title: "Звуковые сигналы", subtitle: "Звуки начала и конца записи", section: .system,
+              keywords: ["звуковые", "sounds", "сигналы", "effects", "chime", "начало", "start", "конец", "stop", "ошибка"]),
+        .init(title: "Убирать точку", subtitle: "Форматирование коротких фраз", section: .system,
+              keywords: ["точка", "period", "пунктуация", "punctuation", "форматирование", "formatting", "убирать", "trim"]),
+        .init(title: "Пробел после текста", subtitle: "Автоматический пробел", section: .system,
+              keywords: ["пробел", "space", "trailing", "автоматический", "automatic"]),
+        .init(title: "История записей", subtitle: "Сохранение прошлых диктовок", section: .system,
+              keywords: ["история", "history", "записи", "records", "сохранение", "save", "прошлые", "лог", "log"]),
+        .init(title: "Голосовые заметки", subtitle: "Apple Notes", section: .system,
+              keywords: ["заметки", "notes", "apple notes", "голосовые", "voice", "создать", "create", "заметка", "note"]),
+        .init(title: "Голосовые напоминания", subtitle: "Apple Reminders", section: .system,
+              keywords: ["напоминания", "reminders", "apple reminders", "голосовые", "voice", "напомнить", "remind", "задача", "task"]),
+        .init(title: "Минимальное нажатие", subtitle: "Защита от случайных касаний", section: .system,
+              keywords: ["минимальное", "minimum", "нажатие", "press", "случайное", "accidental", "защита", "guard", "мс", "ms"]),
+        .init(title: "Максимальная длина записи", subtitle: "Ограничение длительности", section: .system,
+              keywords: ["максимальная", "maximum", "длина", "length", "запись", "recording", "duration", "ограничение", "limit"]),
+
+        // Модель (Model)
+        .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .model,
+              keywords: ["модель", "model", "whisper", "ggml", "скачать", "download", "установить", "install", "large", "turbo", "base", "medium", "small"]),
+        .init(title: "Потоковое распознавание", subtitle: "Текст во время речи", section: .model,
+              keywords: ["потоковое", "streaming", "реалтайм", "realtime", "live", "черновик", "draft", "во время", "речь"]),
+        .init(title: "Потоки CPU", subtitle: "Число ядер для распознавания", section: .model,
+              keywords: ["потоки", "threads", "cpu", "ядра", "cores", "производительность", "performance", "скорость", "speed"]),
+        .init(title: "Файл модели", subtitle: "Путь к GGML-файлу", section: .model,
+              keywords: ["файл", "file", "путь", "path", "ggml", "модель", "model", "папка", "folder", "выбрать"]),
+        .init(title: "whisper-server", subtitle: "Состояние движка", section: .model,
+              keywords: ["whisper", "server", "сервер", "движок", "engine", "статус", "status", "перезапустить", "restart"]),
+
+        // ИИ (AI)
+        .init(title: "Провайдер ИИ", subtitle: "Локально или в облаке", section: .ai,
+              keywords: ["ии", "ai", "искусственный интеллект", "провайдер", "provider", "claude", "anthropic", "llm", "локально", "local", "облако", "cloud"]),
+        .init(title: "API-ключ Anthropic", subtitle: "Ключ для облачного ИИ", section: .ai,
+              keywords: ["api", "ключ", "key", "anthropic", "claude", "keychain", "облако", "cloud"]),
+        .init(title: "Локальная модель ИИ", subtitle: "llama-server, GGUF", section: .ai,
+              keywords: ["локальная", "local", "модель", "model", "llama", "gguf", "homebrew", "сервер", "server"]),
+        .init(title: "Причёсывание текста ИИ", subtitle: "Убирает слова-паразиты", section: .ai,
+              keywords: ["причёсывание", "cleanup", "текст", "text", "слова-паразиты", "filler", "форматирование", "formatting"]),
+
+        // Язык и текст (Language)
+        .init(title: "Перевод на английский", subtitle: "Автоперевод речи", section: .language,
+              keywords: ["перевод", "translate", "translation", "английский", "english", "автоперевод"]),
+        .init(title: "Подавление шума", subtitle: "[МУЗЫКА], [АПЛОДИСМЕНТЫ]", section: .language,
+              keywords: ["шум", "noise", "подавление", "suppress", "музыка", "music", "аплодисменты", "теги", "tags", "фильтр"]),
+        .init(title: "Пользовательский словарь", subtitle: "Термины и имена для Whisper", section: .language,
+              keywords: ["словарь", "vocabulary", "dictionary", "термины", "terms", "имена", "names", "подсказки", "prompts", "prompt"]),
+
+        // Микрофон (Microphone)
+        .init(title: "Тест микрофона", subtitle: "Проверка записи", section: .microphone,
+              keywords: ["тест", "test", "проверка", "check", "микрофон", "microphone", "mic", "запись", "record"]),
+        .init(title: "Обновить устройства", subtitle: "Гарнитура / внешний микрофон", section: .microphone,
+              keywords: ["обновить", "refresh", "устройства", "devices", "гарнитура", "headset", "внешний", "external", "bluetooth", "usb"]),
+
+        // История (History)
+        .init(title: "История", subtitle: "Просмотр и копирование записей", section: .history,
+              keywords: ["история", "history", "записи", "records", "копировать", "copy", "очистить", "clear", "прошлые"]),
+
+        // О программе (About)
+        .init(title: "Движок распознавания", subtitle: "whisper.cpp + Metal", section: .about,
+              keywords: ["движок", "engine", "whisper", "metal", "gpu", "apple silicon", "m1", "m2", "m3", "m4", "распознавание"]),
+        .init(title: "Версия", subtitle: "Intact", section: .about,
+              keywords: ["версия", "version", "about", "о программе", "информация", "info"]),
+        .init(title: "Приватность", subtitle: "100% локальная обработка", section: .about,
+              keywords: ["приватность", "privacy", "безопасность", "security", "локальная", "local", "на устройстве", "on-device"]),
+        .init(title: "Журнал работы", subtitle: "Логи и отладка", section: .about,
+              keywords: ["журнал", "log", "logs", "логи", "отладка", "debug", "файл", "file"]),
+    ]
+
+    func search(query: String) -> [SettingsSearchEntry] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return [] }
+        return entries.filter { entry in
+            if entry.title.lowercased().contains(q) { return true }
+            if entry.subtitle.lowercased().contains(q) { return true }
+            if entry.section.title.lowercased().contains(q) { return true }
+            return entry.keywords.contains { $0.contains(q) }
+        }
+    }
+}
+
+// MARK: - Результат поиска в сайдбаре
+
+struct SearchResultRow: View {
+    let entry: SettingsSearchEntry
+    let isActive: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: entry.section.icon)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(Palette.textTertiary)
+                    .frame(width: 16)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(entry.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Palette.textPrimary)
+                        .lineLimit(1)
+                    Text(entry.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hovering ? Palette.hover : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -1267,7 +1522,7 @@ struct MicrophoneTab: View {
                                 .padding(.vertical, 5)
                                 .background(Capsule().fill(Color.black.opacity(0.85)))
                         }
-                        if controller.state == .transcribing {
+                        if controller.state == .transcribing || controller.state == .processingAI {
                             ProgressView().controlSize(.small)
                         }
                         PillButton(title: controller.state == .recording ? "Остановить" : "Записать",
@@ -1313,33 +1568,131 @@ struct MicrophoneTab: View {
 
 struct HistoryTab: View {
     @ObservedObject private var history = History.shared
+    @State private var query = ""
+    @State private var showClearPopover = false
+
+    private var filteredEntries: [HistoryEntry] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return history.entries }
+        return history.entries.filter { entry in
+            entry.text.lowercased().contains(trimmed) ||
+            entry.model.lowercased().contains(trimmed) ||
+            entry.date.formatted(date: .abbreviated, time: .shortened).lowercased().contains(trimmed)
+        }
+    }
 
     var body: some View {
-        SettingsPage(title: "История") {
+        SettingsPage(title: L10n.tabHistory) {
             if history.entries.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 36, weight: .light))
                         .foregroundStyle(Palette.textTertiary)
-                    Text("История записей пуста")
+                    Text(L10n.historyEmptyTitle)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Palette.textSecondary)
-                    Text("Здесь будут сохраняться продиктованные вами фразы.")
+                    Text(L10n.historyEmptySubtitle)
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textTertiary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 100)
             } else {
-                Card {
-                    ForEach(Array(history.entries.enumerated()), id: \.element.id) { index, entry in
-                        HistoryRow(entry: entry, first: index == 0)
+                // Поле поиска по истории и кнопка вызова поповера очистки
+                HStack(spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Palette.textTertiary)
+
+                        TextField(L10n.historySearchPlaceholder, text: $query)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.textPrimary)
+
+                        if !query.isEmpty {
+                            Button {
+                                query = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Palette.textTertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Palette.dropdownBg)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(Palette.hairline, lineWidth: 1)
+                            )
+                    )
+
+                    if !query.isEmpty {
+                        Text("\(filteredEntries.count) / \(history.entries.count)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Palette.textTertiary)
+                            .padding(.horizontal, 6)
+                    }
+
+                    Spacer()
+
+                    // Кнопка открытия поповера очистки
+                    Button {
+                        showClearPopover = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11, weight: .medium))
+                            Text(L10n.historyClearBtn)
+                                .font(.system(size: 13, weight: .medium))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                        .foregroundStyle(Palette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Palette.pill)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showClearPopover, arrowEdge: .bottom) {
+                        HistoryClearPopoverView { range in
+                            history.clear(range: range)
+                            showClearPopover = false
+                        }
                     }
                 }
-                HStack {
-                    Spacer()
-                    PillButton(title: "Очистить историю", symbol: "trash") {
-                        history.clear()
+                .padding(.bottom, 4)
+
+                if filteredEntries.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: "text.magnifyingglass")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundStyle(Palette.textTertiary)
+                        Text(L10n.historyNoSearchResults)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Palette.textSecondary)
+                        Text("«\(query)»")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
+                } else {
+                    Card {
+                        ForEach(Array(filteredEntries.enumerated()), id: \.element.id) { index, entry in
+                            HistoryRow(entry: entry, first: index == 0) {
+                                history.delete(id: entry.id)
+                            }
+                        }
                     }
                 }
             }
@@ -1347,10 +1700,126 @@ struct HistoryTab: View {
     }
 }
 
+// MARK: - Поповер очистки истории с растровыми иконками
+
+struct HistoryClearPopoverView: View {
+    let onSelect: (HistoryClearRange) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.historyClearPopoverTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                Text(L10n.historyClearPopoverSubtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.textTertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            Rectangle().fill(Palette.hairline).frame(height: 1)
+                .padding(.bottom, 4)
+
+            HistoryClearOptionRow(
+                iconName: "history_clear_1h",
+                title: L10n.historyClearLastHour,
+                subtitle: L10n.historyClearLastHourSub,
+                isDestructive: false
+            ) {
+                onSelect(.lastHour)
+            }
+
+            HistoryClearOptionRow(
+                iconName: "history_clear_today",
+                title: L10n.historyClearToday,
+                subtitle: L10n.historyClearTodaySub,
+                isDestructive: false
+            ) {
+                onSelect(.today)
+            }
+
+            HistoryClearOptionRow(
+                iconName: "history_clear_7d",
+                title: L10n.historyClearOlder7Days,
+                subtitle: L10n.historyClearOlder7DaysSub,
+                isDestructive: false
+            ) {
+                onSelect(.olderThan7Days)
+            }
+
+            HistoryClearOptionRow(
+                iconName: "history_clear_all",
+                title: L10n.historyClearAll,
+                subtitle: L10n.historyClearAllSub,
+                isDestructive: true
+            ) {
+                onSelect(.all)
+            }
+        }
+        .padding(8)
+        .frame(width: 320)
+        .background(Palette.card)
+    }
+}
+
+struct HistoryClearOptionRow: View {
+    let iconName: String
+    let title: String
+    let subtitle: String
+    let isDestructive: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                if let img = loadLocalHistoryIcon(iconName) {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 34, height: 34)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isDestructive ? Color.red.opacity(0.95) : Palette.textPrimary)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(hovering ? (isDestructive ? Color.red.opacity(0.12) : Palette.hover) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+
+    private func loadLocalHistoryIcon(_ name: String) -> NSImage? {
+        if let bundleURL = Bundle.main.url(forResource: name, withExtension: "png"),
+           let img = NSImage(contentsOf: bundleURL) {
+            return img
+        }
+        let localPath = "/Users/artsu/work_tree/voice/Resources/\(name).png"
+        return NSImage(contentsOfFile: localPath)
+    }
+}
+
 struct HistoryRow: View {
     let entry: HistoryEntry
     var first: Bool
+    var onDelete: () -> Void
     @State private var hovering = false
+    @State private var copied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1370,9 +1839,29 @@ struct HistoryRow: View {
                         .foregroundStyle(Palette.textTertiary)
                 }
                 Spacer(minLength: 12)
-                PillButton(title: "Копировать", symbol: "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(entry.text, forType: .string)
+                HStack(spacing: 8) {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.textTertiary)
+                            .frame(width: 26, height: 26)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Palette.pill)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(L10n.historyDeleteTooltip)
+
+                    PillButton(title: copied ? (L10n.isRu ? "Скопировано!" : "Copied!") : L10n.historyCopyBtn,
+                               symbol: copied ? "checkmark" : "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(entry.text, forType: .string)
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            copied = false
+                        }
+                    }
                 }
                 .opacity(hovering ? 1 : 0)
             }

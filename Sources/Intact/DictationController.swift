@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 enum DictationState: Equatable {
-    case idle, recording, transcribing
+    case idle, recording, transcribing, processingAI
 }
 
 /// Склеивает всё вместе: клавиша → запись → whisper → вставка текста.
@@ -77,13 +77,21 @@ final class DictationController: ObservableObject {
 
     /// Поднимает whisper-server заранее, чтобы первая же диктовка была быстрой.
     func warmUp() {
-        guard settings.streaming, WhisperServer.shared.isAvailable else {
+        if settings.streaming, WhisperServer.shared.isAvailable {
+            WhisperServer.shared.ensureRunning(settings: settings) { ok in
+                DispatchQueue.main.async { self.engineReady = ok }
+            }
+        } else {
             DispatchQueue.main.async { self.engineReady = false }
-            return
         }
-        WhisperServer.shared.ensureRunning(settings: settings) { ok in
-            DispatchQueue.main.async { self.engineReady = ok }
-        }
+        warmUpLocalAI()
+    }
+
+    /// Поднимает локальный llama-server заранее — иначе первая же AI-причёсанная диктовка
+    /// упрётся в таймаут, пока модель грузится в память (это может занять больше 8 секунд).
+    func warmUpLocalAI() {
+        guard settings.aiProviderKind == .local, LocalAIProvider.shared.isReady else { return }
+        LocalAIProvider.shared.ensureRunning { _ in }
     }
 
     func restartEngine() {
@@ -98,7 +106,7 @@ final class DictationController: ObservableObject {
         switch state {
         case .idle:         start()
         case .recording:    stop()
-        case .transcribing: break
+        case .transcribing, .processingAI: break
         }
     }
 
@@ -288,13 +296,58 @@ final class DictationController: ObservableObject {
 
     // MARK: - Результат
 
+    private static let aiTimeoutSeconds: TimeInterval = 8
+    private static let cleanupSystemPrompt = """
+    Причеши текст, надиктованный голосом: убери слова-паразиты («э-э», «ну», «короче», «как бы»), \
+    поправь порядок слов и пунктуацию, сохрани исходный смысл, факты и язык. \
+    Верни только готовый текст, без пояснений и кавычек.
+    """
+
     private func finish(text raw: String, seconds: TimeInterval, latencyMs: Int) {
         let text = postProcess(raw)
         draftText = ""
         lastLatencyMs = latencyMs
+
+        guard settings.enableAICleanup, AIRouter.shared.isReady,
+              !text.trimmingCharacters(in: .whitespaces).isEmpty else {
+            finishRouting(text: text, seconds: seconds, latencyMs: latencyMs)
+            return
+        }
+
+        state = .processingAI
+        if settings.showIndicator { indicator.show(controller: self) }
+
+        var settled = false
+        let settle: (String) -> Void = { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, !settled else { return }
+                settled = true
+                self.state = .idle
+                self.indicator.hide()
+                self.finishRouting(text: result, seconds: seconds, latencyMs: latencyMs)
+            }
+        }
+
+        // Плохая сеть или медленная модель не должны подвешивать диктовку —
+        // по истечении таймаута отдаём исходный текст как есть.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.aiTimeoutSeconds) { settle(text) }
+
+        AIRouter.shared.complete(system: Self.cleanupSystemPrompt, user: text, maxTokens: 800) { result in
+            switch result {
+            case .success(let refined):
+                let cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines)
+                settle(cleaned.isEmpty ? text : cleaned)
+            case .failure(let error):
+                Log.write("AI-причёсывание не удалось (\(error.localizedDescription)) — использую исходный текст")
+                settle(text)
+            }
+        }
+    }
+
+    private func finishRouting(text: String, seconds: TimeInterval, latencyMs: Int) {
         lastResult = text.trimmingCharacters(in: .whitespaces)
 
-        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
+        guard !lastResult.isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
             lastError = "Речь не распознана — тишина или слишком тихий микрофон."
             return

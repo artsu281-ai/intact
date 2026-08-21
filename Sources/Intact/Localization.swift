@@ -23,6 +23,7 @@ enum L10n {
     static var tabMicrophone: String { isRu ? "Микрофон" : "Microphone" }
     static var tabHistory: String { isRu ? "История" : "History" }
     static var tabAbout: String { isRu ? "О программе" : "About" }
+    static var tabAI: String { isRu ? "ИИ" : "AI" }
 
     // MARK: - Статус
     static var statusReady: String { isRu ? "Готов к диктовке" : "Ready for dictation" }
@@ -75,6 +76,34 @@ enum L10n {
     static var themeDarkSub: String { isRu ? "Глубокий ночной фон для комфорта глаз" : "Deep nighttime palette for eye comfort" }
     static var themeSystem: String { isRu ? "Как в системе" : "System" }
     static var themeSystemSub: String { isRu ? "Автоматически следовать за темой macOS" : "Automatically follows macOS theme" }
+
+    // MARK: - ИИ (AI)
+    static var aiHeaderProvider: String { isRu ? "Провайдер ИИ" : "AI Provider" }
+    static var aiProviderSubtitle: String { isRu ? "Кто причёсывает текст после распознавания" : "Who cleans up text after transcription" }
+    static var aiProviderNone: String { isRu ? "Выключено" : "Off" }
+    static var aiProviderLocal: String { isRu ? "Локально" : "Local" }
+    static var aiProviderCloud: String { isRu ? "Облако (Claude)" : "Cloud (Claude)" }
+    static var aiHeaderCloud: String { isRu ? "Облачный провайдер" : "Cloud Provider" }
+    static var aiApiKeyLabel: String { isRu ? "API-ключ Anthropic" : "Anthropic API Key" }
+    static var aiApiKeyPlaceholder: String { isRu ? "sk-ant-…" : "sk-ant-…" }
+    static var aiApiKeySave: String { isRu ? "Сохранить" : "Save" }
+    static var aiApiKeySavedSub: String { isRu ? "Ключ хранится в Keychain, не в настройках приложения" : "Key is stored in Keychain, not in app settings" }
+    static var aiCloudModelLabel: String { isRu ? "Модель" : "Model" }
+    static var aiHeaderLocal: String { isRu ? "Локальная модель" : "Local Model" }
+    static var aiLocalServerMissing: String { isRu ? "Локальный AI-сервер не найден" : "Local AI server not found" }
+    static var aiLocalServerMissingSub: String { isRu ? "Нужен llama-server из llama.cpp — можно поставить прямо отсюда" : "Requires llama-server from llama.cpp — install it right here" }
+    static var aiInstallHomebrewBtn: String { isRu ? "Установить через Homebrew" : "Install via Homebrew" }
+    static var aiInstalling: String { isRu ? "Установка…" : "Installing…" }
+    static var aiHomebrewMissing: String { isRu ? "Homebrew не найден. Установите его с brew.sh, затем вернитесь сюда." : "Homebrew not found. Install it from brew.sh, then come back here." }
+    static var aiLocalModelsTitle: String { isRu ? "Модели" : "Models" }
+    static var aiLocalServerStatus: String { isRu ? "Состояние локального сервера" : "Local server status" }
+    static var aiLocalServerRunning: String { isRu ? "Запущен и готов" : "Running and ready" }
+    static var aiLocalServerStopped: String { isRu ? "Остановлен" : "Stopped" }
+    static var aiRestartBtn: String { isRu ? "Перезапустить" : "Restart" }
+    static var aiHeaderFeatures: String { isRu ? "Возможности" : "Features" }
+    static var aiCleanupToggle: String { isRu ? "Причёсывать текст ИИ" : "Clean up text with AI" }
+    static var aiCleanupToggleSub: String { isRu ? "Убирает слова-паразиты и поправляет пунктуацию перед вставкой" : "Removes filler words and fixes punctuation before inserting" }
+    static var hudProcessingAI: String { isRu ? "Улучшаю…" : "Refining…" }
 
     // MARK: - Индикатор диктовки (HUD)
     static var hudTranscribing: String { isRu ? "Распознаю…" : "Transcribing…" }
@@ -180,7 +209,22 @@ enum L10n {
     // MARK: - История (History)
     static var historyEmptyTitle: String { isRu ? "История записей пуста" : "History is empty" }
     static var historyEmptySubtitle: String { isRu ? "Здесь будут сохраняться продиктованные вами фразы." : "Your transcribed phrases will appear here." }
-    static var historyClearBtn: String { isRu ? "Очистить историю" : "Clear history" }
+    static var historySearchPlaceholder: String { isRu ? "Поиск по истории записей…" : "Search history…" }
+    static var historyNoSearchResults: String { isRu ? "По запросу ничего не найдено" : "No entries found for query" }
+    static var historyClearBtn: String { isRu ? "Очистить…" : "Clear…" }
+    static var historyClearPopoverTitle: String { isRu ? "Очистка истории" : "Clear History" }
+    static var historyClearPopoverSubtitle: String { isRu ? "Выберите период для удаления записей:" : "Select time range to delete:" }
+    static var historyClearLastHour: String { isRu ? "За последний час" : "Last hour" }
+    static var historyClearLastHourSub: String { isRu ? "Удалит записи за последние 60 минут" : "Deletes entries recorded in the last 60 minutes" }
+    static var historyClearToday: String { isRu ? "За сегодня" : "Today" }
+    static var historyClearTodaySub: String { isRu ? "Очистит историю за текущий день" : "Clears records from today" }
+    static var historyClearOlder7Days: String { isRu ? "Старше 7 дней" : "Older than 7 days" }
+    static var historyClearOlder7DaysSub: String { isRu ? "Оставит только свежие записи за неделю" : "Keeps only the past 7 days of records" }
+    static var historyClearOlder30Days: String { isRu ? "Старше 30 дней" : "Older than 30 days" }
+    static var historyClearOlder30DaysSub: String { isRu ? "Оставит только записи за последний месяц" : "Keeps only the last 30 days of records" }
+    static var historyClearAll: String { isRu ? "Всю историю" : "All history" }
+    static var historyClearAllSub: String { isRu ? "Полное удаление всех записей" : "Permanently deletes all history" }
+    static var historyDeleteTooltip: String { isRu ? "Удалить запись" : "Delete record" }
     static var historyCopyBtn: String { isRu ? "Копировать" : "Copy" }
 
     // MARK: - О программе (About)

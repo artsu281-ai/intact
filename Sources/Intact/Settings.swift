@@ -150,6 +150,19 @@ enum ActivationMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum AIProviderKind: String, CaseIterable, Identifiable {
+    case none, local, cloud
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none:  return L10n.aiProviderNone
+        case .local: return L10n.aiProviderLocal
+        case .cloud: return L10n.aiProviderCloud
+        }
+    }
+}
+
 struct Language: Identifiable, Hashable {
     let code: String
     let name: String            // Родное название (напр. "English", "Русский", "Deutsch")
@@ -292,6 +305,10 @@ final class AppSettings: ObservableObject {
     @Published var voiceNotesFolder: String { didSet { d.set(voiceNotesFolder, forKey: "voiceNotesFolder") } }
     @Published var enableVoiceReminders: Bool { didSet { d.set(enableVoiceReminders, forKey: "enableVoiceReminders") } }
     @Published var voiceRemindersList: String { didSet { d.set(voiceRemindersList, forKey: "voiceRemindersList") } }
+    @Published var aiProviderKind: AIProviderKind { didSet { d.set(aiProviderKind.rawValue, forKey: "aiProviderKind"); onAIProviderChange?() } }
+    @Published var aiCloudModel: String { didSet { d.set(aiCloudModel, forKey: "aiCloudModel") } }
+    @Published var aiLocalModelPath: String { didSet { d.set(aiLocalModelPath, forKey: "aiLocalModelPath"); onAIProviderChange?() } }
+    @Published var enableAICleanup: Bool { didSet { d.set(enableAICleanup, forKey: "enableAICleanup") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
@@ -301,6 +318,8 @@ final class AppSettings: ObservableObject {
     var onHotKeyChange: (() -> Void)?
     /// Вызывается, когда меняются параметры движка — чтобы перезапустить whisper-server.
     var onEngineChange: (() -> Void)?
+    /// Вызывается при смене AI-провайдера или локальной модели — чтобы прогреть llama-server заранее.
+    var onAIProviderChange: (() -> Void)?
     /// Вызывается при переключении значка в Dock.
     var onDockIconChange: (() -> Void)?
 
@@ -377,6 +396,10 @@ final class AppSettings: ObservableObject {
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"
         enableVoiceReminders = d.object(forKey: "enableVoiceReminders") == nil ? true : d.bool(forKey: "enableVoiceReminders")
         voiceRemindersList = d.string(forKey: "voiceRemindersList") ?? ""
+        aiProviderKind = AIProviderKind(rawValue: d.string(forKey: "aiProviderKind") ?? "") ?? .none
+        aiCloudModel = d.string(forKey: "aiCloudModel") ?? "claude-haiku-4-5"
+        aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
+        enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
