@@ -641,18 +641,22 @@ struct ChatTab: View {
             .buttonStyle(.plain)
             .help(isChatRecording ? "Остановить и отправить запрос" : "Голосовой запрос в чат (нажмите для записи)")
 
-            // Кнопка отправки текста
+            // Кнопка отправки текста — во время генерации превращается в «Стоп»
+            // и остаётся кликабельной, а не просто меняет иконку задизейбленной.
             let canSend = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !chat.isGenerating
-            Button { sendMessage() } label: {
+            Button {
+                if chat.isGenerating { chat.stopGenerating() } else { sendMessage() }
+            } label: {
                 IntactIcon(kind: chat.isGenerating ? .stop : .send, size: 14)
-                    .foregroundStyle(canSend ? .white : Palette.textTertiary)
+                    .foregroundStyle(canSend || chat.isGenerating ? .white : Palette.textTertiary)
                     .frame(width: 36, height: 36)
                     .background(
-                        Circle().fill(canSend ? Palette.accent : Palette.pill)
+                        Circle().fill(canSend || chat.isGenerating ? Palette.accent : Palette.pill)
                     )
             }
             .buttonStyle(.plain)
-            .disabled(!canSend)
+            .disabled(!canSend && !chat.isGenerating)
+            .help(chat.isGenerating ? "Остановить генерацию" : "Отправить")
             .animation(.spring(response: 0.22), value: canSend)
         }
         .padding(.vertical, 12)

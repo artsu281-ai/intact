@@ -12,16 +12,17 @@ final class CloudAIProvider: AIProvider {
         !(KeychainHelper.get(service: Self.keychainService) ?? "").isEmpty
     }
 
-    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
+    @discardableResult
+    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
         guard let apiKey = KeychainHelper.get(service: Self.keychainService), !apiKey.isEmpty else {
             completion(.failure(.notConfigured))
-            return
+            return AITask()
         }
 
         let model = AppSettings.shared.aiCloudModel
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
             completion(.failure(.badResponse))
-            return
+            return AITask()
         }
 
         let systemPrompt = messages.first(where: { $0.role == .system })?.content
@@ -48,8 +49,9 @@ final class CloudAIProvider: AIProvider {
         req.timeoutInterval = 120
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        URLSession.shared.dataTask(with: req) { data, response, error in
+        let task = URLSession.shared.dataTask(with: req) { data, response, error in
             if let error {
+                if (error as NSError).code == NSURLErrorCancelled { return }
                 completion(.failure((error as NSError).code == NSURLErrorTimedOut ? .timeout : .network(error)))
                 return
             }
@@ -75,6 +77,8 @@ final class CloudAIProvider: AIProvider {
                 return
             }
             completion(.success(text))
-        }.resume()
+        }
+        task.resume()
+        return AITask(onCancel: { task.cancel() })
     }
 }

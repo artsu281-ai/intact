@@ -130,9 +130,12 @@ final class LocalAIProvider: AIProvider {
 
     // MARK: - Запрос
 
-    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
-        guard isAvailable else { completion(.failure(.providerUnavailable)); return }
+    @discardableResult
+    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
+        let cancelToken = CancelToken()
+        guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
         ensureRunning { [weak self] ok in
+            guard !cancelToken.isCancelled else { return }
             guard let self, ok, self.port != 0,
                   let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
                 completion(.failure(.providerUnavailable))
@@ -148,8 +151,9 @@ final class LocalAIProvider: AIProvider {
             // 30 секунд хватало примерно на 700 токенов — всё длиннее обрывалось.
             req.timeoutInterval = 300
 
-            URLSession.shared.dataTask(with: req) { data, response, error in
+            let task = URLSession.shared.dataTask(with: req) { data, response, error in
                 if let error {
+                    if (error as NSError).code == NSURLErrorCancelled { return }
                     completion(.failure((error as NSError).code == NSURLErrorTimedOut ? .timeout : .network(error)))
                     return
                 }
@@ -163,8 +167,11 @@ final class LocalAIProvider: AIProvider {
                     return
                 }
                 completion(.success(text))
-            }.resume()
+            }
+            cancelToken.task = task
+            task.resume()
         }
+        return AITask(onCancel: { cancelToken.cancel() })
     }
 
     private static func requestBody(messages: [AIMessage], maxTokens: Int) -> [String: Any] {
@@ -187,13 +194,18 @@ final class LocalAIProvider: AIProvider {
     /// Это не косметика: на 9B скорость около 24 токенов в секунду, то есть
     /// развёрнутый ответ идёт полторы минуты. Одним куском такой запрос
     /// упирался в таймаут и пропадал целиком, ничего не показав.
+    @discardableResult
     func stream(messages: [AIMessage],
                 maxTokens: Int,
                 onDelta: @escaping (String) -> Void,
-                completion: @escaping (Result<String, AIError>) -> Void) {
-        guard isAvailable else { completion(.failure(.providerUnavailable)); return }
+                completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
+        guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
+
+        let cancelToken = CancelToken()
+        var collectorBox: SSECollector?
 
         ensureRunning { [weak self] ok in
+            guard !cancelToken.isCancelled else { return }
             guard let self, ok, self.port != 0,
                   let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
                 completion(.failure(.providerUnavailable))
@@ -210,6 +222,7 @@ final class LocalAIProvider: AIProvider {
             req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
             let collector = SSECollector(onDelta: onDelta, completion: completion)
+            collectorBox = collector
             let config = URLSessionConfiguration.ephemeral
             // Таймер простоя, а не общий срок: пока идут токены, он сбрасывается.
             // Запас в две минуты нужен на обработку длинного промпта до первого токена.
@@ -219,6 +232,11 @@ final class LocalAIProvider: AIProvider {
             collector.session = session
             session.dataTask(with: req).resume()
         }
+
+        return AITask(onCancel: {
+            cancelToken.cancel()
+            collectorBox?.cancel()
+        })
     }
 
     // MARK: - Установка сервера через Homebrew
@@ -303,6 +321,12 @@ private final class SSECollector: NSObject, URLSessionDataDelegate {
         self.completion = completion
     }
 
+    /// Обрывает соединение по нажатию «Стоп». `didCompleteWithError` сам
+    /// разберётся, что делать с уже накопленным текстом.
+    func cancel() {
+        session?.invalidateAndCancel()
+    }
+
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         buffer.append(data)
         let newline = Data([0x0A])
@@ -339,6 +363,9 @@ private final class SSECollector: NSObject, URLSessionDataDelegate {
             // Успели набрать текст до обрыва — отдаём его, это лучше пустоты.
             if !text.isEmpty {
                 completion(.success(text))
+            } else if (error as NSError).code == NSURLErrorCancelled {
+                // Нажали «Стоп» до первого токена — тихо закрываем, без баннера ошибки.
+                completion(.success(""))
             } else {
                 completion(.failure((error as NSError).code == NSURLErrorTimedOut ? .timeout : .network(error)))
             }

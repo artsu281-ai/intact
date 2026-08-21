@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import PDFKit
 
 /// Сообщение в окне чата Intact.
 struct ChatMessage: Identifiable, Codable, Hashable {
@@ -59,6 +60,8 @@ final class AIChatService: ObservableObject {
     @Published private(set) var activeThreadID: UUID
 
     @Published var isGenerating: Bool = false
+    /// Хэндл на текущий запрос к ИИ — держим, чтобы кнопка «Стоп» могла его отменить.
+    private var currentTask: AITask?
     @Published var errorMessage: String? = nil
     @Published var selectedContextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]
     /// Файлы/папки, прикреплённые пользователем через диалог выбора — живут,
@@ -251,7 +254,7 @@ final class AIChatService: ObservableObject {
 
             // Лимит подняли с 2048: на этом пороге модель обрывала ответ
             // посреди HTML-страницы с причиной остановки «length».
-            AIRouter.shared.stream(
+            self.currentTask = AIRouter.shared.stream(
                 messages: aiMessages,
                 maxTokens: 4096,
                 onDelta: { [weak self] piece in
@@ -263,6 +266,7 @@ final class AIChatService: ObservableObject {
                     DispatchQueue.main.async {
                         guard let self else { return }
                         self.isGenerating = false
+                        self.currentTask = nil
                         self.finishStreaming(in: targetThreadID)
                         if case .failure(let error) = result {
                             self.errorMessage = error.localizedDescription
@@ -271,6 +275,16 @@ final class AIChatService: ObservableObject {
                 }
             )
         }
+    }
+
+    /// Останавливает генерацию по нажатию «Стоп» в чате. Уже накопленный
+    /// кусок ответа не пропадает — `finishStreaming` сохранит его как есть.
+    func stopGenerating() {
+        guard isGenerating else { return }
+        currentTask?.cancel()
+        currentTask = nil
+        isGenerating = false
+        finishStreaming(in: activeThreadID)
     }
 
     // MARK: - Быстрые действия
@@ -311,17 +325,41 @@ final class AIChatService: ObservableObject {
     /// Читает файл(ы) или папки, выбранные в NSOpenPanel, и добавляет как контекст чата.
     /// Папки разбираются не рекурсивно-бесконечно, а с потолком на число файлов и общий
     /// объём — иначе один клик по домашней папке мог бы утащить в промпт гигабайты текста.
-    func attachFiles(urls: [URL]) {
+    ///
+    /// Молчаливый провал здесь — худший вариант: пользователь кликает «Прикрепить»,
+    /// ничего не появляется, и кажется, что кнопка сломана. Поэтому нечитаемые файлы
+    /// не просто пропускаются — они попадают в `errorMessage`.
+    @discardableResult
+    func attachFiles(urls: [URL]) -> Bool {
         var totalBytes = attachedFiles.reduce(0) { $0 + $1.content.utf8.count }
+        var attachedCount = 0
+        var skipped: [String] = []
+
         for base in urls {
-            for fileURL in Self.collectReadableFiles(from: base) {
-                guard totalBytes < Self.maxTotalAttachedBytes else { return }
+            let candidates = Self.collectCandidateFiles(from: base)
+            for fileURL in candidates {
+                guard totalBytes < Self.maxTotalAttachedBytes else {
+                    skipped.append(fileURL.lastPathComponent + " (лимит объёма)")
+                    continue
+                }
                 guard !attachedFiles.contains(where: { $0.url == fileURL }) else { continue }
-                guard let text = Self.readTextFile(fileURL) else { continue }
+                guard let text = Self.readFileContent(fileURL) else {
+                    skipped.append(fileURL.lastPathComponent)
+                    continue
+                }
                 attachedFiles.append(AttachedFile(url: fileURL, content: text))
                 totalBytes += text.utf8.count
+                attachedCount += 1
             }
         }
+
+        if attachedCount == 0 && !skipped.isEmpty {
+            let names = skipped.prefix(3).joined(separator: ", ")
+            errorMessage = "Не удалось прочитать: \(names). Поддерживаются текстовые файлы (txt, md, код и т.п.) и PDF."
+        } else if !skipped.isEmpty {
+            errorMessage = "Не прочитано: \(skipped.prefix(3).joined(separator: ", "))\(skipped.count > 3 ? " и ещё \(skipped.count - 3)" : "")"
+        }
+        return attachedCount > 0
     }
 
     func removeAttachedFile(_ id: UUID) {
@@ -332,7 +370,10 @@ final class AIChatService: ObservableObject {
         attachedFiles.removeAll()
     }
 
-    private static func collectReadableFiles(from url: URL) -> [URL] {
+    /// Для одиночного файла — сам файл как есть (что реально в нём лежит,
+    /// проверит readFileContent). Для папки — только файлы с известным
+    /// расширением, иначе список кандидатов раздулся бы бинарным мусором.
+    private static func collectCandidateFiles(from url: URL) -> [URL] {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return [] }
         guard isDir.boolValue else { return [url] }
@@ -345,17 +386,35 @@ final class AIChatService: ObservableObject {
         for case let item as URL in enumerator {
             if results.count >= maxFilesPerFolder { break }
             if item.pathComponents.contains(where: { skippedPathComponents.contains($0) }) { continue }
-            guard readableExtensions.contains(item.pathExtension.lowercased()) else { continue }
+            let ext = item.pathExtension.lowercased()
+            guard readableExtensions.contains(ext) || ext == "pdf" else { continue }
             results.append(item)
         }
         return results
     }
 
-    private static func readTextFile(_ url: URL) -> String? {
+    private static func readFileContent(_ url: URL) -> String? {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = (attrs[.size] as? NSNumber)?.intValue, size > 0, size <= maxFileBytes * 4 else { return nil }
+              let size = (attrs[.size] as? NSNumber)?.intValue, size > 0, size <= maxFileBytes * 8 else { return nil }
+
+        if url.pathExtension.lowercased() == "pdf" {
+            return readPDFText(url)
+        }
         guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return nil }
         return String(text.prefix(maxFileBytes))
+    }
+
+    private static func readPDFText(_ url: URL) -> String? {
+        guard let document = PDFDocument(url: url) else { return nil }
+        var text = ""
+        for i in 0..<document.pageCount {
+            guard let page = document.page(at: i) else { continue }
+            text += (page.string ?? "") + "\n"
+            if text.utf8.count > maxFileBytes { break }
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return String(trimmed.prefix(maxFileBytes))
     }
 
     // MARK: - Сборщик контекста

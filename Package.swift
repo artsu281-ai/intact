@@ -15,7 +15,8 @@ let package = Package(
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("AppKit"),
-                .linkedFramework("Security")
+                .linkedFramework("Security"),
+                .linkedFramework("PDFKit")
             ]
         )
     ]
