@@ -36,8 +36,6 @@ final class DictationController: ObservableObject {
     /// Секунды до авто-закрытия карточки копирования.
     @Published var pendingRemainingSeconds: Int = 0
 
-    /// Было ли в фокусе редактируемое поле, когда начиналась диктовка.
-    private var canInsert = true
     private var pendingTimer: Timer?
 
     private let recorder = AudioRecorder()
@@ -124,8 +122,6 @@ final class DictationController: ObservableObject {
                 self.elapsedText = "0:00"
                 self.pendingText = nil
                 self.pendingTimer?.invalidate()
-                self.canInsert = FocusInspector.canInsertText
-                if !self.canInsert { Log.write("нет активного окна/поля — вставки не будет") }
                 if self.settings.outputMode == .live { LiveTyper.shared.reset() }
                 if self.settings.showIndicator { self.indicator.show(controller: self) }
                 if self.settings.playSounds { NSSound(named: "Tink")?.play() }
@@ -244,7 +240,7 @@ final class DictationController: ObservableObject {
                     self.lastLatencyMs = ms
                     // Живая печать: отдаём в поле устойчивую часть черновика,
                     // не дожидаясь конца фразы (только если это не голосовая заметка или напоминание).
-                    if self.settings.outputMode == .live, self.state == .recording, self.canInsert {
+                    if self.settings.outputMode == .live, self.state == .recording, FocusInspector.canInsertText {
                         let isNote = self.settings.enableVoiceNotes && AppleNotesService.extractNoteText(from: text) != nil
                         let isReminder = self.settings.enableVoiceReminders && AppleRemindersService.extractReminder(from: text) != nil
                         if !isNote && !isReminder {
