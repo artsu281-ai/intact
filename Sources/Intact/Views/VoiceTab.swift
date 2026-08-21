@@ -53,6 +53,24 @@ struct VoiceTab: View {
                 }
             }
 
+            // ── Форматирование текста ───────────────────────────────────
+            // Та же настройка, что и во вкладке «Брифы и заметки» (общий
+            // AppSettings.trimTrailingPeriod/appendSpace) — здесь она логичнее
+            // рядом с «Вставкой текста», где её и ищут в первую очередь.
+            Card(header: "ФОРМАТИРОВАНИЕ ТЕКСТА") {
+                Row(title: "Убирать точку в конце",
+                    subtitle: "Удалять завершающую точку при коротких фразах",
+                    first: true) {
+                    Toggle("", isOn: $settings.trimTrailingPeriod)
+                        .toggleStyle(WisprToggleStyle())
+                }
+                Row(title: "Добавлять пробел после текста",
+                    subtitle: "Автоматически ставить пробел после вставленного фрагмента") {
+                    Toggle("", isOn: $settings.appendSpace)
+                        .toggleStyle(WisprToggleStyle())
+                }
+            }
+
             // ── Микрофон ────────────────────────────────────────────────
             Card(header: "МИКРОФОН") {
                 Row(title: "Источник звука",
