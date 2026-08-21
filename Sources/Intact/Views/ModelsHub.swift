@@ -14,6 +14,10 @@ struct ModelCatalogRow: View {
     let downloadLabel: String
     var updateBadge: Bool = false
     var updateLabel: String? = nil
+    /// Короткая техническая метка рядом с размером — например, формат квантования.
+    var badge: String? = nil
+    /// Предупреждение под описанием: модель не поместится в память этой машины.
+    var warning: String? = nil
     var first: Bool = false
     let onSelect: () -> Void
     let onDownload: () -> Void
@@ -22,37 +26,53 @@ struct ModelCatalogRow: View {
 
     @State private var hovering = false
 
+    /// Гигабайты десятичные — так же считают Finder и HuggingFace,
+    /// иначе цифра в приложении не сойдётся с цифрой на диске.
+    private var sizeText: String {
+        sizeMB >= 1000
+            ? String(format: "%.1f ГБ", Double(sizeMB) / 1000.0)
+            : "\(sizeMB) МБ"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if !first {
                 Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
             }
             HStack(alignment: .center, spacing: 14) {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? Palette.textPrimary : Palette.textTertiary)
+                IntactIcon(kind: isActive ? .radioOn : .radioOff, size: 17)
+                    .foregroundStyle(isActive ? Palette.accent : Palette.iconMuted)
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
                         Text(title)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(Palette.textPrimary)
-                        Text("\(sizeMB) МБ")
+                        Text(sizeText)
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.textTertiary)
 
+                        if let badge {
+                            Text(badge)
+                                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Palette.textTertiary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Palette.pill))
+                        }
+
                         if updateBadge {
                             HStack(spacing: 4) {
-                                Circle().fill(Color.orange).frame(width: 6, height: 6)
+                                Circle().fill(Palette.iconWarning).frame(width: 6, height: 6)
                                 Text("Доступно обновление")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.orange)
+                                    .foregroundStyle(Palette.iconWarning)
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
                                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(Color.orange.opacity(0.12))
+                                    .fill(Palette.iconWarning.opacity(0.12))
                             )
                         }
                     }
@@ -61,6 +81,17 @@ struct ModelCatalogRow: View {
                             .font(.system(size: 13))
                             .foregroundStyle(Palette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let warning {
+                        HStack(alignment: .top, spacing: 6) {
+                            IntactIcon(kind: .warning, size: 14)
+                                .foregroundStyle(Palette.iconWarning)
+                            Text(warning)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Palette.iconWarning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, 2)
                     }
                     if isDownloading {
                         ProgressView(value: progress)
@@ -77,22 +108,22 @@ struct ModelCatalogRow: View {
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
                 } else if !isInstalled {
-                    PillButton(title: downloadLabel, symbol: "arrow.down.circle") {
+                    PillButton(title: downloadLabel, icon: .download) {
                         onDownload()
                     }
                 } else if updateBadge, let updateLabel {
-                    PillButton(title: updateLabel, symbol: "arrow.triangle.2.circlepath") {
+                    PillButton(title: updateLabel, icon: .update) {
                         onUpdate?()
                     }
                 } else if hovering {
                     HStack(spacing: 8) {
                         if let onUpdate {
-                            PillButton(title: updateLabel ?? "Обновить", symbol: "arrow.clockwise") {
+                            PillButton(title: updateLabel ?? "Обновить", icon: .refresh) {
                                 onUpdate()
                             }
                         }
                         if !isActive {
-                            PillButton(title: "Удалить", symbol: "trash") {
+                            PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
                                 onDelete()
                             }
                         }
@@ -126,7 +157,7 @@ struct ModelsHub: View {
         let mb = whisperModels.installed.reduce(0) { $0 + $1.sizeMB }
                 + llmModels.installed.reduce(0) { $0 + $1.sizeMB }
                 + audioModels.installed.reduce(0) { $0 + $1.totalSizeMB }
-        return Double(mb) / 1024.0
+        return Double(mb) / 1000.0
     }
 
     var body: some View {
@@ -166,15 +197,14 @@ struct ModelsHub: View {
     private var diskUsageSummaryRow: some View {
         HStack(alignment: .center) {
             HStack(spacing: 8) {
-                Image(systemName: "internaldrive")
-                    .font(.system(size: 14))
+                IntactIcon(kind: .disk, size: 16)
                     .foregroundStyle(Palette.textSecondary)
                 Text("\(String(format: "%.1f", totalInstalledGB)) ГБ занято на диске")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textSecondary)
             }
             Spacer()
-            PillButton(title: "Папки", symbol: "folder") {
+            PillButton(title: "Папки", icon: .folder) {
                 NSWorkspace.shared.open(ModelManager.directory)
                 NSWorkspace.shared.open(LLMModelManager.directory)
                 NSWorkspace.shared.open(GemmaAudioModelManager.directory)
@@ -197,11 +227,11 @@ struct ModelsHub: View {
                 if let msg = whisperModels.statusMessage {
                     Text(msg)
                         .font(.system(size: 11))
-                        .foregroundStyle(whisperModels.updatesAvailable.isEmpty ? Palette.textTertiary : Color.orange)
+                        .foregroundStyle(whisperModels.updatesAvailable.isEmpty ? Palette.textTertiary : Palette.iconWarning)
                 }
                 Spacer()
                 PillButton(title: whisperModels.isCheckingUpdates ? L10n.modelChecking : L10n.modelCheckUpdates,
-                           symbol: "arrow.triangle.2.circlepath") {
+                           icon: .update) {
                     whisperModels.checkForUpdates()
                 }
             }
@@ -238,7 +268,7 @@ struct ModelsHub: View {
             )
 
             if let err = whisperModels.lastError {
-                Text(err).font(.system(size: 12)).foregroundStyle(.red).padding(.leading, 4)
+                Text(err).font(.system(size: 12)).foregroundStyle(Palette.iconDanger).padding(.leading, 4)
             }
         }
     }
@@ -246,30 +276,54 @@ struct ModelsHub: View {
     // MARK: - Карточка LLM
 
     private var llmCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Card(header: "Причёсывание текста (LLM)") {
-                ForEach(Array(LLMModel.catalog.enumerated()), id: \.element.id) { index, model in
-                    ModelCatalogRow(
-                        title: model.title,
-                        sizeMB: model.sizeMB,
-                        note: model.note,
-                        isInstalled: model.isInstalled,
-                        isActive: settings.aiLocalModelPath == model.localURL.path,
-                        isDownloading: llmModels.downloading == model.filename,
-                        progress: llmModels.progress,
-                        downloadLabel: "Скачать",
-                        first: index == 0,
-                        onSelect: { settings.aiLocalModelPath = model.localURL.path },
-                        onDownload: { llmModels.download(model) },
-                        onDelete: { llmModels.delete(model) }
-                    )
-                }
+        VStack(alignment: .leading, spacing: 22) {
+            llmGroup(.light, header: "Причёсывание текста (LLM)")
+
+            VStack(alignment: .leading, spacing: 10) {
+                llmGroup(.large, header: "Крупные модели · аналитика, код, рассуждения")
+
+                Text("Требуют 16 ГБ памяти и больше. В этом Mac — \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.textTertiary)
+                    .padding(.leading, 4)
             }
 
             if let err = llmModels.lastError {
-                Text(err).font(.system(size: 12)).foregroundStyle(.red).padding(.leading, 4)
+                Text(err).font(.system(size: 12)).foregroundStyle(Palette.iconDanger).padding(.leading, 4)
             }
         }
+    }
+
+    private func llmGroup(_ tier: LLMTier, header: String) -> some View {
+        let models = LLMModel.catalog(tier)
+        return Card(header: header) {
+            ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
+                ModelCatalogRow(
+                    title: model.title,
+                    sizeMB: model.sizeMB,
+                    note: model.note,
+                    isInstalled: model.isInstalled,
+                    isActive: settings.aiLocalModelPath == model.localURL.path,
+                    isDownloading: llmModels.downloading == model.filename,
+                    progress: llmModels.progress,
+                    downloadLabel: "Скачать",
+                    badge: model.quant,
+                    warning: memoryWarning(for: model),
+                    first: index == 0,
+                    onSelect: { settings.aiLocalModelPath = model.localURL.path },
+                    onDownload: { llmModels.download(model) },
+                    onDelete: { llmModels.delete(model) }
+                )
+            }
+        }
+    }
+
+    /// Честное предупреждение до скачивания десяти гигабайт: без запаса памяти
+    /// llama-server уйдёт в своп и будет отвечать минутами вместо секунд.
+    private func memoryWarning(for model: LLMModel) -> String? {
+        guard !model.fitsInMemory else { return nil }
+        return String(format: "Нужно около %.0f ГБ памяти вместе с контекстом — в этом Mac %.0f ГБ. Скачать можно, но работать будет через своп.",
+                      model.estimatedRAMGB + 3, Hardware.physicalMemoryGB)
     }
 
     // MARK: - Карточка Gemma Audio
@@ -299,7 +353,7 @@ struct ModelsHub: View {
             }
 
             if let err = audioModels.lastError {
-                Text(err).font(.system(size: 12)).foregroundStyle(.red).padding(.leading, 4)
+                Text(err).font(.system(size: 12)).foregroundStyle(Palette.iconDanger).padding(.leading, 4)
             }
         }
     }
@@ -316,7 +370,7 @@ struct ModelsHub: View {
                     .onChange(of: settings.streaming) { _, _ in controller.restartEngine() }
             }
             Row(title: "Состояние whisper-server", subtitle: engineStatus) {
-                PillButton(title: "Перезапустить", symbol: "arrow.clockwise") {
+                PillButton(title: "Перезапустить", icon: .refresh) {
                     controller.restartEngine()
                 }
             }
@@ -330,7 +384,7 @@ struct ModelsHub: View {
             Row(title: "Задержка последней вставки", first: true) {
                 Text(controller.lastLatencyMs == 0 ? "мгновенно" : "\(controller.lastLatencyMs) мс")
                     .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(controller.lastLatencyMs == 0 ? Color.green : Palette.textSecondary)
+                    .foregroundStyle(controller.lastLatencyMs == 0 ? Palette.iconSuccess : Palette.textSecondary)
             }
             Row(title: "Черновик каждые") {
                 SliderControl(value: Binding(get: { Double(settings.draftIntervalMs) },

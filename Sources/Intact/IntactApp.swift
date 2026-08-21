@@ -11,17 +11,28 @@ struct IntactApp: App {
         MenuBarExtra {
             MenuContent()
         } label: {
-            Image(systemName: menuIcon)
+            Image(nsImage: menuIcon.nsImage(size: 17))
         }
     }
 
-    private var menuIcon: String {
+    /// Состояние диктовки прямо в строке меню: покой → эфир → распознавание → ИИ.
+    private var menuIcon: IntactIconKind {
         switch controller.state {
-        case .idle:         return "mic"
-        case .recording:    return "mic.fill"
-        case .transcribing: return "waveform"
-        case .processingAI: return "sparkles"
+        case .idle:         return .voice
+        case .recording:    return .voicePulse
+        case .transcribing: return .waveform
+        case .processingAI: return .aiStar
         }
+    }
+}
+
+/// Отметка выбранного пункта в меню строки состояния.
+///
+/// `NSMenu` умеет показывать только `NSImage`, поэтому векторная иконка
+/// растеризуется — результат кэшируется в `IntactIconKind.nsImage`.
+struct MenuCheckmark: View {
+    var body: some View {
+        Image(nsImage: IntactIconKind.copied.nsImage(size: 11))
     }
 }
 
@@ -95,19 +106,19 @@ struct MenuContent: View {
             Button(action: { settings.language = "auto" }) {
                 HStack {
                     Text("Автоопределение")
-                    if settings.language == "auto" { Image(systemName: "checkmark") }
+                    if settings.language == "auto" { MenuCheckmark() }
                 }
             }
             Button(action: { settings.language = "ru" }) {
                 HStack {
                     Text("Русский")
-                    if settings.language == "ru" { Image(systemName: "checkmark") }
+                    if settings.language == "ru" { MenuCheckmark() }
                 }
             }
             Button(action: { settings.language = "en" }) {
                 HStack {
                     Text("English")
-                    if settings.language == "en" { Image(systemName: "checkmark") }
+                    if settings.language == "en" { MenuCheckmark() }
                 }
             }
             Divider()
@@ -121,7 +132,7 @@ struct MenuContent: View {
                 } label: {
                     HStack {
                         Text(mode.shortTitle)
-                        if settings.outputMode == mode { Image(systemName: "checkmark") }
+                        if settings.outputMode == mode { MenuCheckmark() }
                     }
                 }
             }
@@ -134,7 +145,7 @@ struct MenuContent: View {
                 } label: {
                     HStack {
                         Text(theme.title)
-                        if settings.appTheme == theme { Image(systemName: "checkmark") }
+                        if settings.appTheme == theme { MenuCheckmark() }
                     }
                 }
             }

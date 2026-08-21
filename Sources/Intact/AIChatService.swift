@@ -5,9 +5,16 @@ import Combine
 struct ChatMessage: Identifiable, Codable, Hashable {
     let id: UUID
     let role: AIMessage.Role
-    let content: String
+    var content: String
     let timestamp: Date
     let contextBadges: [String]
+    /// Ответ ещё печатается. Состояние временное — на диск не пишется,
+    /// поэтому исключено из ключей кодирования.
+    var isStreaming: Bool = false
+
+    private enum CodingKeys: String, CodingKey {
+        case id, role, content, timestamp, contextBadges
+    }
 
     init(role: AIMessage.Role, content: String, contextBadges: [String] = []) {
         self.id = UUID()
@@ -29,38 +36,166 @@ enum AIContextSource: String, CaseIterable, Identifiable {
     case appleReminders = "Напоминания"
 
     var id: String { rawValue }
-
-    var symbol: String {
-        switch self {
-        case .dictationToday, .dictationRecent: return "waveform"
-        case .appleNotes: return "note.text"
-        case .appleReminders: return "checklist"
-        }
-    }
 }
 
 /// Сервис управления сессией чата с ИИ и контекстным анализом заметок и истории.
 final class AIChatService: ObservableObject {
     static let shared = AIChatService()
 
-    @Published var messages: [ChatMessage] = []
+    /// Все диалоги, свежие сверху.
+    @Published private(set) var threads: [ChatThread] = []
+    /// Какая ветка открыта прямо сейчас.
+    @Published private(set) var activeThreadID: UUID
+
     @Published var isGenerating: Bool = false
     @Published var errorMessage: String? = nil
     @Published var selectedContextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]
 
+    /// Переписка активной ветки.
+    ///
+    /// Вычисляемое свойство, а не хранимое: весь остальной код обращается
+    /// к `chat.messages` ровно как раньше и ничего не знает про ветки.
+    var messages: [ChatMessage] {
+        get { threads.first(where: { $0.id == activeThreadID })?.messages ?? [] }
+        set {
+            guard let index = threads.firstIndex(where: { $0.id == activeThreadID }) else { return }
+            threads[index].messages = newValue
+            threads[index].updatedAt = Date()
+            persist()
+        }
+    }
+
+    var activeThread: ChatThread? {
+        threads.first(where: { $0.id == activeThreadID })
+    }
+
     private let baseSystemPrompt = """
     Ты — интеллектуальный персональный ассистент Intact, встроенный в macOS-приложение для голосовой диктовки и работы с заметками.
     Твоя цель: помогать пользователю формулировать мысли, анализировать его голосовые записи (диктовки), структурировать заметки и напоминания, выделять задачи и отвечать на любые вопросы.
-    Форматируй ответы красиво и чётко с использованием Markdown (списки, жирный шрифт, заголовки, блоки кода при необходимости).
+    Форматируй ответы разметкой Markdown: заголовки, списки, жирный шрифт.
+    Любой код, команду терминала или конфигурацию оборачивай в тройные обратные кавычки     и обязательно указывай язык сразу после открывающих кавычек (```swift, ```bash, ```json).     Приложение показывает такие блоки отдельно, с кнопкой копирования, — без указания языка     заголовок блока будет пустым.
     Отвечай на языке запроса пользователя (по умолчанию на русском).
     """
 
-    private init() {}
+    private init() {
+        let stored = ChatThreadStore.load().sorted { $0.updatedAt > $1.updatedAt }
+        if let first = stored.first {
+            threads = stored
+            activeThreadID = first.id
+        } else {
+            let fresh = ChatThread()
+            threads = [fresh]
+            activeThreadID = fresh.id
+        }
+    }
 
-    /// Очистить историю диалога
+    // MARK: - Ветки диалога
+
+    /// Открывает новый диалог. Если текущий ещё пуст, переиспользуем его —
+    /// иначе список засоряется пустыми «Новый чат» от каждого нажатия.
+    func newThread() {
+        errorMessage = nil
+        if let active = activeThread, active.isEmpty {
+            return
+        }
+        let fresh = ChatThread()
+        threads.insert(fresh, at: 0)
+        activeThreadID = fresh.id
+    }
+
+    func select(_ id: UUID) {
+        guard threads.contains(where: { $0.id == id }) else { return }
+        errorMessage = nil
+        activeThreadID = id
+    }
+
+    func rename(_ id: UUID, to title: String) {
+        guard let index = threads.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        threads[index].title = trimmed.isEmpty ? ChatThread.untitled : trimmed
+        persist()
+    }
+
+    func delete(_ id: UUID) {
+        threads.removeAll { $0.id == id }
+        if threads.isEmpty {
+            let fresh = ChatThread()
+            threads = [fresh]
+            activeThreadID = fresh.id
+        } else if activeThreadID == id {
+            activeThreadID = threads[0].id
+        }
+        persist()
+    }
+
+    /// Очистить переписку текущей ветки, не удаляя саму ветку.
     func clearHistory() {
         messages.removeAll()
+        if let index = threads.firstIndex(where: { $0.id == activeThreadID }) {
+            threads[index].title = ChatThread.untitled
+            threads[index].modelLabel = nil
+        }
         errorMessage = nil
+        persist()
+    }
+
+    /// Запись на диск уходит с главного потока: переписка растёт, а `persist()`
+    /// вызывается на каждое сообщение — синхронный файловый ввод-вывод здесь
+    /// подтормаживал бы набор текста.
+    /// Дописывает очередной кусочек ответа. Первый кусок создаёт сообщение,
+    /// остальные наращивают его текст.
+    ///
+    /// На диск здесь не пишем: сохранение на каждый токен — это сотни записей
+    /// в секунду. Итог сохраняется один раз в `finishStreaming`.
+    private func appendDelta(_ piece: String, to threadID: UUID) {
+        guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
+
+        if let last = threads[index].messages.last, last.role == .assistant, last.isStreaming {
+            threads[index].messages[threads[index].messages.count - 1].content += piece
+        } else {
+            var message = ChatMessage(role: .assistant, content: piece)
+            message.isStreaming = true
+            threads[index].messages.append(message)
+        }
+        threads[index].updatedAt = Date()
+    }
+
+    /// Снимает пометку «печатается» и сохраняет результат.
+    /// Пустой ответ (обрыв до первого токена) не оставляем висеть в переписке.
+    private func finishStreaming(in threadID: UUID) {
+        guard let index = threads.firstIndex(where: { $0.id == threadID }),
+              let last = threads[index].messages.last,
+              last.role == .assistant, last.isStreaming else { return }
+
+        let trimmed = last.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            threads[index].messages.removeLast()
+        } else {
+            threads[index].messages[threads[index].messages.count - 1].content = trimmed
+            threads[index].messages[threads[index].messages.count - 1].isStreaming = false
+        }
+        persist()
+    }
+
+    private func persist() {
+        let snapshot = threads
+        Self.persistQueue.async { ChatThreadStore.save(snapshot) }
+    }
+
+    private static let persistQueue = DispatchQueue(label: "com.artsu.intact.chat-threads", qos: .utility)
+
+    /// Поднимает ветку наверх списка и подписывает её по первой реплике.
+    private func touchActiveThread(firstPrompt: String?) {
+        guard let index = threads.firstIndex(where: { $0.id == activeThreadID }) else { return }
+        if let firstPrompt, threads[index].title == ChatThread.untitled {
+            threads[index].title = ChatThread.autoTitle(from: firstPrompt)
+        }
+        threads[index].updatedAt = Date()
+        threads[index].modelLabel = AIModelCatalog.title(for: AIModelCatalog.current)
+
+        let thread = threads.remove(at: index)
+        threads.insert(thread, at: 0)
+        persist()
     }
 
     /// Отправить сообщение пользователя
@@ -75,9 +210,15 @@ final class AIChatService: ObservableObject {
         gatherContext(sources: contextToUse) { [weak self] contextText, badges in
             guard let self else { return }
 
+            let isFirstInThread = self.messages.isEmpty
             let userMsg = ChatMessage(role: .user, content: trimmed, contextBadges: badges)
             self.messages.append(userMsg)
+            self.touchActiveThread(firstPrompt: isFirstInThread ? trimmed : nil)
             self.isGenerating = true
+
+            // Ветка, в которой задан вопрос: ответ вернётся именно сюда,
+            // даже если пользователь тем временем откроет другой диалог.
+            let targetThreadID = self.activeThreadID
 
             // Собираем историю сообщений для AIRouter
             var aiMessages: [AIMessage] = []
@@ -94,36 +235,49 @@ final class AIChatService: ObservableObject {
                 aiMessages.append(AIMessage(role: m.role, content: m.content))
             }
 
-            AIRouter.shared.complete(messages: aiMessages, maxTokens: 2048) { [weak self] result in
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.isGenerating = false
-                    switch result {
-                    case .success(let answer):
-                        let assistantMsg = ChatMessage(role: .assistant, content: answer.trimmingCharacters(in: .whitespacesAndNewlines))
-                        self.messages.append(assistantMsg)
-                    case .failure(let error):
-                        self.errorMessage = error.localizedDescription
+            // Лимит подняли с 2048: на этом пороге модель обрывала ответ
+            // посреди HTML-страницы с причиной остановки «length».
+            AIRouter.shared.stream(
+                messages: aiMessages,
+                maxTokens: 4096,
+                onDelta: { [weak self] piece in
+                    DispatchQueue.main.async {
+                        self?.appendDelta(piece, to: targetThreadID)
+                    }
+                },
+                completion: { [weak self] result in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        self.isGenerating = false
+                        self.finishStreaming(in: targetThreadID)
+                        if case .failure(let error) = result {
+                            self.errorMessage = error.localizedDescription
+                        }
                     }
                 }
-            }
+            )
         }
     }
 
     // MARK: - Быстрые действия
 
-    /// Анализ диктовок за сегодня
+    /// Анализ диктовок за сегодня.
+    /// Каждый быстрый анализ открывает свою ветку: иначе сводка падала бы
+    /// в середину постороннего разговора.
     func analyzeTodayDictations() {
+        newThread()
         send(prompt: "Сделай краткую структурированную сводку моих голосовых диктовок за сегодня. Выдели ключевые темы, мысли и важные решения.", forceContext: [.dictationToday])
     }
 
     /// Извлечение задач и TODO
     func extractTasksFromHistoryAndNotes() {
+        newThread()
         send(prompt: "Проанализируй мои последние диктовки и заметки. Найди все прямые и неявные задачи, поручения, идеи и договоренности. Сформируй удобный список TODO с приоритетами.", forceContext: [.dictationToday, .appleNotes, .appleReminders])
     }
 
     /// Обзор заметок Apple Notes
     func summarizeNotes() {
+        newThread()
         send(prompt: "Проанализируй мои заметки из Apple Notes. Сделай краткую выжимку по главным темам и проектам.", forceContext: [.appleNotes])
     }
 
@@ -137,12 +291,17 @@ final class AIChatService: ObservableObject {
         // 1. Диктовки за сегодня
         if sources.contains(.dictationToday) {
             let todayEntries = History.shared.entries.filter { Calendar.current.isDateInToday($0.date) }
-            if !todayEntries.isEmpty {
-                badges.append("Диктовки сегодня (\(todayEntries.count))")
-                var text = "### Диктовки за сегодня (\(todayEntries.count) записей):\n"
+            // Считаем по тому, что реально уходит в промпт: раньше и бейдж,
+            // и заголовок блока обещали все записи, а отправлялись первые 25 —
+            // модель получала «81 записей» и видела 25.
+            let sent = todayEntries.prefix(25)
+            if !sent.isEmpty {
+                let suffix = todayEntries.count > sent.count ? " из \(todayEntries.count)" : ""
+                badges.append("Диктовки сегодня (\(sent.count)\(suffix))")
+                var text = "### Диктовки за сегодня (последние \(sent.count) записей):\n"
                 let formatter = DateFormatter()
                 formatter.dateFormat = "HH:mm"
-                for e in todayEntries.prefix(25) {
+                for e in sent {
                     let time = formatter.string(from: e.date)
                     text += "• [\(time)]: «\(e.text)»\n"
                 }

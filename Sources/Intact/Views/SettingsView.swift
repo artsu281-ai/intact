@@ -74,7 +74,7 @@ struct SettingsView: View {
             Rectangle().fill(Palette.hairline).frame(width: 1)
             detail
         }
-        .frame(minWidth: 920, minHeight: 680)
+        .frame(minWidth: 1040, minHeight: 680)
         .background(Palette.page)
         .preferredColorScheme(settings.appTheme.colorScheme)
         .id(settings.appTheme)
@@ -253,22 +253,18 @@ struct SettingsView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack {
-                Text("Intact v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(Palette.textTertiary)
-                Spacer()
-                IntactIcon(kind: .aiStar, size: 11)
-                    .foregroundStyle(Palette.textTertiary)
-            }
+            Text("Intact v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(Palette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 10)
         .padding(.top, 6)
     }
 
     private var statusColor: Color {
-        if Permissions.missingDescription != nil { return .red }
-        return controller.engineReady ? .green : .orange
+        if Permissions.missingDescription != nil { return Palette.iconDanger }
+        return controller.engineReady ? Palette.iconSuccess : Palette.iconWarning
     }
 
     private var statusText: String {
@@ -605,9 +601,8 @@ struct PermissionRow: View {
         Row(title: title, subtitle: subtitle, first: first) {
             if granted {
                 HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.green)
+                    IntactIcon(kind: .success, size: 15)
+                        .foregroundStyle(Palette.iconSuccess)
                     Text("выдано")
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
@@ -1101,8 +1096,7 @@ struct AdvancedBlock<Content: View>: View {
                     Text("Дополнительно")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Palette.textPrimary)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                    IntactIcon(kind: .chevronRight, size: 12, weight: .medium)
                         .rotationEffect(.degrees(expanded ? 90 : 0))
                         .foregroundStyle(Palette.textSecondary)
                 }
@@ -1137,7 +1131,7 @@ struct ModelOnboardingBanner: View {
             if let err = models.lastError {
                 Text(err)
                     .font(.system(size: 12))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Palette.iconDanger)
             }
         }
         .padding(18)
@@ -1153,14 +1147,7 @@ struct ModelOnboardingBanner: View {
 
     private var headerView: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Palette.accent.opacity(0.12))
-                    .frame(width: 40, height: 40)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Palette.accent)
-            }
+            IconTile(kind: .aiStar, tone: .active, side: 40)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(L10n.onboardingWelcomeTitle)
@@ -1179,7 +1166,7 @@ struct ModelOnboardingBanner: View {
         let percentText = "\(Int(models.progress * 100))%"
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: "arrow.down.circle.fill")
+                IntactIcon(kind: .download, size: 15)
                     .foregroundStyle(Palette.accent)
                 Text("\(L10n.onboardingDownloading) (\(filename))")
                     .font(.system(size: 12.5, weight: .medium))
@@ -1206,8 +1193,7 @@ struct ModelOnboardingBanner: View {
                 models.download(models.recommendedModel)
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 14))
+                    IntactIcon(kind: .download, size: 16, weight: .medium)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(L10n.onboardingQuickInstall)
                             .font(.system(size: 12.5, weight: .semibold))
@@ -1230,8 +1216,7 @@ struct ModelOnboardingBanner: View {
                 models.download(models.baseModel)
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 12))
+                    IntactIcon(kind: .quickSummary, size: 14)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(L10n.onboardingBaseInstall)
                             .font(.system(size: 12, weight: .medium))
@@ -1336,7 +1321,7 @@ struct MicrophoneTab: View {
                 }
                 Row(title: "Обновить список устройств",
                     subtitle: "Если вы подключили гарнитуру или внешний микрофон") {
-                    PillButton(title: "Обновить", symbol: "arrow.clockwise") {
+                    PillButton(title: "Обновить", icon: .refresh) {
                         devices = AudioRecorder.availableInputDevices()
                     }
                 }
@@ -1358,7 +1343,7 @@ struct MicrophoneTab: View {
                             ProgressView().controlSize(.small)
                         }
                         PillButton(title: controller.state == .recording ? "Остановить" : "Записать",
-                                   symbol: controller.state == .recording ? "stop.fill" : "mic.fill") {
+                                   icon: controller.state == .recording ? .stop : .voice) {
                             controller.toggle()
                         }
                     }
@@ -1377,7 +1362,7 @@ struct MicrophoneTab: View {
                     Row(title: "Ошибка") {
                         Text(err)
                             .font(.system(size: 13))
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Palette.iconDanger)
                             .frame(maxWidth: 360, alignment: .trailing)
                     }
                 }
@@ -1403,6 +1388,18 @@ struct HistoryTab: View {
     @ObservedObject private var history = History.shared
     @State private var query = ""
     @State private var showClearPopover = false
+    @State private var exportError: String? = nil
+
+    /// Выгружает то, что сейчас видно: с активным поиском — только найденное.
+    private func exportHistory() {
+        let entries = filteredEntries
+        let text = Exporter.historyMarkdown(entries)
+        switch Exporter.save(text: text, suggestedName: "Intact-история-\(Exporter.fileStamp())") {
+        case .saved(let url):  Exporter.reveal(url)
+        case .cancelled:       break
+        case .failed(let msg): exportError = msg
+        }
+    }
 
     private var filteredEntries: [HistoryEntry] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1439,9 +1436,8 @@ struct HistoryTab: View {
 
             // ── Список записей ──────────────────────────────────────────
             if history.entries.isEmpty {
-                VStack(spacing: 10) {
-                    IntactIcon(kind: .history, size: 36)
-                        .foregroundStyle(Palette.textTertiary)
+                VStack(spacing: 14) {
+                    IconTile(kind: .history, tone: .muted, side: 56)
                     Text(L10n.historyEmptyTitle)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Palette.textSecondary)
@@ -1494,6 +1490,27 @@ struct HistoryTab: View {
 
                     Spacer()
 
+                    // Выгрузка истории в Markdown-файл
+                    Button {
+                        exportHistory()
+                    } label: {
+                        HStack(spacing: 6) {
+                            IntactIcon(kind: .export, size: 13)
+                            Text("Выгрузить")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(Palette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Palette.pill)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Сохранить историю диктовок в файл Markdown")
+                    .onHover { if $0 { exportError = nil } }
+
                     // Кнопка открытия поповера очистки
                     Button {
                         showClearPopover = true
@@ -1522,6 +1539,24 @@ struct HistoryTab: View {
                     }
                 }
                 .padding(.bottom, 4)
+
+                if let err = exportError {
+                    HStack(spacing: 8) {
+                        IntactIcon(kind: .error, size: 15)
+                            .foregroundStyle(Palette.iconDanger)
+                        Text(err)
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(Palette.iconDanger)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Palette.iconDanger.opacity(0.08))
+                    )
+                    .padding(.bottom, 8)
+                }
 
                 if filteredEntries.isEmpty {
                     VStack(spacing: 10) {
@@ -1625,18 +1660,12 @@ struct HistoryClearOptionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(isDestructive ? Color.red.opacity(0.12) : Palette.accent.opacity(0.10))
-                        .frame(width: 34, height: 34)
-                    IntactIcon(kind: iconKind, size: 16)
-                        .foregroundStyle(isDestructive ? Color.red : Palette.accent)
-                }
+                IconTile(kind: iconKind, tone: isDestructive ? .danger : .active, side: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isDestructive ? Color.red.opacity(0.95) : Palette.textPrimary)
+                        .foregroundStyle(isDestructive ? Palette.iconDanger.opacity(0.95) : Palette.textPrimary)
                     Text(subtitle)
                         .font(.system(size: 11))
                         .foregroundStyle(Palette.textTertiary)
@@ -1648,7 +1677,7 @@ struct HistoryClearOptionRow: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(hovering ? (isDestructive ? Color.red.opacity(0.10) : Palette.hover) : Color.clear)
+                    .fill(hovering ? (isDestructive ? Palette.iconDanger.opacity(0.10) : Palette.hover) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -1663,6 +1692,11 @@ struct HistoryRow: View {
     var onDelete: () -> Void
     @State private var hovering = false
     @State private var copied = false
+    @State private var expanded = false
+
+    /// Три строки — предел, после которого запись обрезается и появляется
+    /// кнопка «показать целиком».
+    private var isTruncatable: Bool { entry.text.count > 180 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1675,9 +1709,23 @@ struct HistoryRow: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Palette.textPrimary)
                         .textSelection(.enabled)
-                        .lineLimit(3)
+                        .lineLimit(expanded ? nil : 3)
                         .lineSpacing(2.5)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if isTruncatable {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
+                        } label: {
+                            HStack(spacing: 5) {
+                                IntactIcon(kind: .eye, size: 12)
+                                Text(expanded ? "Свернуть" : "Показать целиком")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(Palette.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Text("\(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
@@ -1685,8 +1733,8 @@ struct HistoryRow: View {
                 Spacer(minLength: 12)
                 HStack(spacing: 8) {
                     Button(action: onDelete) {
-                        IntactIcon(kind: .clearChat, size: 12)
-                            .foregroundStyle(Palette.textTertiary)
+                        IntactIcon(kind: .clearAll, size: 13)
+                            .foregroundStyle(hovering ? Palette.iconDanger : Palette.iconMuted)
                             .frame(width: 26, height: 26)
                             .background(
                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -1765,7 +1813,7 @@ struct AboutTab: View {
                 }
                 Row(title: "Журнал работы",
                     subtitle: "Логирование нажатий клавиш, прав доступа и ошибок") {
-                    PillButton(title: "Показать файл", symbol: "folder") {
+                    PillButton(title: "Показать файл", icon: .folder) {
                         NSWorkspace.shared.selectFile(Log.path, inFileViewerRootedAtPath: "")
                     }
                 }

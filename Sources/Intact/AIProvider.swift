@@ -6,6 +6,8 @@ enum AIError: Error {
     case badResponse
     case timeout
     case providerUnavailable
+    /// Модель отказалась отвечать: приходит с кодом 200, без текста.
+    case refused(String?)
 
     var localizedDescription: String {
         switch self {
@@ -14,6 +16,8 @@ enum AIError: Error {
         case .badResponse:        return "Некорректный ответ от AI"
         case .timeout:            return "AI не ответил вовремя"
         case .providerUnavailable: return "AI-провайдер недоступен"
+        case .refused(let explanation):
+            return explanation.map { "Модель отклонила запрос: \($0)" } ?? "Модель отклонила запрос"
         }
     }
 }
@@ -35,6 +39,30 @@ struct AIMessage {
 protocol AIProvider {
     var isReady: Bool { get }
     func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void)
+
+    /// Потоковая генерация: `onDelta` вызывается по мере поступления кусочков
+    /// текста, `completion` — с полным ответом.
+    ///
+    /// Для локальной модели это не украшение, а необходимость: на 9B ответ
+    /// в две тысячи токенов идёт полторы минуты, и без потока запрос просто
+    /// упирается в таймаут, ничего не показав.
+    func stream(messages: [AIMessage],
+                maxTokens: Int,
+                onDelta: @escaping (String) -> Void,
+                completion: @escaping (Result<String, AIError>) -> Void)
+}
+
+extension AIProvider {
+    /// Провайдеры без потока отдают ответ целиком одним куском.
+    func stream(messages: [AIMessage],
+                maxTokens: Int,
+                onDelta: @escaping (String) -> Void,
+                completion: @escaping (Result<String, AIError>) -> Void) {
+        complete(messages: messages, maxTokens: maxTokens) { result in
+            if case .success(let text) = result { onDelta(text) }
+            completion(result)
+        }
+    }
 }
 
 /// Выбирает активного AI-провайдера по настройке пользователя и делегирует ему вызовы.
@@ -50,6 +78,23 @@ final class AIRouter {
         case .none:   return false
         case .local:  return LocalAIProvider.shared.isReady
         case .cloud:  return CloudAIProvider.shared.isReady
+        }
+    }
+
+    /// Потоковый вариант для чата.
+    func stream(messages: [AIMessage],
+                maxTokens: Int = 800,
+                onDelta: @escaping (String) -> Void,
+                completion: @escaping (Result<String, AIError>) -> Void) {
+        switch AppSettings.shared.aiProviderKind {
+        case .none:
+            completion(.failure(.notConfigured))
+        case .local:
+            LocalAIProvider.shared.stream(messages: messages, maxTokens: maxTokens,
+                                          onDelta: onDelta, completion: completion)
+        case .cloud:
+            CloudAIProvider.shared.stream(messages: messages, maxTokens: maxTokens,
+                                          onDelta: onDelta, completion: completion)
         }
     }
 

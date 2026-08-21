@@ -14,14 +14,13 @@ struct HotKeyRecorder: View {
             HStack(spacing: 6) {
                 if listening {
                     Circle()
-                        .fill(Color.orange)
+                        .fill(Palette.iconWarning)
                         .frame(width: 7, height: 7)
                     Text("Нажмите клавиши…")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Palette.textPrimary)
                 } else {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 12))
+                    IntactIcon(kind: .keyboard, size: 14)
                         .foregroundStyle(Palette.textSecondary)
                     Text(HotKeyManager.describe(keyCode: settings.hotKeyCode,
                                                 modifiers: settings.hotKeyModifiers))
@@ -36,7 +35,7 @@ struct HotKeyRecorder: View {
                     .fill(listening ? Palette.cardHighlight : (hovering ? Palette.pillHover : Palette.pill))
                     .overlay(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .stroke(listening ? Color.orange.opacity(0.6) : Palette.hairline, lineWidth: 1)
+                            .stroke(listening ? Palette.iconWarning.opacity(0.6) : Palette.hairline, lineWidth: 1)
                     )
             )
         }

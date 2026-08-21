@@ -49,7 +49,7 @@ struct AITab: View {
                         .disabled(settings.aiProviderKind == .none)
                 }
                 Row(title: "Чат с ассистентом", subtitle: "Диалог с ИИ, анализ ваших заметок и истории диктовок") {
-                    PillButton(title: "Открыть чат", symbol: "sparkles") {
+                    PillButton(title: "Открыть чат", icon: .aiStar) {
                         ChatWindow.shared.show()
                     }
                 }
@@ -88,7 +88,9 @@ struct AITab: View {
                                         .stroke(Palette.hairline, lineWidth: 1)
                                 )
                         )
-                    PillButton(title: apiKeySaved ? "✓" : L10n.aiApiKeySave, symbol: apiKeySaved ? nil : "checkmark") {
+                    PillButton(title: apiKeySaved ? "Сохранено" : L10n.aiApiKeySave,
+                               icon: apiKeySaved ? .success : .copied,
+                               tone: apiKeySaved ? .success : nil) {
                         KeychainHelper.set(apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines),
                                            service: CloudAIProvider.keychainService)
                         apiKeySaved = true
@@ -97,9 +99,10 @@ struct AITab: View {
                 }
             }
             Row(title: L10n.aiCloudModelLabel) {
-                Text(settings.aiCloudModel)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(Palette.textSecondary)
+                WisprDropdown(selection: $settings.aiCloudModel,
+                              options: AIModelCatalog.cloud.map(\.id)) { id in
+                    Text(AIModelCatalog.cloudModel(id: id)?.title ?? id)
+                }
             }
         }
     }
@@ -113,7 +116,7 @@ struct AITab: View {
                     if isInstalling {
                         ProgressView().controlSize(.small)
                     } else if LocalAIProvider.shared.isHomebrewAvailable {
-                        PillButton(title: L10n.aiInstallHomebrewBtn, symbol: "arrow.down.circle") {
+                        PillButton(title: L10n.aiInstallHomebrewBtn, icon: .download) {
                             installLocalServer()
                         }
                     } else {
@@ -136,7 +139,7 @@ struct AITab: View {
                 Row(title: L10n.aiLocalServerStatus,
                     subtitle: localRunning ? L10n.aiLocalServerRunning : L10n.aiLocalServerStopped,
                     first: true) {
-                    PillButton(title: L10n.aiRestartBtn, symbol: "arrow.clockwise") {
+                    PillButton(title: L10n.aiRestartBtn, icon: .refresh) {
                         LocalAIProvider.shared.stop()
                         LocalAIProvider.shared.ensureRunning { _ in
                             DispatchQueue.main.async { refreshLocalStatus() }
@@ -145,10 +148,12 @@ struct AITab: View {
                 }
             }
 
-            let currentModelName = URL(fileURLWithPath: settings.aiLocalModelPath).lastPathComponent
+            let currentModel = LLMModel.matching(path: settings.aiLocalModelPath)
             Row(title: "Модель",
-                subtitle: currentModelName.isEmpty ? "Не выбрана" : currentModelName) {
-                PillButton(title: "Управлять моделями", symbol: "square.stack.3d.up") {
+                subtitle: currentModel?.displayName
+                    ?? (settings.aiLocalModelPath.isEmpty ? "Не выбрана"
+                        : URL(fileURLWithPath: settings.aiLocalModelPath).lastPathComponent)) {
+                PillButton(title: "Управлять моделями", icon: .models) {
                     onOpenModels?()
                 }
             }
@@ -179,7 +184,7 @@ struct AITab: View {
             let currentAudioModelName = settings.gemmaAudioModelFilename
             Row(title: "Модель",
                 subtitle: currentAudioModelName.isEmpty ? "Не выбрана" : currentAudioModelName) {
-                PillButton(title: "Управлять моделями", symbol: "square.stack.3d.up") {
+                PillButton(title: "Управлять моделями", icon: .models) {
                     onOpenModels?()
                 }
             }
@@ -190,7 +195,7 @@ struct AITab: View {
                         ProgressView().controlSize(.small)
                     } else {
                         PillButton(title: isTestRecording ? L10n.aiExperimentStopBtn : L10n.aiExperimentRecordBtn,
-                                   symbol: isTestRecording ? "stop.fill" : "mic.fill") {
+                                   icon: isTestRecording ? .stop : .voice) {
                             isTestRecording ? stopTest() : startTest()
                         }
                     }

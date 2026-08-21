@@ -19,23 +19,18 @@ struct HomeTab: View {
     var body: some View {
         VStack(spacing: 0) {
             // ── Заголовок ───────────────────────────────────────────────
-            HStack(alignment: .firstTextBaseline) {
+            ContentColumn(maxWidth: Layout.wide) {
                 Text("Intact")
                     .font(.system(size: 32, weight: .regular, design: .serif))
                     .foregroundStyle(Palette.textPrimary)
-                Spacer()
-                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.textTertiary)
-                    .padding(.top, 8)
             }
-            .padding(.horizontal, 40)
             .padding(.top, 46)
             .padding(.bottom, 24)
 
             // ── Прокручиваемое тело ──────────────────────────────────────
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                ContentColumn(maxWidth: Layout.wide) {
+                  VStack(alignment: .leading, spacing: 28) {
 
                     // ── Три карточки-кита ────────────────────────────────
                     HStack(alignment: .top, spacing: 14) {
@@ -43,7 +38,6 @@ struct HomeTab: View {
                             icon: .voice,
                             title: "Голос",
                             description: "Удержи \(settings.triggerKey.symbol) и говори — текст появится там, где курсор",
-                            accentColor: Palette.accent,
                             status: voiceStatus,
                             statusColor: voiceStatusColor,
                             action: { onOpenSection(.voice) },
@@ -53,7 +47,6 @@ struct HomeTab: View {
                             icon: .aiStar,
                             title: "ИИ-Ассистент",
                             description: "Задай вопрос, проанализируй диктовки, получи сводку за день",
-                            accentColor: .purple,
                             status: aiStatus,
                             statusColor: aiStatusColor,
                             action: { onOpenSection(.chat) },
@@ -63,9 +56,8 @@ struct HomeTab: View {
                             icon: .briefs,
                             title: "Брифы и заметки",
                             description: "Сводки, задачи, Apple Notes и Reminders прямо из голоса",
-                            accentColor: .teal,
                             status: briefsStatus,
-                            statusColor: .teal,
+                            statusColor: briefsStatusColor,
                             action: { onOpenSection(.briefs) },
                             actionLabel: "Открыть"
                         )
@@ -80,8 +72,8 @@ struct HomeTab: View {
                     } else {
                         emptyHistoryBanner
                     }
+                  }
                 }
-                .padding(.horizontal, 40)
                 .padding(.bottom, 40)
             }
         }
@@ -95,21 +87,13 @@ struct HomeTab: View {
         icon: IntactIconKind,
         title: String,
         description: String,
-        accentColor: Color,
         status: String,
         statusColor: Color,
         action: @escaping () -> Void,
         actionLabel: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Иконка
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(accentColor.opacity(0.10))
-                    .frame(width: 48, height: 48)
-                SidebarIntactIcon(kind: icon, selected: true, size: 22)
-                    .foregroundStyle(accentColor)
-            }
+            IconTile(kind: icon, tone: .active, side: 48)
 
             // Текст
             VStack(alignment: .leading, spacing: 6) {
@@ -136,16 +120,16 @@ struct HomeTab: View {
                 Button(action: action) {
                     Text(actionLabel)
                         .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(accentColor)
+                        .foregroundStyle(Palette.accent)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7.5)
                         .background(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(accentColor.opacity(0.10))
+                                .fill(Palette.accent.opacity(0.10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .strokeBorder(accentColor.opacity(0.22), lineWidth: 1)
-                                        )
+                                        .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+                                )
                         )
                 }
                 .buttonStyle(.plain)
@@ -168,12 +152,20 @@ struct HomeTab: View {
 
     private var todayStatsBar: some View {
         HStack(spacing: 0) {
-            statItem(value: "\(todayEntries.count)", label: "диктовок сегодня")
+            statItem(label: "диктовок сегодня") { statNumber("\(todayEntries.count)") }
             divider()
-            statItem(value: "\(chat.messages.count)", label: "сообщений ИИ")
+            statItem(label: "сообщений ИИ") { statNumber("\(chat.messages.count)") }
             divider()
-            statItem(value: models.hasAnyModelInstalled ? "Готов" : "Нет модели",
-                     label: "статус движка")
+            statItem(label: "статус движка") {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(models.hasAnyModelInstalled ? Palette.iconSuccess : Palette.iconWarning)
+                        .frame(width: 8, height: 8)
+                    Text(models.hasAnyModelInstalled ? "Готов" : "Нет модели")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Palette.textPrimary)
+                }
+            }
             Spacer()
         }
         .padding(.horizontal, 20)
@@ -188,16 +180,23 @@ struct HomeTab: View {
         )
     }
 
-    private func statItem(value: String, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
-                .foregroundStyle(Palette.textPrimary)
+    /// Фиксированная высота строки значения выравнивает подписи между собой,
+    /// хотя число набрано крупно, а статус — обычным текстом.
+    private func statItem<Value: View>(label: String, @ViewBuilder value: () -> Value) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            value()
+                .frame(height: 26, alignment: .leading)
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.textTertiary)
         }
         .padding(.horizontal, 18)
+    }
+
+    private func statNumber(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .foregroundStyle(Palette.textPrimary)
     }
 
     private func divider() -> some View {
@@ -217,7 +216,9 @@ struct HomeTab: View {
 
             VStack(spacing: 0) {
                 ForEach(history.entries.prefix(6)) { entry in
-                    recentRow(entry)
+                    RecentEntryRow(entry: entry,
+                                   time: timeString(from: entry.date),
+                                   isLast: history.entries.prefix(6).last?.id == entry.id)
                 }
             }
             .background(
@@ -232,47 +233,15 @@ struct HomeTab: View {
             Button {
                 onOpenSection(.history)
             } label: {
-                Text("Вся история →")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Palette.accent)
+                HStack(spacing: 5) {
+                    Text("Вся история")
+                        .font(.system(size: 13, weight: .medium))
+                    IntactIcon(kind: .chevronRight, size: 11, weight: .medium)
+                }
+                .foregroundStyle(Palette.accent)
             }
             .buttonStyle(.plain)
         }
-    }
-
-    private func recentRow(_ entry: HistoryEntry) -> some View {
-        HStack(spacing: 12) {
-            Text(timeString(from: entry.date))
-                .font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(Palette.textTertiary)
-                .frame(width: 42, alignment: .trailing)
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(width: 1, height: 22)
-            Text(entry.text)
-                .font(.system(size: 13.5))
-                .foregroundStyle(Palette.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer()
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(entry.text, forType: .string)
-            } label: {
-                IntactIcon(kind: .copy, size: 12)
-                    .foregroundStyle(Palette.textTertiary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10.5)
-        .overlay(
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(height: 1)
-                .frame(maxWidth: .infinity, alignment: .bottom)
-                .opacity(history.entries.prefix(6).last?.id == entry.id ? 0 : 1)
-        )
     }
 
     private var emptyHistoryBanner: some View {
@@ -312,8 +281,8 @@ struct HomeTab: View {
     }
 
     private var voiceStatusColor: Color {
-        if !models.hasAnyModelInstalled { return .orange }
-        return controller.state == .idle ? .green : Palette.accent
+        if !models.hasAnyModelInstalled { return Palette.iconWarning }
+        return controller.state == .idle ? Palette.iconSuccess : Palette.accent
     }
 
     private var aiStatus: String {
@@ -326,22 +295,100 @@ struct HomeTab: View {
 
     private var aiStatusColor: Color {
         switch settings.aiProviderKind {
-        case .none: return .orange
-        case .local: return LocalAIProvider.shared.isReady ? .green : .orange
-        case .cloud: return .green
+        case .none: return Palette.iconWarning
+        case .local: return LocalAIProvider.shared.isReady ? Palette.iconSuccess : Palette.iconWarning
+        case .cloud: return Palette.iconSuccess
         }
     }
 
     private var briefsStatus: String {
-        var parts: [String] = []
-        if settings.enableVoiceNotes { parts.append("Заметки ✓") }
-        if settings.enableVoiceReminders { parts.append("Напоминания ✓") }
-        return parts.isEmpty ? "Интеграции выключены" : parts.joined(separator: " · ")
+        switch (settings.enableVoiceNotes, settings.enableVoiceReminders) {
+        case (true, true):   return "Заметки и напоминания включены"
+        case (true, false):  return "Заметки включены"
+        case (false, true):  return "Напоминания включены"
+        case (false, false): return "Интеграции выключены"
+        }
+    }
+
+    private var briefsStatusColor: Color {
+        settings.enableVoiceNotes || settings.enableVoiceReminders
+            ? Palette.iconSuccess
+            : Palette.iconMuted
     }
 
     private func timeString(from date: Date) -> String {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
         return f.string(from: date)
+    }
+}
+
+/// Строка «последней записи» на Главной.
+///
+/// Вынесена в отдельный тип ради собственного состояния: кнопка копирования
+/// проявляется по наведению и подтверждает результат — ровно так же, как
+/// такая же кнопка в разделе «История».
+private struct RecentEntryRow: View {
+    let entry: HistoryEntry
+    let time: String
+    let isLast: Bool
+
+    @State private var hovering = false
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(time)
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(Palette.textTertiary)
+                .frame(width: 42, alignment: .trailing)
+            Rectangle()
+                .fill(Palette.hairline)
+                .frame(width: 1, height: 22)
+            Text(entry.text)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Palette.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 12)
+
+            Button(action: copy) {
+                HStack(spacing: 5) {
+                    IntactIcon(kind: copied ? .copied : .copy, size: 12)
+                    if copied {
+                        Text("Скопировано")
+                            .font(.system(size: 11.5, weight: .medium))
+                    }
+                }
+                .foregroundStyle(copied ? Palette.accent : Palette.iconIdle)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(copied ? Palette.accent.opacity(0.10) : Palette.pill)
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Скопировать текст записи")
+            .opacity(hovering || copied ? 1 : 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10.5)
+        .contentShape(Rectangle())
+        .background(hovering ? Palette.hover : Color.clear)
+        .onHover { hovering = $0 }
+        .animation(.easeInOut(duration: 0.12), value: hovering)
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Rectangle().fill(Palette.hairline).frame(height: 1)
+            }
+        }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.text, forType: .string)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     }
 }

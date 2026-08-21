@@ -13,130 +13,64 @@ struct ChatTab: View {
     @State private var copiedMessageID: UUID? = nil
     @State private var showContextPopover: Bool = false
     @State private var isChatRecording: Bool = false
+    /// Видимость списка чатов переживает перезапуск.
+    @AppStorage("chatThreadRailVisible") private var railVisible: Bool = true
 
     var body: some View {
+        HStack(spacing: 0) {
+            if railVisible {
+                ChatThreadRail()
+                Rectangle().fill(Palette.hairline).frame(width: 1)
+            }
+            chatColumn
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Palette.page)
+    }
+
+    private var chatColumn: some View {
         VStack(spacing: 0) {
-            // Заголовок страницы
-            Text(L10n.tabChat)
-                .font(.system(size: 32, weight: .regular, design: .serif))
-                .foregroundStyle(Palette.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 40)
-                .padding(.top, 46)
-                .padding(.bottom, 20)
+            ContentColumn {
+                Text(pageTitle)
+                    .font(.system(size: 32, weight: .regular, design: .serif))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Palette.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.top, 46)
+            .padding(.bottom, 20)
 
             // ── Sticky-хедер с провайдером и контекстом ─────────────────
             VStack(spacing: 0) {
-                stickyProviderHeader
+                ContentColumn { stickyProviderHeader }
                 Rectangle().fill(Palette.hairline).frame(height: 1)
             }
             .background(Palette.page)
             .zIndex(10)
 
-            // ── Прокручиваемое тело ──────────────────────────────────────
-            ScrollViewReader { proxy in
-                ScrollView {
+            if hasConversation {
+                conversationBody
+            } else {
+                // Пустой чат не прокручивается: приглашение стоит по центру
+                // свободного места, а не прижимается к шапке.
+                ContentColumn {
                     VStack(alignment: .leading, spacing: 22) {
-                        // Быстрые действия — горизонтальные чипы с кастомными векторными иконками
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("БЫСТРЫЙ АНАЛИЗ")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Palette.textTertiary)
-                                .kerning(0.8)
-                            quickChipsRow
-                        }
-                        .padding(.horizontal, 40)
-                        .padding(.top, 20)
-
-                        // Ошибка
-                        if let err = chat.errorMessage {
-                            HStack(spacing: 8) {
-                                IntactIcon(kind: .warning, size: 14)
-                                    .foregroundStyle(.orange)
-                                Text(err)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.orange)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color.orange.opacity(0.08))
-                            )
-                            .padding(.horizontal, 40)
-                        }
-
-                        // Заголовок диалога
-                        if !chat.messages.isEmpty {
-                            HStack {
-                                Text("ДИАЛОГ")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Palette.textTertiary)
-                                    .kerning(0.8)
-                                Spacer()
-                                Button {
-                                    chat.clearHistory()
-                                } label: {
-                                    HStack(spacing: 5) {
-                                        IntactIcon(kind: .clearChat, size: 12)
-                                        Text("Очистить (\(chat.messages.count))")
-                                            .font(.system(size: 12))
-                                    }
-                                    .foregroundStyle(Palette.textTertiary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 40)
-                        }
-
-                        // Сообщения или пустое состояние
-                        if chat.messages.isEmpty {
-                            emptyStateView.padding(.horizontal, 40)
-                        } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(chat.messages) { msg in
-                                    bubbleRow(msg)
-                                }
-                            }
-                            .padding(.horizontal, 40)
-                        }
-
-                        // Индикатор генерации
-                        if chat.isGenerating {
-                            HStack(spacing: 10) {
-                                ProgressView().controlSize(.small)
-                                Text("Анализирую и формирую ответ…")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Palette.textSecondary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Palette.dropdownBg)
-                            )
-                            .padding(.horizontal, 40)
-                            .id("generating")
-                        }
-
-                        Color.clear.frame(height: 8).id("bottom")
+                        quickAnalysisSection
+                        if let err = chat.errorMessage { errorBanner(err) }
                     }
-                    .padding(.bottom, 8)
                 }
-                .onChange(of: chat.messages.count) { _, _ in
-                    withAnimation { proxy.scrollTo("bottom") }
-                }
-                .onChange(of: chat.isGenerating) { _, _ in
-                    withAnimation { proxy.scrollTo("bottom") }
-                }
+                .padding(.top, 20)
+
+                Spacer(minLength: 24)
+                ContentColumn { emptyStateView }
+                Spacer(minLength: 24)
             }
 
             // ── Закреплённый ввод внизу ────────────────────────────────
             VStack(spacing: 0) {
                 Rectangle().fill(Palette.hairline).frame(height: 1)
-                inputFooter
+                ContentColumn { inputFooter }
             }
             .background(Palette.page)
         }
@@ -144,20 +78,145 @@ struct ChatTab: View {
         .background(Palette.page)
     }
 
+    private var hasConversation: Bool { !chat.messages.isEmpty || chat.isGenerating }
+
+    /// Заголовок страницы: имя активной ветки важнее слова «Чат» — оно и так
+    /// написано в боковом меню.
+    private var pageTitle: String {
+        guard let thread = chat.activeThread, !thread.isEmpty else { return L10n.tabChat }
+        return thread.title
+    }
+
+    // MARK: - Тело диалога
+
+    private var conversationBody: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                ContentColumn {
+                    VStack(alignment: .leading, spacing: 22) {
+                        quickAnalysisSection
+                            .padding(.top, 20)
+
+                        if let err = chat.errorMessage {
+                            errorBanner(err)
+                        }
+
+                        if !chat.messages.isEmpty {
+                            conversationHeader
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(chat.messages) { msg in
+                                    bubbleRow(msg)
+                                }
+                            }
+                        }
+
+                        if chat.isGenerating {
+                            generatingIndicator.id("generating")
+                        }
+
+                        Color.clear.frame(height: 8).id("bottom")
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+            .onChange(of: chat.messages.count) { _, _ in
+                withAnimation { proxy.scrollTo("bottom") }
+            }
+            // Пока ответ печатается, число сообщений не меняется — следим
+            // за длиной последнего, иначе текст уползал бы под нижний край.
+            .onChange(of: chat.messages.last?.content.count ?? 0) { _, _ in
+                proxy.scrollTo("bottom")
+            }
+            .onChange(of: chat.isGenerating) { _, _ in
+                withAnimation { proxy.scrollTo("bottom") }
+            }
+        }
+    }
+
+    private var quickAnalysisSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("БЫСТРЫЙ АНАЛИЗ")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Palette.textTertiary)
+                .kerning(0.8)
+            quickChipsRow
+        }
+    }
+
+    private func errorBanner(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            IntactIcon(kind: .error, size: 15)
+                .foregroundStyle(Palette.iconDanger)
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Palette.iconDanger)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Palette.iconDanger.opacity(0.08))
+        )
+    }
+
+    private var conversationHeader: some View {
+        HStack {
+            Text("ДИАЛОГ")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Palette.textTertiary)
+                .kerning(0.8)
+            Spacer()
+            Button {
+                chat.clearHistory()
+            } label: {
+                HStack(spacing: 5) {
+                    IntactIcon(kind: .clearChat, size: 12)
+                    Text("Очистить (\(chat.messages.count))")
+                        .font(.system(size: 12))
+                }
+                .foregroundStyle(Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var generatingIndicator: some View {
+        HStack(spacing: 10) {
+            ThinkingDots(size: 18, tone: .process)
+            Text("Анализирую и формирую ответ…")
+                .font(.system(size: 13))
+                .foregroundStyle(Palette.textSecondary)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Palette.dropdownBg)
+        )
+    }
+
     // MARK: - Sticky провайдер-хедер
 
     private var stickyProviderHeader: some View {
-        HStack(spacing: 14) {
-            // Статус провайдера
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(providerStatusColor)
-                    .frame(width: 7, height: 7)
-                Text(providerShort)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Palette.textSecondary)
-                    .lineLimit(1)
+        HStack(spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.16)) { railVisible.toggle() }
+            } label: {
+                IntactIcon(kind: railVisible ? .chevronLeft : .chevronRight, size: 12)
+                    .foregroundStyle(Palette.textTertiary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help(railVisible ? "Скрыть список чатов" : "Показать список чатов")
+
+            AIModelPicker(
+                onOpenSettings: { onOpenSection?(.settings) },
+                onOpenModels:   { onOpenSection?(.models) }
+            )
 
             Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
 
@@ -198,7 +257,6 @@ struct ChatTab: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 40)
         .padding(.vertical, 10)
     }
 
@@ -281,32 +339,13 @@ struct ChatTab: View {
         .buttonStyle(.plain)
     }
 
-    private var providerStatusColor: Color {
-        switch settings.aiProviderKind {
-        case .none:  return .orange
-        case .local: return LocalAIProvider.shared.isReady ? .green : .orange
-        case .cloud: return .green
-        }
-    }
-
-    private var providerShort: String {
-        switch settings.aiProviderKind {
-        case .none:  return "ИИ выключен"
-        case .local:
-            let name = URL(fileURLWithPath: settings.aiLocalModelPath).deletingPathExtension().lastPathComponent
-            return name.isEmpty ? "Локальная модель" : name
-        case .cloud:
-            return "Claude · \(settings.aiCloudModel)"
-        }
-    }
-
     // MARK: - Чипы быстрого анализа
 
     private var quickChipsRow: some View {
         HStack(spacing: 10) {
             quickChip(iconKind: .quickSummary, label: "Сводка за сегодня")  { chat.analyzeTodayDictations() }
             quickChip(iconKind: .quickTasks,   label: "Извлечь задачи")      { chat.extractTasksFromHistoryAndNotes() }
-            quickChip(iconKind: .quickNotes,   label: "Сводка Notes")        { chat.summarizeNotes() }
+            quickChip(iconKind: .quickNotes,   label: "Сводка заметок")        { chat.summarizeNotes() }
             Spacer()
         }
     }
@@ -342,8 +381,7 @@ struct ChatTab: View {
 
     private var emptyStateView: some View {
         HStack(spacing: 14) {
-            IntactIcon(kind: .aiStar, size: 24)
-                .foregroundStyle(Palette.accent)
+            IconTile(kind: .aiStar, tone: .active, side: 40)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Ассистент готов к работе")
                     .font(.system(size: 14.5, weight: .medium))
@@ -406,12 +444,20 @@ struct ChatTab: View {
                         .foregroundStyle(Palette.textTertiary)
                 }
 
-                // Тело пузыря
-                Text(msg.content)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Palette.textPrimary)
-                    .textSelection(.enabled)
-                    .lineSpacing(3.5)
+                // Тело пузыря.
+                // Реплику пользователя показываем как есть: это надиктованный
+                // текст, и разбор разметки только испортил бы звёздочки и дефисы.
+                Group {
+                    if isUser {
+                        Text(msg.content)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Palette.textPrimary)
+                            .textSelection(.enabled)
+                            .lineSpacing(3.5)
+                    } else {
+                        MarkdownMessage(text: msg.content)
+                    }
+                }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10.5)
                     .background(
@@ -438,7 +484,7 @@ struct ChatTab: View {
                     } label: {
                         HStack(spacing: 4) {
                             IntactIcon(kind: copiedMessageID == msg.id ? .copied : .copy, size: 12)
-                            Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать")
+                            Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать ответ целиком")
                                 .font(.system(size: 11))
                         }
                         .foregroundStyle(Palette.textTertiary)
@@ -457,8 +503,6 @@ struct ChatTab: View {
 
     // MARK: - Закреплённый ввод
 
-    // MARK: - Закреплённый ввод
-
     private var inputFooter: some View {
         HStack(alignment: .bottom, spacing: 10) {
             // Поле ввода или интерактивная полоса голосовой записи
@@ -466,7 +510,7 @@ struct ChatTab: View {
                 if isChatRecording && controller.state == .recording {
                     HStack(spacing: 12) {
                         Circle()
-                            .fill(Color.red)
+                            .fill(Palette.iconDanger)
                             .frame(width: 9, height: 9)
                             .opacity(controller.blink ? 0.3 : 1.0)
                             .animation(.easeInOut(duration: 0.5).repeatForever(), value: controller.blink)
@@ -497,7 +541,7 @@ struct ChatTab: View {
                     .padding(.vertical, 10.5)
                 } else if isChatRecording && (controller.state == .transcribing || controller.state == .processingAI) {
                     HStack(spacing: 10) {
-                        ProgressView().controlSize(.small)
+                        ThinkingDots(size: 18, tone: .voice)
                         Text("Распознавание речи Whisper…")
                             .font(.system(size: 13.5, weight: .medium))
                             .foregroundStyle(Palette.textSecondary)
@@ -521,7 +565,7 @@ struct ChatTab: View {
                     .fill(Palette.card)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(isChatRecording ? Color.red.opacity(0.4) : Palette.hairline, lineWidth: 1)
+                            .strokeBorder(isChatRecording ? Palette.iconDanger.opacity(0.4) : Palette.hairline, lineWidth: 1)
                     )
             )
 
@@ -543,7 +587,7 @@ struct ChatTab: View {
                 }
                 .frame(width: 36, height: 36)
                 .background(
-                    Circle().fill(isChatRecording && controller.state == .recording ? Color.red : Palette.accent.opacity(0.12))
+                    Circle().fill(isChatRecording && controller.state == .recording ? Palette.iconDanger : Palette.accent.opacity(0.12))
                 )
             }
             .buttonStyle(.plain)
@@ -563,7 +607,6 @@ struct ChatTab: View {
             .disabled(!canSend)
             .animation(.spring(response: 0.22), value: canSend)
         }
-        .padding(.horizontal, 40)
         .padding(.vertical, 12)
     }
 

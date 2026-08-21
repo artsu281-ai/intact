@@ -65,7 +65,7 @@ struct VoiceTab: View {
                 }
                 Row(title: "Обновить список устройств",
                     subtitle: "Если подключили гарнитуру или внешний микрофон") {
-                    PillButton(title: "Обновить", symbol: "arrow.clockwise") {
+                    PillButton(title: "Обновить", icon: .refresh) {
                         devices = AudioRecorder.availableInputDevices()
                     }
                 }
@@ -83,7 +83,7 @@ struct VoiceTab: View {
                             ProgressView().controlSize(.small)
                         }
                         PillButton(title: controller.state == .recording ? "Остановить" : "Записать",
-                                   symbol: controller.state == .recording ? "stop.fill" : "mic.fill") {
+                                   icon: controller.state == .recording ? .stop : .voice) {
                             controller.toggle()
                         }
                     }

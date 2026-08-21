@@ -100,8 +100,9 @@ struct SettingsTab: View {
                                                 .stroke(Palette.hairline, lineWidth: 1)
                                         )
                                 )
-                            PillButton(title: apiKeySaved ? "✓" : "Сохранить",
-                                       symbol: apiKeySaved ? nil : "checkmark") {
+                            PillButton(title: apiKeySaved ? "Сохранено" : "Сохранить",
+                                       icon: apiKeySaved ? .success : .copied,
+                                       tone: apiKeySaved ? .success : nil) {
                                 KeychainHelper.set(apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines),
                                                    service: CloudAIProvider.keychainService)
                                 apiKeySaved = true
@@ -113,8 +114,8 @@ struct SettingsTab: View {
                     Row(title: "Модель Claude",
                         subtitle: "Рекомендуется Claude 3.5 Haiku для быстрого ответа") {
                         WisprDropdown(selection: $settings.aiCloudModel,
-                                      options: ["claude-3-5-haiku-20241022", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"]) { m in
-                            Text(m.contains("haiku") ? "Haiku 3.5 (быстрая)" : (m.contains("sonnet") ? "Sonnet 3.5 (умная)" : m))
+                                      options: AIModelCatalog.cloud.map(\.id)) { id in
+                            Text(AIModelCatalog.cloudModel(id: id)?.title ?? id)
                         }
                     }
                 }
@@ -122,7 +123,7 @@ struct SettingsTab: View {
                 if settings.aiProviderKind == .local {
                     Row(title: "Локальные модели GGUF",
                         subtitle: "Загрузка и управление моделями llama-server") {
-                        PillButton(title: "Хаб моделей", symbol: "square.stack.3d.up") {
+                        PillButton(title: "Хаб моделей", icon: .models) {
                             onOpenModels?()
                         }
                     }

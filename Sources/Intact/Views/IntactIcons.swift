@@ -1,726 +1,775 @@
 import SwiftUI
 
-// MARK: - Intact Custom Icon Library
-// Все иконки отрисовываются через векторные Path и всегда рендерятся через stroke,
-// поэтому никогда не заливаются сплошным цветом и идеально адаптируются к любой теме.
+// MARK: - Библиотека иконок Intact
+//
+// Каждая иконка живёт в `IconArt` отдельной функцией и читается как чертёж:
+// координаты — буквальные числа на сетке 24×24, роли слоёв заданы явно.
+// Правила сетки и ролей — в `IconSystem.swift`.
+//
+// Чтобы добавить иконку: заведите case в `IntactIconKind`, напишите функцию
+// в `IconArt` и свяжите их в `layers(unit:)`. Компилятор поймает пропуск.
 
-enum IntactIconKind: CaseIterable {
-    case chat           // диалог с ИИ
-    case history        // история записей
-    case send           // отправить сообщение
-    case clearChat      // очистить диалог (метла)
-    case copy           // скопировать ответ
-    case copied         // скопировано (галочка)
-    case context        // источники контекста (скрепка)
-    case aiStar         // ИИ-ассистент (звезда)
-    case quickSummary   // сводка за сегодня (молния)
-    case quickTasks     // извлечь задачи (чеклист)
-    case quickNotes     // сводка заметок (листок)
-    case settings       // настройки (шестерня)
-    case statusDot      // индикатор статуса
-    case stop           // остановить генерацию
-    // Разделы UX
-    case home           // домашний экран (домик)
+enum IntactIconKind: String, CaseIterable, Identifiable {
+    var id: String { rawValue }
+
+    // Разделы приложения
+    case home           // домашний экран
     case voice          // диктовка (микрофон)
-    case briefs         // брифы и заметки (листы со звёздочкой)
-    case models         // каталог моделей (стек 3D слоёв)
-    case settingsPage   // единый экран настроек (слайдеры)
-    case about          // о программе (круг с i)
-    // Утилитарные иконки
-    case search         // лупа
+    case briefs         // брифы и заметки
+    case models         // каталог моделей
+    case settingsPage   // экран настроек
+    case about          // о программе
+
+    // Чат с ИИ
+    case chat           // диалог
+    case send           // отправить
+    case stop           // остановить генерацию
+    case aiStar         // ответ ассистента
+    case user           // реплика пользователя
+    case context        // источники контекста
+    case clearChat      // очистить диалог
+    case plus           // новый диалог
+
+    // Брифы
+    case quickSummary   // сводка за сегодня
+    case quickTasks     // извлечь задачи
+    case quickNotes     // сводка заметок
+    case export         // выгрузка
+    case report         // отчёт
+
+    // История
+    case history        // журнал записей
+    case eye            // просмотр записи
+    case copy           // скопировать
+    case copied         // скопировано
+    case clearHour      // за последний час
+    case clearToday     // за сегодня
+    case clearWeek      // старше 7 дней
+    case clearAll       // всю историю
+
+    // Модели и хранилище
+    case download       // скачать
+    case refresh        // проверить обновления
+    case update         // обновить
+    case disk           // занято на диске
+    case folder         // папка на диске
+    case radioOn        // активная модель
+    case radioOff       // неактивная модель
+
+    // Состояния
+    case success        // выполнено
+    case error          // ошибка
     case warning        // предупреждение
-    case lock           // замок / приватность
-    case user           // пользователь (силуэт)
-    case close          // крестик / закрыть
-    case chevronDown    // шеврон вниз
-    case chevronUp      // шеврон вверх
-    // Опции очистки истории
-    case clearHour      // за последний час (часы со стрелкой отката)
-    case clearToday     // за сегодня (календарь с цифрой 1)
-    case clearWeek      // старше 7 дней (календарь с цифрой 7)
-    case clearAll       // всю историю (мусорная корзина)
+    case reminder       // напоминание создано
+    case clipboardReady // текст готов к вставке
+    case lock           // приватность
+
+    // Голос и HUD
+    case voicePulse     // идёт запись
+    case waveform       // идёт распознавание
+
+    // Управление
+    case settings       // параметры (шестерня)
+    case search         // поиск
+    case close          // закрыть
+    case chevronUp
+    case chevronDown
+    case chevronLeft   // пара к chevronRight: направленный набор держим полным
+    case chevronRight
+    case keyboard       // горячая клавиша
+    case textScale      // масштаб текста: ждёт масштабируемой типографики
 }
 
 extension IntactIconKind {
-    var shape: any Shape {
+    /// Контуры иконки на сетке 24×24, пересчитанные в `unit` за клетку.
+    func layers(unit u: CGFloat) -> [IconLayer] {
         switch self {
-        case .chat:          return ChatIconShape()
-        case .history:       return HistoryIconShape()
-        case .send:          return SendIconShape()
-        case .clearChat:     return ClearChatIconShape()
-        case .copy:          return CopyIconShape()
-        case .copied:        return CopiedIconShape()
-        case .context:       return ContextIconShape()
-        case .aiStar:        return AIStarIconShape()
-        case .quickSummary:  return QuickSummaryIconShape()
-        case .quickTasks:    return QuickTasksIconShape()
-        case .quickNotes:    return QuickNotesIconShape()
-        case .settings:      return SettingsIconShape()
-        case .statusDot:     return StatusDotShape()
-        case .stop:          return StopIconShape()
-        case .home:          return HomeIconShape()
-        case .voice:         return VoiceIconShape()
-        case .briefs:        return BriefsIconShape()
-        case .models:        return ModelsIconShape()
-        case .settingsPage:  return SettingsPageIconShape()
-        case .about:         return AboutIconShape()
-        case .search:        return SearchIconShape()
-        case .warning:       return WarningIconShape()
-        case .lock:          return LockIconShape()
-        case .user:          return UserIconShape()
-        case .close:         return CloseIconShape()
-        case .chevronDown:   return ChevronDownIconShape()
-        case .chevronUp:     return ChevronUpIconShape()
-        case .clearHour:     return ClearHourIconShape()
-        case .clearToday:    return ClearTodayIconShape()
-        case .clearWeek:     return ClearWeekIconShape()
-        case .clearAll:      return ClearAllIconShape()
+        case .home:           return IconArt.home(u)
+        case .voice:          return IconArt.voice(u)
+        case .briefs:         return IconArt.briefs(u)
+        case .models:         return IconArt.models(u)
+        case .settingsPage:   return IconArt.settingsPage(u)
+        case .about:          return IconArt.about(u)
+
+        case .chat:           return IconArt.chat(u)
+        case .send:           return IconArt.send(u)
+        case .stop:           return IconArt.stop(u)
+        case .aiStar:         return IconArt.aiStar(u)
+        case .user:           return IconArt.user(u)
+        case .context:        return IconArt.context(u)
+        case .clearChat:      return IconArt.clearChat(u)
+        case .plus:           return IconArt.plus(u)
+
+        case .quickSummary:   return IconArt.quickSummary(u)
+        case .quickTasks:     return IconArt.quickTasks(u)
+        case .quickNotes:     return IconArt.quickNotes(u)
+        case .export:         return IconArt.export(u)
+        case .report:         return IconArt.report(u)
+
+        case .history:        return IconArt.history(u)
+        case .eye:            return IconArt.eye(u)
+        case .copy:           return IconArt.copy(u)
+        case .copied:         return IconArt.copied(u)
+        case .clearHour:      return IconArt.clearHour(u)
+        case .clearToday:     return IconArt.clearDate(u, digit: .one)
+        case .clearWeek:      return IconArt.clearDate(u, digit: .seven)
+        case .clearAll:       return IconArt.clearAll(u)
+
+        case .download:       return IconArt.download(u)
+        case .refresh:        return IconArt.refresh(u)
+        case .update:         return IconArt.update(u)
+        case .disk:           return IconArt.disk(u)
+        case .folder:         return IconArt.folder(u)
+        case .radioOn:        return IconArt.radio(u, on: true)
+        case .radioOff:       return IconArt.radio(u, on: false)
+
+        case .success:        return IconArt.success(u)
+        case .error:          return IconArt.error(u)
+        case .warning:        return IconArt.warning(u)
+        case .reminder:       return IconArt.reminder(u)
+        case .clipboardReady: return IconArt.clipboardReady(u)
+        case .lock:           return IconArt.lock(u)
+
+        case .voicePulse:     return IconArt.voicePulse(u)
+        case .waveform:       return IconArt.waveform(u)
+
+        case .settings:       return IconArt.settings(u)
+        case .search:         return IconArt.search(u)
+        case .close:          return IconArt.close(u)
+        case .chevronUp:      return IconArt.chevron(u, .up)
+        case .chevronDown:    return IconArt.chevron(u, .down)
+        case .chevronLeft:    return IconArt.chevron(u, .left)
+        case .chevronRight:   return IconArt.chevron(u, .right)
+        case .keyboard:       return IconArt.keyboard(u)
+        case .textScale:      return IconArt.textScale(u)
         }
     }
 }
 
-/// Универсальный рендерер кастомной векторной иконки Intact.
-/// Всегда рендерится через контурный stroke с поддержкой .foregroundStyle().
-struct IntactIcon: View {
-    let kind: IntactIconKind
-    var size: CGFloat = 16
-    var strokeWidth: CGFloat? = nil
+// MARK: - Чертежи
 
-    private var effectiveStrokeWidth: CGFloat {
-        strokeWidth ?? max(1.2, size * 0.08)
+enum IconArt {
+
+    // MARK: Разделы
+
+    /// Дом: замкнутый пятиугольник силуэта, дверь отдельным слоём.
+    static func home(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.polyline([(3.5, 10.2), (12, 3.6), (20.5, 10.2), (20.5, 20.4), (3.5, 20.4)], closed: true)
+            }),
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(9.3, 20.4), (9.3, 13.8), (14.7, 13.8), (14.7, 20.4)])
+            })
+        ]
     }
 
-    var body: some View {
-        Canvas { ctx, sz in
-            let rect = CGRect(origin: .zero, size: sz)
-            let path = kind.shape.path(in: rect)
-            ctx.stroke(path,
-                       with: .foreground,
-                       style: StrokeStyle(lineWidth: effectiveStrokeWidth, lineCap: .round, lineJoin: .round))
+    /// Микрофон: капсула несёт смысл, подвес и стойка — поддержка.
+    static func voice(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.rect(8.6, 3, 6.8, 12, radius: 3.4)
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.arc(12, 12.4, radius: 5.6, from: 0, to: 180)
+                p.move(12, 18)
+                p.line(12, 20.5)
+                p.move(8.2, 20.5)
+                p.line(15.8, 20.5)
+            })
+        ]
+    }
+
+    /// Лист с искрой — материал, который прошёл через ИИ.
+    static func briefs(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(sheet(u)),
+            .primary(sparkle(u, cx: 11.8, cy: 14.6, radius: 3.4))
+        ]
+    }
+
+    /// Изометрический стек: верхний слой активен, нижние — глубина.
+    static func models(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(12, 3.2), (20.5, 8), (12, 12.8), (3.5, 8)], closed: true)
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.polyline([(3.5, 12), (12, 16.8), (20.5, 12)])
+                p.polyline([(3.5, 16), (12, 20.8), (20.5, 16)])
+            })
+        ]
+    }
+
+    /// Три ползунка: рельсы — фон, ручки — плотные точки.
+    static func settingsPage(_ u: CGFloat) -> [IconLayer] {
+        let rails: [(y: CGFloat, knob: CGFloat)] = [(6.5, 15.0), (12.0, 8.5), (17.5, 16.8)]
+        return [
+            .secondary(iconPath(unit: u) { p in
+                for rail in rails {
+                    p.move(3.5, rail.y)
+                    p.line(20.5, rail.y)
+                }
+            }),
+            .solid(iconPath(unit: u) { p in
+                for rail in rails { p.circle(rail.knob, rail.y, radius: 2.4) }
+            })
+        ]
+    }
+
+    static func about(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8.6) }),
+            .solid(iconPath(unit: u) { p in p.circle(12, 7.9, radius: 1.0) }),
+            .primary(iconPath(unit: u) { p in
+                p.move(12, 11.2)
+                p.line(12, 16.6)
+            })
+        ]
+    }
+
+    // MARK: Чат
+
+    /// Пузырь с хвостом одним замкнутым контуром — линия хвоста не пересекает
+    /// низ пузыря, как это происходит при наложении двух отдельных фигур.
+    static func chat(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(7, 4)
+                p.line(17, 4)
+                p.corner(via: 21, 4, to: 21, 8, radius: 4)
+                p.line(21, 13.5)
+                p.corner(via: 21, 17.5, to: 17, 17.5, radius: 4)
+                p.line(11.4, 17.5)
+                p.line(4.9, 21.2)
+                p.line(6.9, 17.5)
+                p.corner(via: 3, 17.5, to: 3, 13.5, radius: 4)
+                p.line(3, 8)
+                p.corner(via: 3, 4, to: 7, 4, radius: 4)
+                p.close()
+            }),
+            .solid(iconPath(unit: u) { p in
+                for x in [CGFloat(8.5), 12, 15.5] { p.circle(x, 10.75, radius: 1.05) }
+            })
+        ]
+    }
+
+    /// Стрелка без обрамления: кнопка отправки сама круглая, и собственное
+    /// кольцо у иконки давало кольцо внутри кольца.
+    static func send(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.move(12, 20)
+            p.line(12, 4.6)
+            p.polyline([(5.4, 11.2), (12, 4.6), (18.6, 11.2)])
+        })]
+    }
+
+    /// «Стоп» обязан быть плотным: контурный квадрат на 14 px читается как пауза.
+    static func stop(_ u: CGFloat) -> [IconLayer] {
+        [.solid(iconPath(unit: u) { p in p.rect(7, 7, 10, 10, radius: 2.6) })]
+    }
+
+    static func aiStar(_ u: CGFloat) -> [IconLayer] {
+        [.primary(sparkle(u, cx: 12, cy: 12, radius: 8.5))]
+    }
+
+    /// Голова и плечи: между ними намеренный зазор, иначе на 11 px сливаются.
+    static func user(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in p.circle(12, 8.4, radius: 4.1) }),
+            .secondary(iconPath(unit: u) { p in p.arc(12, 21, radius: 7.6, from: 180, to: 360) })
+        ]
+    }
+
+    /// Скрепка с единым радиусом разворотов — две вертикали и два полукруга.
+    static func context(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.move(16.2, 9.6)
+                p.line(16.2, 16.4)
+                p.arc(12.2, 16.4, radius: 4, from: 0, to: 180, connected: true)
+                p.line(8.2, 8.6)
+                p.arc(10.7, 8.6, radius: 2.5, from: 180, to: 360, connected: true)
+                p.line(13.2, 17)
+            })
+        ]
+    }
+
+    static func plus(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.move(12, 4.6); p.line(12, 19.4)
+            p.move(4.6, 12); p.line(19.4, 12)
+        })]
+    }
+
+    /// Метла: ручка — смысл, голова и ворс — поддержка.
+    static func clearChat(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.move(18, 4.5)
+                p.line(11.5, 11)
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.polyline([(9.0, 8.5), (14.0, 13.5), (10.1, 17.4), (5.1, 12.4)], closed: true)
+                p.move(10.7, 10.2)
+                p.line(6.8, 14.1)
+                p.move(12.3, 11.8)
+                p.line(8.4, 15.7)
+            })
+        ]
+    }
+
+    // MARK: Брифы
+
+    /// Молния одним простым многоугольником — без самопересечений.
+    static func quickSummary(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.polyline([(13, 3), (6.5, 13.2), (11.4, 13.2), (10.6, 20.5), (17.5, 10.8), (12.6, 10.8)], closed: true)
+        })]
+    }
+
+    static func quickTasks(_ u: CGFloat) -> [IconLayer] {
+        let rows: [CGFloat] = [7.8, 16.6]
+        return [
+            .primary(iconPath(unit: u) { p in
+                for y in rows { p.polyline([(3.4, y), (5.8, y + 2.4), (10.4, y - 2.6)]) }
+            }),
+            .secondary(iconPath(unit: u) { p in
+                for y in rows {
+                    p.move(13.0, y)
+                    p.line(20.6, y)
+                }
+            })
+        ]
+    }
+
+    static func quickNotes(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(sheet(u)),
+            .primary(iconPath(unit: u) { p in
+                p.move(8, 12.2);  p.line(16, 12.2)
+                p.move(8, 16.4);  p.line(13.4, 16.4)
+            })
+        ]
+    }
+
+    /// Выгрузка: лоток принимает, стрелка уходит наружу.
+    static func export(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(4, 14.75)
+                p.line(4, 18.15)
+                p.corner(via: 4, 20, to: 5.85, 20, radius: 1.85)
+                p.line(18.15, 20)
+                p.corner(via: 20, 20, to: 20, 18.15, radius: 1.85)
+                p.line(20, 14.75)
+            }),
+            .primary(iconPath(unit: u) { p in
+                p.move(12, 15.4)
+                p.line(12, 4)
+                p.polyline([(7.7, 8.3), (12, 4), (16.3, 8.3)])
+            })
+        ]
+    }
+
+    static func report(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(sheet(u)),
+            .primary(iconPath(unit: u) { p in
+                p.move(8.4, 17.6);  p.line(8.4, 14.2)
+                p.move(12, 17.6);   p.line(12, 10.8)
+                p.move(15.6, 17.6); p.line(15.6, 12.8)
+            })
+        ]
+    }
+
+    // MARK: История
+
+    /// Циферблат со стрелками. Метафора отката живёт в `clearHour` —
+    /// две стрелки сразу на 15 px превращаются в кашу.
+    static func history(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8.5) }),
+            .primary(iconPath(unit: u) { p in
+                p.move(12, 6.8)
+                p.line(12, 12)
+                p.line(15.8, 13.8)
+            })
+        ]
+    }
+
+    static func eye(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(3.2, 12)
+                p.quad(control: 12, 4.4, to: 20.8, 12)
+                p.quad(control: 12, 19.6, to: 3.2, 12)
+                p.close()
+            }),
+            .primary(iconPath(unit: u) { p in p.circle(12, 12, radius: 2.7) })
+        ]
+    }
+
+    /// Два листа без пересечений: задний нарисован только видимым фрагментом.
+    static func copy(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(7.5, 7.5)
+                p.line(7.5, 6.5)
+                p.corner(via: 7.5, 3.5, to: 10.5, 3.5, radius: 3)
+                p.line(17.5, 3.5)
+                p.corner(via: 20.5, 3.5, to: 20.5, 6.5, radius: 3)
+                p.line(20.5, 13.5)
+                p.corner(via: 20.5, 16.5, to: 17.5, 16.5, radius: 3)
+                p.line(16.5, 16.5)
+            }),
+            .primary(iconPath(unit: u) { p in p.rect(3.5, 7.5, 13, 13, radius: 3) })
+        ]
+    }
+
+    static func copied(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.polyline([(4.5, 12.5), (9.5, 17.5), (19.5, 6.5)])
+        })]
+    }
+
+    /// Часы с откатом: разрыв циферблата закрыт стрелкой против хода.
+    static func clearHour(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.arc(12, 12.8, radius: 7.6, from: -55, to: 230) }),
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(13.6, 5.7), (16.36, 6.57), (15.7, 9.4)])
+                p.move(12, 12.8)
+                p.line(12, 8.6)
+                p.move(12, 12.8)
+                p.line(15.0, 14.3)
+            })
+        ]
+    }
+
+    enum CalendarDigit { case one, seven }
+
+    /// Календарь с цифрой. Кольца упираются в верхний край листа, а не
+    /// протыкают его: пересечения в контурной иконке дают лишнюю засечку.
+    static func clearDate(_ u: CGFloat, digit: CalendarDigit) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.rect(3.6, 5.2, 16.8, 15.6, radius: 3.4)
+                p.move(3.6, 9.6)
+                p.line(20.4, 9.6)
+                p.move(8.4, 3.2);  p.line(8.4, 5.2)
+                p.move(15.6, 3.2); p.line(15.6, 5.2)
+            }),
+            .primary(iconPath(unit: u) { p in
+                switch digit {
+                case .one:
+                    p.polyline([(9.8, 13.8), (12.0, 12.0), (12.0, 19.2)])
+                    p.move(9.4, 19.2)
+                    p.line(14.6, 19.2)
+                case .seven:
+                    p.polyline([(9.0, 12.4), (15.2, 12.4), (10.6, 19.4)])
+                }
+            })
+        ]
+    }
+
+    static func clearAll(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(5.9, 6.6), (7.1, 20.6), (16.9, 20.6), (18.1, 6.6)])
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.move(3.8, 6.6)
+                p.line(20.2, 6.6)
+                p.polyline([(9.2, 6.6), (9.2, 4.4), (14.8, 4.4), (14.8, 6.6)])
+                p.move(10.2, 10.4); p.line(10.2, 17.0)
+                p.move(13.8, 10.4); p.line(13.8, 17.0)
+            })
+        ]
+    }
+
+    // MARK: Модели и хранилище
+
+    static func download(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8.6) }),
+            .primary(iconPath(unit: u) { p in
+                p.move(12, 7)
+                p.line(12, 15.4)
+                p.polyline([(8.4, 11.8), (12, 15.4), (15.6, 11.8)])
+            })
+        ]
+    }
+
+    /// Одна дуга с наконечником — «проверить заново».
+    static func refresh(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.arc(12, 12, radius: 7.8, from: -35, to: 255)
+            p.polyline([(18.6, 3.8), (18.2, 7.4), (14.7, 6.6)])
+        })]
+    }
+
+    /// Две встречные дуги — «обновить до новой версии».
+    /// Намеренно отличается от `refresh`: это разные действия.
+    static func update(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.arc(12, 12, radius: 7.6, from: 200, to: 340)
+            p.polyline([(16.6, 9.0), (19.3, 9.5), (18.9, 12.2)])
+            p.arc(12, 12, radius: 7.6, from: 20, to: 160)
+            p.polyline([(7.4, 15.0), (4.7, 14.5), (5.1, 11.8)])
+        })]
+    }
+
+    static func disk(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.rect(3.2, 6.4, 17.6, 11.2, radius: 3.2)
+                p.move(3.2, 12.4); p.line(20.8, 12.4)
+            }),
+            .primary(iconPath(unit: u) { p in
+                p.move(6.6, 15.4); p.line(13.0, 15.4)
+            }),
+            .solid(iconPath(unit: u) { p in p.circle(17.2, 15.4, radius: 1.25) })
+        ]
+    }
+
+    static func folder(_ u: CGFloat) -> [IconLayer] {
+        [.secondary(iconPath(unit: u) { p in
+            p.move(3.4, 18.2)
+            p.line(3.4, 6.6)
+            p.corner(via: 3.4, 5.4, to: 4.6, 5.4, radius: 1.2)
+            p.line(8.6, 5.4)
+            p.line(10.8, 8.0)
+            p.line(19.4, 8.0)
+            p.corner(via: 20.6, 8.0, to: 20.6, 9.2, radius: 1.2)
+            p.line(20.6, 18.2)
+            p.corner(via: 20.6, 19.4, to: 19.4, 19.4, radius: 1.2)
+            p.line(4.6, 19.4)
+            p.corner(via: 3.4, 19.4, to: 3.4, 18.2, radius: 1.2)
+            p.close()
+        })]
+    }
+
+    /// Радиокнопка с одинаковой оптической массой в обоих состояниях —
+    /// строки списка не «прыгают» при переключении.
+    static func radio(_ u: CGFloat, on: Bool) -> [IconLayer] {
+        var layers: [IconLayer] = [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8) })
+        ]
+        if on {
+            layers.append(.solid(iconPath(unit: u) { p in p.circle(12, 12, radius: 3.8) }))
         }
-        .frame(width: size, height: size)
+        return layers
     }
-}
 
-/// Рендерит кастомную иконку для бокового меню (сайдбара).
-struct SidebarIntactIcon: View {
-    let kind: IntactIconKind
-    let selected: Bool
-    var size: CGFloat = 16
+    // MARK: Состояния
 
-    var body: some View {
-        IntactIcon(kind: kind, size: size, strokeWidth: selected ? 1.4 : 1.2)
-            .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
+    static func success(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8.6) }),
+            .tinted(.success, iconPath(unit: u) { p in
+                p.polyline([(7.6, 12.3), (10.7, 15.4), (16.5, 8.9)])
+            })
+        ]
     }
-}
 
-// MARK: - 1. Chat (два пузыря диалога)
-struct ChatIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Большой пузырь слева
-        let br: CGFloat = w * 0.16
-        let bx = w * 0.06, by = h * 0.08
-        let bw = w * 0.64, bh = h * 0.52
-        p.addRoundedRect(in: CGRect(x: bx, y: by, width: bw, height: bh),
-                         cornerSize: CGSize(width: br, height: br))
-        // Хвост большого пузыря
-        p.move(to: CGPoint(x: bx + w * 0.10, y: by + bh))
-        p.addLine(to: CGPoint(x: bx + w * 0.04, y: by + bh + h * 0.14))
-        p.addLine(to: CGPoint(x: bx + w * 0.24, y: by + bh))
-
-        // Маленький пузырь справа-снизу
-        let sr: CGFloat = w * 0.14
-        let sx = w * 0.48, sy = h * 0.44
-        let sw = w * 0.46, sh = h * 0.42
-        p.addRoundedRect(in: CGRect(x: sx, y: sy, width: sw, height: sh),
-                         cornerSize: CGSize(width: sr, height: sr))
-        // Хвост маленького пузыря
-        p.move(to: CGPoint(x: sx + sw - w * 0.24, y: sy + sh))
-        p.addLine(to: CGPoint(x: sx + sw - w * 0.04, y: sy + sh + h * 0.12))
-        p.addLine(to: CGPoint(x: sx + sw - w * 0.10, y: sy + sh))
-        return p
+    static func error(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in p.circle(12, 12, radius: 8.6) }),
+            .tinted(.danger, iconPath(unit: u) { p in
+                p.move(12, 7.4)
+                p.line(12, 12.9)
+            }),
+            .tintedSolid(.danger, iconPath(unit: u) { p in p.circle(12, 16.1, radius: 1.05) })
+        ]
     }
-}
 
-// MARK: - 2. History (часы со стрелкой отката)
-struct HistoryIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.42
-        var p = Path()
-        // Циферблат с разрывом сверху
-        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
-                 startAngle: .degrees(-65), endAngle: .degrees(245), clockwise: false)
-        // Стрелка против часовой стрелки на конце разрыва
-        let ax = cx + cos(Double(-65) * .pi / 180) * r
-        let ay = cy + sin(Double(-65) * .pi / 180) * r
-        p.move(to: CGPoint(x: ax - w * 0.14, y: ay - h * 0.02))
-        p.addLine(to: CGPoint(x: ax, y: ay))
-        p.addLine(to: CGPoint(x: ax - w * 0.02, y: ay + h * 0.14))
-
-        // Стрелки часов (10:10)
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.60))
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx + r * 0.45, y: cy + r * 0.15))
-        return p
+    static func warning(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.polyline([(12, 3.9), (21, 19.6), (3, 19.6)], closed: true)
+            }),
+            .tinted(.warning, iconPath(unit: u) { p in
+                p.move(12, 9.6)
+                p.line(12, 14.4)
+            }),
+            .tintedSolid(.warning, iconPath(unit: u) { p in p.circle(12, 17.1, radius: 1.0) })
+        ]
     }
-}
 
-// MARK: - 3. Send (стрелка вверх в круге)
-struct SendIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.44
-        var p = Path()
-        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Стрелка вверх
-        p.move(to: CGPoint(x: cx, y: cy + r * 0.45))
-        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.45))
-        // Наконечник
-        p.move(to: CGPoint(x: cx - w * 0.22, y: cy - r * 0.10))
-        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.45))
-        p.addLine(to: CGPoint(x: cx + w * 0.22, y: cy - r * 0.10))
-        return p
+    /// Колокол с бейджем. Бейдж — отдельный тонированный слой, поэтому
+    /// в сайдбаре и меню-баре он гасится вместе с остальной семантикой.
+    static func reminder(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(5.2, 16.6)
+                p.line(18.8, 16.6)
+                p.move(6.6, 16.6)
+                p.line(6.6, 11.6)
+                p.arc(12, 11.6, radius: 5.4, from: 180, to: 360, connected: true)
+                p.line(17.4, 16.6)
+            }),
+            .primary(iconPath(unit: u) { p in p.arc(12, 17.0, radius: 2.2, from: 0, to: 180) }),
+            .tintedSolid(.warning, iconPath(unit: u) { p in p.circle(18.2, 6.2, radius: 2.6) })
+        ]
     }
-}
 
-// MARK: - 4. ClearChat (метла)
-struct ClearChatIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Ручка
-        p.move(to: CGPoint(x: w * 0.76, y: h * 0.12))
-        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.52))
-        // Перетяжка
-        p.move(to: CGPoint(x: w * 0.28, y: h * 0.46))
-        p.addLine(to: CGPoint(x: w * 0.48, y: h * 0.58))
-        // Ворс
-        p.move(to: CGPoint(x: w * 0.30, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.88))
-        p.move(to: CGPoint(x: w * 0.38, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.26, y: h * 0.90))
-        p.move(to: CGPoint(x: w * 0.46, y: h * 0.56))
-        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.88))
-        // Низ ворса
-        p.move(to: CGPoint(x: w * 0.08, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.46, y: h * 0.88))
-        return p
+    /// Планшет: прищепка упирается в верхний край доски, общая линия —
+    /// не пересечение.
+    static func clipboardReady(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.rect(4.6, 6.2, 14.8, 14.4, radius: 3.2)
+                p.rect(9, 3.2, 6, 3, radius: 1.5)
+            }),
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(8.6, 13.4), (11.2, 16.0), (15.6, 10.6)])
+            })
+        ]
     }
-}
 
-// MARK: - 5. Copy (два наложенных листа)
-struct CopyIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let cr: CGFloat = w * 0.10
-        // Задний лист
-        p.addRoundedRect(in: CGRect(x: w * 0.30, y: h * 0.10, width: w * 0.58, height: h * 0.65),
-                         cornerSize: CGSize(width: cr, height: cr))
-        // Передний лист
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.25, width: w * 0.58, height: h * 0.65),
-                         cornerSize: CGSize(width: cr, height: cr))
-        return p
+    static func lock(_ u: CGFloat) -> [IconLayer] {
+        [
+            .secondary(iconPath(unit: u) { p in
+                p.move(7.9, 10.5)
+                p.line(7.9, 9.6)
+                p.arc(12, 9.6, radius: 4.1, from: 180, to: 360, connected: true)
+                p.line(16.1, 10.5)
+            }),
+            .primary(iconPath(unit: u) { p in p.rect(4.6, 10.5, 14.8, 9.9, radius: 3) }),
+            .solid(iconPath(unit: u) { p in p.circle(12, 14.4, radius: 1.15) })
+        ]
     }
-}
 
-// MARK: - 6. Copied (галочка подтверждения)
-struct CopiedIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.15, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.78))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.24))
-        return p
+    // MARK: Голос и HUD
+
+    /// Микрофон в эфире: две волны расходятся от капсулы.
+    static func voicePulse(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.rect(9.2, 3.6, 5.6, 10.4, radius: 2.8)
+                p.move(12, 16.4)
+                p.line(12, 19.8)
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.arc(12, 11.6, radius: 4.8, from: 0, to: 180)
+                p.arc(12, 11.6, radius: 7.8, from: 22, to: 158)
+            })
+        ]
     }
-}
 
-// MARK: - 7. Context (скрепка)
-struct ContextIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.42, y: h * 0.70))
-        p.addLine(to: CGPoint(x: w * 0.42, y: h * 0.35))
-        p.addArc(center: CGPoint(x: w * 0.55, y: h * 0.35), radius: w * 0.13,
-                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
-        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.65))
-        p.addArc(center: CGPoint(x: w * 0.50, y: h * 0.65), radius: w * 0.18,
-                 startAngle: .degrees(0), endAngle: .degrees(180), clockwise: false)
-        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.28))
-        p.addArc(center: CGPoint(x: w * 0.54, y: h * 0.28), radius: w * 0.22,
-                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
-        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.60))
-        return p
+    static func waveform(_ u: CGFloat) -> [IconLayer] {
+        let bars: [(x: CGFloat, half: CGFloat)] = [
+            (4.4, 3.4), (8.2, 6.2), (12, 8.6), (15.8, 6.2), (19.6, 3.4)
+        ]
+        return [.primary(iconPath(unit: u) { p in
+            for bar in bars {
+                p.move(bar.x, 12 - bar.half)
+                p.line(bar.x, 12 + bar.half)
+            }
+        })]
     }
-}
 
-// MARK: - 8. AI Star (четырёхлучевая звезда ассистента)
-struct AIStarIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50
-        var p = Path()
-        let points = 8
-        let rOuter = min(w, h) * 0.48
-        let rInner = rOuter * 0.32
-        for i in 0..<points {
-            let angle = Double(i) * .pi / 4 - .pi / 2
-            let r = i % 2 == 0 ? rOuter : rInner
-            let pt = CGPoint(x: cx + cos(angle) * r, y: cy + sin(angle) * r)
-            if i == 0 { p.move(to: pt) }
-            else { p.addLine(to: pt) }
+    // MARK: Управление
+
+    /// Шестерня с настоящими зубцами: дуги по вершине и впадине,
+    /// а не прямые лучи, которые читаются как цветок.
+    static func settings(_ u: CGFloat) -> [IconLayer] {
+        let outer: CGFloat = 8.6, root: CGFloat = 6.7
+        return [
+            .secondary(iconPath(unit: u) { p in
+                for i in 0..<8 {
+                    let a = CGFloat(i) * 45
+                    p.arc(12, 12, radius: outer, from: a - 13, to: a + 13, connected: i > 0)
+                    let inStart = p.polar(12, 12, radius: root, angle: a + 18)
+                    p.line(inStart.0, inStart.1)
+                    p.arc(12, 12, radius: root, from: a + 18, to: a + 27, connected: true)
+                    let outStart = p.polar(12, 12, radius: outer, angle: a + 32)
+                    p.line(outStart.0, outStart.1)
+                }
+                p.close()
+            }),
+            .primary(iconPath(unit: u) { p in p.circle(12, 12, radius: 3.1) })
+        ]
+    }
+
+    static func search(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.circle(10.5, 10.5, radius: 6.2)
+            p.move(14.9, 14.9)
+            p.line(20.2, 20.2)
+        })]
+    }
+
+    static func close(_ u: CGFloat) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            p.move(6.5, 6.5);  p.line(17.5, 17.5)
+            p.move(17.5, 6.5); p.line(6.5, 17.5)
+        })]
+    }
+
+    enum ChevronDirection { case up, down, left, right }
+
+    static func chevron(_ u: CGFloat, _ direction: ChevronDirection) -> [IconLayer] {
+        [.primary(iconPath(unit: u) { p in
+            switch direction {
+            case .down:  p.polyline([(6.5, 9.5), (12, 15), (17.5, 9.5)])
+            case .up:    p.polyline([(6.5, 14.5), (12, 9), (17.5, 14.5)])
+            case .right: p.polyline([(9.5, 6.5), (15, 12), (9.5, 17.5)])
+            case .left:  p.polyline([(14.5, 6.5), (9, 12), (14.5, 17.5)])
+            }
+        })]
+    }
+
+    static func keyboard(_ u: CGFloat) -> [IconLayer] {
+        let columns: [CGFloat] = [7.4, 12.0, 16.6]
+        return [
+            .secondary(iconPath(unit: u) { p in p.rect(2.8, 6.2, 18.4, 11.6, radius: 2.8) }),
+            .solid(iconPath(unit: u) { p in
+                for x in columns { p.circle(x, 10.4, radius: 1.15) }
+            }),
+            .primary(iconPath(unit: u) { p in
+                p.move(7.6, 14.6)
+                p.line(16.4, 14.6)
+            })
+        ]
+    }
+
+    static func textScale(_ u: CGFloat) -> [IconLayer] {
+        [
+            .primary(iconPath(unit: u) { p in
+                p.polyline([(3.6, 19.4), (9.0, 5.6), (14.4, 19.4)])
+                p.move(5.6, 14.6)
+                p.line(12.4, 14.6)
+            }),
+            .secondary(iconPath(unit: u) { p in
+                p.polyline([(15.4, 19.4), (18.1, 12.2), (20.8, 19.4)])
+                p.move(16.4, 16.8)
+                p.line(19.8, 16.8)
+            })
+        ]
+    }
+
+    // MARK: Общие детали
+
+    /// Лист с загнутым уголком — общая подложка для брифов, заметок и отчётов.
+    private static func sheet(_ u: CGFloat) -> Path {
+        iconPath(unit: u) { p in
+            p.polyline([(5, 3.5), (14.5, 3.5), (19, 8), (19, 20.5), (5, 20.5)], closed: true)
+            p.polyline([(14.5, 3.5), (14.5, 8), (19, 8)])
         }
-        p.closeSubpath()
-        return p
     }
-}
 
-// MARK: - 9. Quick Summary (молния)
-struct QuickSummaryIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.56, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.22, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.92))
-        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.44))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.44))
-        p.closeSubpath()
-        return p
-    }
-}
-
-// MARK: - 10. Quick Tasks (чеклист с галочками)
-struct QuickTasksIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Рамка блокнота
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.10, width: w * 0.76, height: h * 0.80),
-                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
-        // 3 строки чеклиста
-        for i in 0..<3 {
-            let y = h * (0.30 + CGFloat(i) * 0.20)
-            // Чекбокс
-            p.move(to: CGPoint(x: w * 0.24, y: y))
-            p.addLine(to: CGPoint(x: w * 0.32, y: y + h * 0.06))
-            p.addLine(to: CGPoint(x: w * 0.40, y: y - h * 0.04))
-            // Линия задачи
-            p.move(to: CGPoint(x: w * 0.48, y: y))
-            p.addLine(to: CGPoint(x: w * 0.76, y: y))
+    /// Четырёхлучевая искра с вогнутыми сторонами — фирменный знак ИИ.
+    private static func sparkle(_ u: CGFloat, cx: CGFloat, cy: CGFloat, radius r: CGFloat) -> Path {
+        let waist = r * 0.13
+        return iconPath(unit: u) { p in
+            p.move(cx, cy - r)
+            p.quad(control: cx + waist, cy - waist, to: cx + r, cy)
+            p.quad(control: cx + waist, cy + waist, to: cx, cy + r)
+            p.quad(control: cx - waist, cy + waist, to: cx - r, cy)
+            p.quad(control: cx - waist, cy - waist, to: cx, cy - r)
+            p.close()
         }
-        return p
     }
 }
-
-// MARK: - 11. Quick Notes (листок с загнутым уголком)
-struct QuickNotesIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let fold = w * 0.22
-        // Контур листа
-        p.move(to: CGPoint(x: w * 0.15, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.08 + fold))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.92))
-        p.addLine(to: CGPoint(x: w * 0.15, y: h * 0.92))
-        p.closeSubpath()
-        // Сгиб
-        p.move(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08 + fold))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.08 + fold))
-        // Строки текста
-        for i in 0..<3 {
-            let y = h * (0.38 + CGFloat(i) * 0.16)
-            p.move(to: CGPoint(x: w * 0.28, y: y))
-            p.addLine(to: CGPoint(x: w * 0.72, y: y))
-        }
-        return p
-    }
-}
-
-// MARK: - 12. Settings (шестерня)
-struct SettingsIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50
-        var p = Path()
-        let teeth = 6
-        let rOut = min(w, h) * 0.44
-        let rIn = rOut * 0.65
-        for i in 0..<(teeth * 2) {
-            let a = Double(i) * .pi / Double(teeth) - .pi / 2
-            let r = i % 2 == 0 ? rOut : rIn
-            let pt = CGPoint(x: cx + cos(a) * r, y: cy + sin(a) * r)
-            if i == 0 { p.move(to: pt) }
-            else { p.addLine(to: pt) }
-        }
-        p.closeSubpath()
-        // Внутренний круг
-        p.addEllipse(in: CGRect(x: cx - rIn * 0.40, y: cy - rIn * 0.40, width: rIn * 0.80, height: rIn * 0.80))
-        return p
-    }
-}
-
-// MARK: - 13. StatusDot
-struct StatusDotShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: rect)
-    }
-}
-
-// MARK: - 14. Stop (квадрат остановки)
-struct StopIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path(roundedRect: rect.insetBy(dx: rect.width * 0.22, dy: rect.height * 0.22),
-             cornerRadius: rect.width * 0.08)
-    }
-}
-
-// MARK: - 15. Home (домик)
-struct HomeIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Крыша
-        p.move(to: CGPoint(x: w * 0.10, y: h * 0.48))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.12))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.48))
-        // Стены
-        p.move(to: CGPoint(x: w * 0.18, y: h * 0.48))
-        p.addLine(to: CGPoint(x: w * 0.18, y: h * 0.90))
-        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.90))
-        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.48))
-        // Дверь
-        p.move(to: CGPoint(x: w * 0.38, y: h * 0.90))
-        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.60))
-        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.60))
-        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.90))
-        return p
-    }
-}
-
-// MARK: - 16. Voice (микрофон)
-struct VoiceIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50
-        var p = Path()
-        // Капсула
-        let mw = w * 0.28, mh = h * 0.46
-        p.addRoundedRect(in: CGRect(x: cx - mw / 2, y: h * 0.08, width: mw, height: mh),
-                         cornerSize: CGSize(width: mw / 2, height: mw / 2))
-        // Дуга подвеса
-        p.addArc(center: CGPoint(x: cx, y: h * 0.50), radius: w * 0.30,
-                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
-        // Ножка
-        p.move(to: CGPoint(x: cx, y: h * 0.80))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.92))
-        // Подставка
-        p.move(to: CGPoint(x: cx - w * 0.22, y: h * 0.92))
-        p.addLine(to: CGPoint(x: cx + w * 0.22, y: h * 0.92))
-        return p
-    }
-}
-
-// MARK: - 17. Briefs (лист с мини-звездой)
-struct BriefsIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let fold = w * 0.22
-        // Лист
-        p.move(to: CGPoint(x: w * 0.14, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.08 + fold))
-        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.92))
-        p.addLine(to: CGPoint(x: w * 0.14, y: h * 0.92))
-        p.closeSubpath()
-        // Уголок
-        p.move(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08 + fold))
-        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.08 + fold))
-        // Мини-звезда
-        let sx = w * 0.50, sy = h * 0.56, r = w * 0.16
-        p.move(to: CGPoint(x: sx, y: sy - r))
-        p.addLine(to: CGPoint(x: sx, y: sy + r))
-        p.move(to: CGPoint(x: sx - r, y: sy))
-        p.addLine(to: CGPoint(x: sx + r, y: sy))
-        return p
-    }
-}
-
-// MARK: - 18. Models (изометрический стек 3D-слоёв)
-struct ModelsIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let cx = w * 0.50
-        // Верхний ромб
-        p.move(to: CGPoint(x: cx, y: h * 0.10))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.28))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.46))
-        p.addLine(to: CGPoint(x: w * 0.12, y: h * 0.28))
-        p.closeSubpath()
-        // Средний слой
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.48))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.66))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.48))
-        // Нижний слой
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.68))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.86))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.68))
-        return p
-    }
-}
-
-// MARK: - 19. SettingsPage (горизонтальные слайдеры)
-struct SettingsPageIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let rows: [(CGFloat, CGFloat)] = [(0.24, 0.60), (0.50, 0.35), (0.76, 0.70)]
-        for (yf, knobX) in rows {
-            let cy = h * yf
-            p.move(to: CGPoint(x: w * 0.10, y: cy))
-            p.addLine(to: CGPoint(x: w * 0.90, y: cy))
-            let kx = w * knobX
-            p.addEllipse(in: CGRect(x: kx - w * 0.08, y: cy - h * 0.10, width: w * 0.16, height: h * 0.20))
-        }
-        return p
-    }
-}
-
-// MARK: - 20. About (круг с буквой i)
-struct AboutIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.44
-        var p = Path()
-        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Точка
-        p.addEllipse(in: CGRect(x: cx - w * 0.04, y: cy - h * 0.24, width: w * 0.08, height: h * 0.08))
-        // Палочка
-        p.move(to: CGPoint(x: cx, y: cy - h * 0.06))
-        p.addLine(to: CGPoint(x: cx, y: cy + h * 0.22))
-        return p
-    }
-}
-
-// MARK: - 21. Search (лупа)
-struct SearchIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let r = w * 0.28
-        let cx = w * 0.40, cy = h * 0.40
-        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        let rad = 45.0 * .pi / 180.0
-        let sx = cx + cos(rad) * r
-        let sy = cy + sin(rad) * r
-        p.move(to: CGPoint(x: sx, y: sy))
-        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.86))
-        return p
-    }
-}
-
-// MARK: - 22. Warning (треугольник с «!»)
-struct WarningIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.50, y: h * 0.10))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.88))
-        p.closeSubpath()
-        // Восклицательный знак
-        p.move(to: CGPoint(x: w * 0.50, y: h * 0.36))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.60))
-        p.addEllipse(in: CGRect(x: w * 0.46, y: h * 0.70, width: w * 0.08, height: h * 0.08))
-        return p
-    }
-}
-
-// MARK: - 23. Lock (замок)
-struct LockIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50
-        var p = Path()
-        // Дужка
-        p.addArc(center: CGPoint(x: cx, y: h * 0.38), radius: w * 0.20,
-                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
-        p.addLine(to: CGPoint(x: cx + w * 0.20, y: h * 0.48))
-        // Корпус
-        p.addRoundedRect(in: CGRect(x: w * 0.18, y: h * 0.48, width: w * 0.64, height: h * 0.44),
-                         cornerSize: CGSize(width: w * 0.08, height: w * 0.08))
-        // Скважина
-        p.move(to: CGPoint(x: cx, y: h * 0.62))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.74))
-        return p
-    }
-}
-
-// MARK: - 24. User (силуэт)
-struct UserIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50
-        var p = Path()
-        let hr = w * 0.20
-        p.addEllipse(in: CGRect(x: cx - hr, y: h * 0.08, width: hr * 2, height: hr * 2))
-        p.addArc(center: CGPoint(x: cx, y: h * 0.90), radius: w * 0.35,
-                 startAngle: .degrees(190), endAngle: .degrees(350), clockwise: false)
-        return p
-    }
-}
-
-// MARK: - 25. Close (крестик)
-struct CloseIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.22, y: h * 0.22))
-        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.78))
-        p.move(to: CGPoint(x: w * 0.78, y: h * 0.22))
-        p.addLine(to: CGPoint(x: w * 0.22, y: h * 0.78))
-        return p
-    }
-}
-
-// MARK: - 26. ChevronDown
-struct ChevronDownIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.15, y: h * 0.35))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.70))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.35))
-        return p
-    }
-}
-
-// MARK: - 27. ClearHour (Часы со стрелкой назад — 1 час)
-struct ClearHourIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.52, r = min(w, h) * 0.40
-        var p = Path()
-        // Циферблат со срезом сверху-справа
-        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
-                 startAngle: .degrees(-70), endAngle: .degrees(230), clockwise: false)
-        // Стрелка отката против часовой стрелки
-        let ax = cx + cos(Double(-70) * .pi / 180) * r
-        let ay = cy + sin(Double(-70) * .pi / 180) * r
-        p.move(to: CGPoint(x: ax - w * 0.14, y: ay - h * 0.02))
-        p.addLine(to: CGPoint(x: ax, y: ay))
-        p.addLine(to: CGPoint(x: ax - w * 0.02, y: ay + h * 0.14))
-        // Стрелки на циферблате: часовая на 1 час (30°), минутная на 12 (0°)
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.62))
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx + r * 0.40, y: cy - r * 0.28))
-        return p
-    }
-}
-
-// MARK: - 28. ClearToday (Календарь с цифрой 1 — сегодня)
-struct ClearTodayIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Лист календаря
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.14, width: w * 0.76, height: h * 0.76),
-                         cornerSize: CGSize(width: w * 0.12, height: w * 0.12))
-        // Разделитель шапки
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.38))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.38))
-        // Люверсы / кольца сверху
-        p.move(to: CGPoint(x: w * 0.32, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.20))
-        p.move(to: CGPoint(x: w * 0.68, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.20))
-        // Чёткая цифра «1»
-        p.move(to: CGPoint(x: w * 0.42, y: h * 0.56))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.48))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.78))
-        p.move(to: CGPoint(x: w * 0.38, y: h * 0.78))
-        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.78))
-        return p
-    }
-}
-
-// MARK: - 29. ClearWeek (Календарь с цифрой 7 — за неделю)
-struct ClearWeekIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Лист календаря
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.14, width: w * 0.76, height: h * 0.76),
-                         cornerSize: CGSize(width: w * 0.12, height: w * 0.12))
-        // Разделитель шапки
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.38))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.38))
-        // Люверсы / кольца сверху
-        p.move(to: CGPoint(x: w * 0.32, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.20))
-        p.move(to: CGPoint(x: w * 0.68, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.20))
-        // Чёткая цифра «7»
-        p.move(to: CGPoint(x: w * 0.36, y: h * 0.48))
-        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.48))
-        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.78))
-        // Поперечная черточка семёрки
-        p.move(to: CGPoint(x: w * 0.45, y: h * 0.63))
-        p.addLine(to: CGPoint(x: w * 0.57, y: h * 0.63))
-        return p
-    }
-}
-
-// MARK: - 30. ClearAll (Мусорная корзина / полный сброс)
-struct ClearAllIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Ручка крышки
-        p.move(to: CGPoint(x: w * 0.38, y: h * 0.20))
-        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.10))
-        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.10))
-        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.20))
-        // Крышка
-        p.move(to: CGPoint(x: w * 0.14, y: h * 0.20))
-        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.20))
-        // Корпус бака
-        p.move(to: CGPoint(x: w * 0.22, y: h * 0.20))
-        p.addLine(to: CGPoint(x: w * 0.27, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.73, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.20))
-        // Продольные линии
-        p.move(to: CGPoint(x: w * 0.40, y: h * 0.34))
-        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.74))
-        p.move(to: CGPoint(x: w * 0.60, y: h * 0.34))
-        p.addLine(to: CGPoint(x: w * 0.60, y: h * 0.74))
-        return p
-    }
-}
-
-// MARK: - 31. ChevronUp
-struct ChevronUpIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.15, y: h * 0.65))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.30))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.65))
-        return p
-    }
-}
-

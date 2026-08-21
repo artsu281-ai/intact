@@ -43,7 +43,9 @@ final class CloudAIProvider: AIProvider {
         req.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 20
+        // Модели с рассуждением отвечают дольше простых: на сложной сводке
+        // двадцати секунд не хватает, и запрос обрывался посреди ответа.
+        req.timeoutInterval = 120
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         URLSession.shared.dataTask(with: req) { data, response, error in
@@ -53,8 +55,21 @@ final class CloudAIProvider: AIProvider {
             }
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
                   let data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let content = json["content"] as? [[String: Any]],
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                completion(.failure(.badResponse))
+                return
+            }
+
+            // Отказ приходит обычным 200 и без текстового блока. Без этой
+            // ветки он выглядел бы как «некорректный ответ от AI».
+            if json["stop_reason"] as? String == "refusal" {
+                let explanation = (json["stop_details"] as? [String: Any])?["explanation"] as? String
+                completion(.failure(.refused(explanation)))
+                return
+            }
+
+            // Блоки рассуждения идут перед ответом — берём именно текстовый.
+            guard let content = json["content"] as? [[String: Any]],
                   let text = content.first(where: { $0["type"] as? String == "text" })?["text"] as? String else {
                 completion(.failure(.badResponse))
                 return

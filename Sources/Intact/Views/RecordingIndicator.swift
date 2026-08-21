@@ -81,8 +81,7 @@ struct IndicatorView: View {
         HStack(spacing: 5) {
             switch controller.state {
             case .recording:
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                PulsingVoiceIcon(active: true, size: 13)
                     .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
                 CompactEqualizer(level: controller.level, theme: settings.appTheme)
@@ -93,11 +92,8 @@ struct IndicatorView: View {
                     .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
 
             case .transcribing:
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.7)
-                    .tint(Palette.hudIcon(theme: settings.appTheme))
-                    .frame(width: 12, height: 12)
+                ThinkingDots(size: 14)
+                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
                 Text(L10n.hudTranscribing)
                     .font(.system(size: 11, weight: .medium))
@@ -106,11 +102,8 @@ struct IndicatorView: View {
                     .fixedSize()
 
             case .processingAI:
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.7)
-                    .tint(Palette.hudIcon(theme: settings.appTheme))
-                    .frame(width: 12, height: 12)
+                ThinkingDots(size: 14)
+                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
                 Text(L10n.hudProcessingAI)
                     .font(.system(size: 11, weight: .medium))
@@ -129,9 +122,8 @@ struct IndicatorView: View {
 
     private var noteSavedToast: some View {
         HStack(spacing: 6) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.green)
+            IntactIcon(kind: .success, size: 13)
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
 
             Text(L10n.hudNoteSaved)
                 .font(.system(size: 11.5, weight: .medium))
@@ -144,9 +136,8 @@ struct IndicatorView: View {
 
     private func reminderSavedToast(text: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color(red: 0.98, green: 0.75, blue: 0.25))
+            IntactIcon(kind: .reminder, size: 13)
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
 
             Text(L10n.hudReminderSaved)
                 .font(.system(size: 11.5, weight: .medium))
@@ -166,8 +157,7 @@ struct IndicatorView: View {
     private func noPlaceToInsert(text: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "doc.on.clipboard.fill")
-                    .font(.system(size: 13, weight: .medium))
+                IntactIcon(kind: .clipboardReady, size: 15)
                     .foregroundStyle(Palette.textPrimary)
 
                 Text(L10n.hudTextReady)
@@ -205,8 +195,8 @@ struct IndicatorView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 4) {
-                    Image(systemName: "command")
-                        .font(.system(size: 10, weight: .medium))
+                    Text(verbatim: "\u{2318}")
+                        .font(.system(size: 11, weight: .medium))
                     Text(L10n.hudCopyShortcut)
                         .font(.system(size: 11.5, weight: .medium))
                 }
@@ -214,7 +204,7 @@ struct IndicatorView: View {
 
                 Spacer()
 
-                SoftButton(title: L10n.hudCopyBtn, symbol: "doc.on.doc") {
+                SoftButton(title: L10n.hudCopyBtn, icon: .copy) {
                     controller.copyPending()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -288,14 +278,14 @@ private struct EqualizerBar: View {
 
 struct SoftButton: View {
     let title: String
-    let symbol: String
+    let icon: IntactIconKind
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 11, weight: .semibold))
+                IntactIcon(kind: icon, size: 13, weight: .medium)
                 Text(title).font(.system(size: 12.5, weight: .semibold))
             }
             .foregroundStyle(Palette.textPrimary)
@@ -324,8 +314,7 @@ struct DismissCountdownButton: View {
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
                 }
-                Image(systemName: "xmark")
-                    .font(.system(size: 9.5, weight: .bold))
+                IntactIcon(kind: .close, size: 10, weight: .medium)
                     .foregroundStyle(Palette.textSecondary)
             }
             .padding(.horizontal, 7)
@@ -341,14 +330,13 @@ struct DismissCountdownButton: View {
 }
 
 struct CircleIconButton: View {
-    let symbol: String
+    let icon: IntactIconKind
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .bold))
+            IntactIcon(kind: icon, size: 12, weight: .medium)
                 .foregroundStyle(Palette.textSecondary)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(hovering ? Palette.pillHover : Palette.pill))

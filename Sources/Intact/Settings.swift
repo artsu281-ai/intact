@@ -442,7 +442,10 @@ final class AppSettings: ObservableObject {
         enableVoiceReminders = d.object(forKey: "enableVoiceReminders") == nil ? true : d.bool(forKey: "enableVoiceReminders")
         voiceRemindersList = d.string(forKey: "voiceRemindersList") ?? ""
         aiProviderKind = AIProviderKind(rawValue: d.string(forKey: "aiProviderKind") ?? "") ?? .none
-        aiCloudModel = d.string(forKey: "aiCloudModel") ?? "claude-haiku-4-5"
+        let storedCloudModel = d.string(forKey: "aiCloudModel") ?? ""
+        aiCloudModel = AIModelCatalog.cloud.contains { $0.id == storedCloudModel }
+            ? storedCloudModel
+            : "claude-haiku-4-5"
         aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""

@@ -6,6 +6,7 @@ struct BriefsTab: View {
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
     @ObservedObject private var chat = AIChatService.shared
+    @State private var exportError: String? = nil
 
     var body: some View {
         SettingsPage(title: "Брифы и заметки") {
@@ -34,13 +35,21 @@ struct BriefsTab: View {
                         onOpenSection?(.chat)
                     }
                 }
+                if !chat.messages.isEmpty {
+                    Row(title: "Сохранить отчёт",
+                        subtitle: "Выгружает весь диалог с ассистентом в файл Markdown") {
+                        quickChip(iconKind: .report, label: "Выгрузить") {
+                            saveReport()
+                        }
+                    }
+                }
                 if chat.isGenerating {
                     Row(title: "Формирование ответа…") {
                         Button {
                             onOpenSection?(.chat)
                         } label: {
                             HStack(spacing: 8) {
-                                ProgressView().controlSize(.mini)
+                                ThinkingDots(size: 14, tone: .process)
                                 Text("Смотреть в чате →")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(Palette.accent)
@@ -55,12 +64,27 @@ struct BriefsTab: View {
                         .buttonStyle(.plain)
                     }
                 }
+                if let err = exportError {
+                    Row(title: "Выгрузка не удалась") {
+                        HStack(spacing: 8) {
+                            IntactIcon(kind: .error, size: 15)
+                                .foregroundStyle(Palette.iconDanger)
+                            Text(err)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.iconDanger)
+                        }
+                    }
+                }
                 if let err = chat.errorMessage {
                     Row(title: "Ошибка") {
-                        Text(err)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.orange)
-                            .frame(maxWidth: 320, alignment: .trailing)
+                        HStack(spacing: 8) {
+                            IntactIcon(kind: .error, size: 15)
+                                .foregroundStyle(Palette.iconDanger)
+                            Text(err)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.iconDanger)
+                        }
+                        .frame(maxWidth: 320, alignment: .trailing)
                     }
                 }
             }
@@ -149,6 +173,17 @@ struct BriefsTab: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Диалог сохранения отчёта. Результат показываем в самом Finder —
+    /// модальный алерт после успешного сохранения тут только мешает.
+    private func saveReport() {
+        let text = Exporter.reportMarkdown(chat.messages)
+        switch Exporter.save(text: text, suggestedName: "Intact-отчёт-\(Exporter.fileStamp())") {
+        case .saved(let url):  Exporter.reveal(url)
+        case .cancelled:       break
+        case .failed(let msg): exportError = msg
         }
     }
 

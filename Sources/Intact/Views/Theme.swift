@@ -20,6 +20,19 @@ enum Palette {
     static var accent: Color         { dynamic(white: (0.180, 0.480, 0.920), terracotta: (0.780, 0.435, 0.318), dark: (0.900, 0.580, 0.460)) }
     static var accentHover: Color    { dynamic(white: (0.140, 0.420, 0.840), terracotta: (0.720, 0.375, 0.260), dark: (0.940, 0.640, 0.520)) }
 
+    // Иконки: нейтральные роли
+    static var iconIdle: Color       { textSecondary }
+    static var iconMuted: Color      { textTertiary }
+
+    // Иконки: статусные роли.
+    // Цвет несёт состояние, а не украшает. В терракотовой теме статусы
+    // намеренно пригашены и уведены в тёплый — чистый зелёный на кремовом
+    // фоне выглядит инородно.
+    static var iconSuccess: Color    { dynamic(white: (0.145, 0.620, 0.400), terracotta: (0.345, 0.545, 0.365), dark: (0.400, 0.800, 0.560)) }
+    static var iconWarning: Color    { dynamic(white: (0.870, 0.600, 0.130), terracotta: (0.820, 0.580, 0.220), dark: (0.965, 0.755, 0.360)) }
+    static var iconDanger: Color     { dynamic(white: (0.840, 0.290, 0.270), terracotta: (0.760, 0.290, 0.240), dark: (0.940, 0.460, 0.420)) }
+    static var iconProcess: Color    { dynamic(white: (0.310, 0.400, 0.900), terracotta: (0.490, 0.435, 0.690), dark: (0.620, 0.640, 0.960)) }
+
     // Типографика
     static var textPrimary: Color    { dynamic(white: (0.100, 0.110, 0.120), terracotta: (0.133, 0.110, 0.094), dark: (0.975, 0.968, 0.952)) }
     static var textSecondary: Color  { dynamic(white: (0.420, 0.450, 0.490), terracotta: (0.459, 0.416, 0.365), dark: (0.680, 0.665, 0.640)) }
@@ -208,18 +221,20 @@ struct SettingsPage<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.system(size: 34, weight: .regular, design: .serif))
-                .foregroundStyle(Palette.textPrimary)
-                .padding(.horizontal, 40)
-                .padding(.top, 46)
-                .padding(.bottom, 24)
+            ContentColumn {
+                Text(title)
+                    .font(.system(size: 32, weight: .regular, design: .serif))
+                    .foregroundStyle(Palette.textPrimary)
+            }
+            .padding(.top, 46)
+            .padding(.bottom, 24)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    content
+                ContentColumn {
+                    VStack(alignment: .leading, spacing: 28) {
+                        content
+                    }
                 }
-                .padding(.horizontal, 40)
                 .padding(.bottom, 48)
             }
         }
@@ -295,24 +310,30 @@ struct Row<Control: View>: View {
     }
 }
 
-/// Кнопка-таблетка в правой части строки (в стиле кнопки "Change" из Wispr Flow).
+/// Кнопка-таблетка в правой части строки.
+///
+/// Иконка принимается только как `IntactIconKind` — строковых имён SF Symbols
+/// тут больше нет, поэтому стоковую иконку в интерфейс не пронести незаметно.
 struct PillButton: View {
     let title: String
-    var symbol: String? = nil
+    var icon: IntactIconKind? = nil
+    /// Семантика действия: `.danger` для удаления, `.success` для подтверждения.
+    var tone: IconTone? = nil
     var action: () -> Void
     @State private var hovering = false
+
+    private var labelColor: Color { tone?.color ?? Palette.textPrimary }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                if let symbol {
-                    Image(systemName: symbol)
-                        .font(.system(size: 11.5, weight: .medium))
+                if let icon {
+                    IntactIcon(kind: icon, size: 13, tone: tone)
                 }
                 Text(title)
                     .font(.system(size: 13.5, weight: .medium))
             }
-            .foregroundStyle(Palette.textPrimary)
+            .foregroundStyle(labelColor)
             .padding(.horizontal, 18)
             .padding(.vertical, 8)
             .background(

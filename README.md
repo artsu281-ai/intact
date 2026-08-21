@@ -30,6 +30,9 @@
 | Файл | Назначение |
 |---|---|
 | `IntactApp.swift` | Точка входа, строка меню (`MenuBarExtra`), `AppDelegate`, активация |
+| `Views/IconSystem.swift` | Движок иконок: сетка 24×24, перо, слои, цветовые роли, плитки, мост в `NSImage` |
+| `Views/IntactIcons.swift` | Библиотека векторных иконок Intact — по одному чертежу на иконку |
+| `Export.swift` | Выгрузка истории диктовок и отчёта ассистента в Markdown |
 | `DictationController.swift` | Оркестрация жизненного цикла: запись → черновики → вставка |
 | `WhisperServer.swift` | Фоновый сервис `whisper-server` с загруженной моделью и HTTP API |
 | `MediaController.swift` | Заглушение системного звука и авто-пауза музыки во время речи |
