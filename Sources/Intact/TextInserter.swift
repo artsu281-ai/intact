@@ -40,20 +40,22 @@ enum TextInserter {
 
         copy(text)
 
-        guard let src = CGEventSource(stateID: .combinedSessionState) else { return }
-        let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
-        let up   = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
-        down?.flags = .maskCommand
-        up?.flags = .maskCommand
-        down?.post(tap: .cghidEventTap)
-        up?.post(tap: .cghidEventTap)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            guard let src = CGEventSource(stateID: .combinedSessionState) else { return }
+            let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
+            let up   = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
+            down?.flags = .maskCommand
+            up?.flags = .maskCommand
+            down?.post(tap: .cghidEventTap)
+            up?.post(tap: .cghidEventTap)
 
-        if let previous {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                // Не затираем буфер, если пользователь успел скопировать что-то своё.
-                if pb.string(forType: .string) == text {
-                    pb.clearContents()
-                    pb.setString(previous, forType: .string)
+            if let previous {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    // Не затираем буфер, если пользователь успел скопировать что-то своё.
+                    if pb.string(forType: .string) == text {
+                        pb.clearContents()
+                        pb.setString(previous, forType: .string)
+                    }
                 }
             }
         }
