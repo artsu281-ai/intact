@@ -15,17 +15,18 @@ struct LLMModel: Identifiable, Hashable {
         URL(string: "https://huggingface.co/\(repo)/resolve/main/\(filename)")!
     }
 
-    // Небольшой каталог: лёгкие instruct-модели в GGUF, которых достаточно
-    // для причёсывания текста и коротких брифов. Имена файлов стоит сверить
-    // с актуальным листингом на HuggingFace перед публикацией — репозитории
-    // с квантованными сборками время от времени переименовывают файлы.
+    // Небольшой каталог: свежие лёгкие instruct-модели в GGUF, которых достаточно
+    // для причёсывания текста и коротких брифов. Прямые ссылки на конкретные файлы
+    // проверены вручную (HTTP 200) на момент добавления — официальные репозитории
+    // Qwen/Google на HuggingFace отдают 401 без токена, поэтому используются открытые
+    // зеркала (unsloth, lmstudio-community), актуальность стоит перепроверять время от времени.
     static let catalog: [LLMModel] = [
-        .init(filename: "qwen2.5-3b-instruct-q4_k_m.gguf", title: "Qwen2.5 3B Instruct",
-              sizeMB: 2100, note: "Хорошо держит русский и английский, быстрый на Apple Silicon.",
-              repo: "Qwen/Qwen2.5-3B-Instruct-GGUF"),
-        .init(filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf", title: "Llama 3.2 3B Instruct",
-              sizeMB: 2020, note: "Компактная модель общего назначения от Meta.",
-              repo: "bartowski/Llama-3.2-3B-Instruct-GGUF")
+        .init(filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf", title: "Qwen3 4B Instruct",
+              sizeMB: 2381, note: "Хорошо держит русский и английский, быстрый на Apple Silicon.",
+              repo: "unsloth/Qwen3-4B-Instruct-2507-GGUF"),
+        .init(filename: "gemma-3-4b-it-Q4_K_M.gguf", title: "Gemma 3 4B Instruct",
+              sizeMB: 2375, note: "Свежая модель от Google с сильной многоязычной поддержкой.",
+              repo: "lmstudio-community/gemma-3-4b-it-GGUF")
     ]
 }
 
