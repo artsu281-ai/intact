@@ -55,6 +55,7 @@ struct SettingsView: View {
         .frame(minWidth: 920, minHeight: 680)
         .background(Palette.page)
         .preferredColorScheme(settings.appTheme.colorScheme)
+        .id(settings.appTheme)
     }
 
     // MARK: Боковик

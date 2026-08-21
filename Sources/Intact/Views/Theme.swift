@@ -8,32 +8,32 @@ import SwiftUI
 /// - Системная (Следование за macOS)
 enum Palette {
     // Основные фоны
-    static let page           = dynamic(white: (0.970, 0.972, 0.976), terracotta: (0.980, 0.965, 0.941), dark: (0.086, 0.082, 0.078))
-    static let sidebar        = dynamic(white: (0.935, 0.940, 0.945), terracotta: (0.949, 0.922, 0.878), dark: (0.118, 0.114, 0.110))
-    static let card           = dynamic(white: (1.000, 1.000, 1.000), terracotta: (0.996, 0.992, 0.984), dark: (0.145, 0.141, 0.137))
-    static let cardHighlight  = dynamic(white: (0.945, 0.950, 0.955), terracotta: (0.957, 0.925, 0.882), dark: (0.185, 0.180, 0.175))
-    static let pill           = dynamic(white: (0.915, 0.922, 0.930), terracotta: (0.929, 0.898, 0.847), dark: (0.205, 0.200, 0.192))
-    static let pillHover      = dynamic(white: (0.870, 0.880, 0.895), terracotta: (0.894, 0.855, 0.796), dark: (0.260, 0.252, 0.245))
-    static let dropdownBg     = dynamic(white: (1.000, 1.000, 1.000), terracotta: (0.996, 0.992, 0.984), dark: (0.170, 0.165, 0.160))
+    static var page: Color           { dynamic(white: (0.970, 0.972, 0.976), terracotta: (0.980, 0.965, 0.941), dark: (0.086, 0.082, 0.078)) }
+    static var sidebar: Color        { dynamic(white: (0.935, 0.940, 0.945), terracotta: (0.949, 0.922, 0.878), dark: (0.118, 0.114, 0.110)) }
+    static var card: Color           { dynamic(white: (1.000, 1.000, 1.000), terracotta: (0.996, 0.992, 0.984), dark: (0.145, 0.141, 0.137)) }
+    static var cardHighlight: Color  { dynamic(white: (0.945, 0.950, 0.955), terracotta: (0.957, 0.925, 0.882), dark: (0.185, 0.180, 0.175)) }
+    static var pill: Color           { dynamic(white: (0.915, 0.922, 0.930), terracotta: (0.929, 0.898, 0.847), dark: (0.205, 0.200, 0.192)) }
+    static var pillHover: Color      { dynamic(white: (0.870, 0.880, 0.895), terracotta: (0.894, 0.855, 0.796), dark: (0.260, 0.252, 0.245)) }
+    static var dropdownBg: Color     { dynamic(white: (1.000, 1.000, 1.000), terracotta: (0.996, 0.992, 0.984), dark: (0.170, 0.165, 0.160)) }
 
     // Акценты
-    static let accent         = dynamic(white: (0.180, 0.480, 0.920), terracotta: (0.780, 0.435, 0.318), dark: (0.900, 0.580, 0.460))
-    static let accentHover    = dynamic(white: (0.140, 0.420, 0.840), terracotta: (0.720, 0.375, 0.260), dark: (0.940, 0.640, 0.520))
+    static var accent: Color         { dynamic(white: (0.180, 0.480, 0.920), terracotta: (0.780, 0.435, 0.318), dark: (0.900, 0.580, 0.460)) }
+    static var accentHover: Color    { dynamic(white: (0.140, 0.420, 0.840), terracotta: (0.720, 0.375, 0.260), dark: (0.940, 0.640, 0.520)) }
 
     // Типографика
-    static let textPrimary    = dynamic(white: (0.100, 0.110, 0.120), terracotta: (0.133, 0.110, 0.094), dark: (0.975, 0.968, 0.952))
-    static let textSecondary  = dynamic(white: (0.420, 0.450, 0.490), terracotta: (0.459, 0.416, 0.365), dark: (0.680, 0.665, 0.640))
-    static let textTertiary   = dynamic(white: (0.600, 0.630, 0.670), terracotta: (0.620, 0.576, 0.522), dark: (0.480, 0.465, 0.445))
+    static var textPrimary: Color    { dynamic(white: (0.100, 0.110, 0.120), terracotta: (0.133, 0.110, 0.094), dark: (0.975, 0.968, 0.952)) }
+    static var textSecondary: Color  { dynamic(white: (0.420, 0.450, 0.490), terracotta: (0.459, 0.416, 0.365), dark: (0.680, 0.665, 0.640)) }
+    static var textTertiary: Color   { dynamic(white: (0.600, 0.630, 0.670), terracotta: (0.620, 0.576, 0.522), dark: (0.480, 0.465, 0.445)) }
 
     // Разделители и состояния
-    static let hairline       = dynamicAlpha(white: (0, 0, 0, 0.075), terracotta: (0.50, 0.40, 0.30, 0.14), dark: (1, 1, 1, 0.08))
-    static let selected       = dynamicAlpha(white: (0, 0, 0, 0.065), terracotta: (0.780, 0.435, 0.318, 0.12), dark: (1, 1, 1, 0.10))
-    static let hover          = dynamicAlpha(white: (0, 0, 0, 0.035), terracotta: (0.50, 0.40, 0.30, 0.06), dark: (1, 1, 1, 0.055))
+    static var hairline: Color       { dynamicAlpha(white: (0, 0, 0, 0.075), terracotta: (0.50, 0.40, 0.30, 0.14), dark: (1, 1, 1, 0.08)) }
+    static var selected: Color       { dynamicAlpha(white: (0, 0, 0, 0.065), terracotta: (0.780, 0.435, 0.318, 0.12), dark: (1, 1, 1, 0.10)) }
+    static var hover: Color          { dynamicAlpha(white: (0, 0, 0, 0.035), terracotta: (0.50, 0.40, 0.30, 0.06), dark: (1, 1, 1, 0.055)) }
 
     // Переключатели
-    static let toggleOn       = dynamic(white: (0.120, 0.120, 0.130), terracotta: (0.780, 0.435, 0.318), dark: (0.880, 0.550, 0.430))
-    static let toggleOff      = dynamic(white: (0.850, 0.860, 0.880), terracotta: (0.860, 0.825, 0.780), dark: (0.245, 0.240, 0.230))
-    static let toggleKnob     = dynamic(white: (1.000, 1.000, 1.000), terracotta: (1.000, 1.000, 1.000), dark: (0.110, 0.105, 0.100))
+    static var toggleOn: Color       { dynamic(white: (0.120, 0.120, 0.130), terracotta: (0.780, 0.435, 0.318), dark: (0.880, 0.550, 0.430)) }
+    static var toggleOff: Color      { dynamic(white: (0.850, 0.860, 0.880), terracotta: (0.860, 0.825, 0.780), dark: (0.245, 0.240, 0.230)) }
+    static var toggleKnob: Color     { dynamic(white: (1.000, 1.000, 1.000), terracotta: (1.000, 1.000, 1.000), dark: (0.110, 0.105, 0.100)) }
 
     // HUD Pill (плавающий мини-индикатор записи и тосты)
     static func hudBg(theme: AppTheme) -> Color {
@@ -157,22 +157,19 @@ enum Palette {
         terracotta: (CGFloat, CGFloat, CGFloat, CGFloat),
         dark: (CGFloat, CGFloat, CGFloat, CGFloat)
     ) -> Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            let theme = AppSettings.shared.appTheme
-            let isDarkSystem = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            let chosen: (CGFloat, CGFloat, CGFloat, CGFloat)
-            switch theme {
-            case .dark:
-                chosen = dark
-            case .terracotta:
-                chosen = terracotta
-            case .white:
-                chosen = white
-            case .system:
-                chosen = isDarkSystem ? dark : white
-            }
-            return NSColor(srgbRed: chosen.0, green: chosen.1, blue: chosen.2, alpha: chosen.3)
-        })
+        let theme = AppSettings.shared.appTheme
+        let chosen: (CGFloat, CGFloat, CGFloat, CGFloat)
+        switch theme {
+        case .dark:
+            chosen = dark
+        case .terracotta:
+            chosen = terracotta
+        case .white:
+            chosen = white
+        case .system:
+            chosen = AppSettings.shared.isDarkMode ? dark : white
+        }
+        return Color(red: Double(chosen.0), green: Double(chosen.1), blue: Double(chosen.2)).opacity(Double(chosen.3))
     }
 }
 
