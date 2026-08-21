@@ -4,6 +4,7 @@ import AppKit
 /// Вкладка «Брифы и заметки» — быстрый анализ + Apple Notes + Apple Reminders + форматирование.
 struct BriefsTab: View {
     @ObservedObject var settings: AppSettings
+    var onOpenSection: ((SettingsSection) -> Void)? = nil
     @ObservedObject private var chat = AIChatService.shared
 
     var body: some View {
@@ -16,28 +17,42 @@ struct BriefsTab: View {
                     first: true) {
                     quickChip(iconKind: .quickSummary, label: "Запустить") {
                         chat.analyzeTodayDictations()
+                        onOpenSection?(.chat)
                     }
                 }
                 Row(title: "Извлечь задачи и TODO",
                     subtitle: "Находит действия, которые нужно сделать, из голосовых записей") {
                     quickChip(iconKind: .quickTasks, label: "Извлечь") {
                         chat.extractTasksFromHistoryAndNotes()
+                        onOpenSection?(.chat)
                     }
                 }
                 Row(title: "Сводка Apple Notes",
                     subtitle: "Краткое резюме всех заметок из папки Intact в Apple Notes") {
                     quickChip(iconKind: .quickNotes, label: "Сводка") {
                         chat.summarizeNotes()
+                        onOpenSection?(.chat)
                     }
                 }
                 if chat.isGenerating {
-                    Row(title: "Генерация…") {
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.mini)
-                            Text("ИИ формирует ответ…")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Palette.textSecondary)
+                    Row(title: "Формирование ответа…") {
+                        Button {
+                            onOpenSection?(.chat)
+                        } label: {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.mini)
+                                Text("Смотреть в чате →")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Palette.accent)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Palette.accent.opacity(0.10))
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 if let err = chat.errorMessage {

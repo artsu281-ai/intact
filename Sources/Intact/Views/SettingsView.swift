@@ -283,7 +283,7 @@ struct SettingsView: View {
             case .voice:      VoiceTab(settings: settings)
             case .history:    HistoryTab(settings: settings)
             case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
-            case .briefs:     BriefsTab(settings: settings)
+            case .briefs:     BriefsTab(settings: settings, onOpenSection: { state.section = $0 })
             case .models:     ModelsHub(settings: settings)
             case .settings:   SettingsTab(settings: settings, onOpenModels: { state.section = .models })
             case .about:      AboutTab(settings: settings)
