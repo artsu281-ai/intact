@@ -28,17 +28,21 @@ final class MainWindow {
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
             w.isMovableByWindowBackground = true
-            w.contentView = NSHostingView(rootView: SettingsView(section: Binding(
-                get: { MainWindowState.shared.section },
-                set: { MainWindowState.shared.section = $0 }
-            )))
+            w.contentView = NSHostingView(rootView: SettingsView())
             w.minSize = NSSize(width: 880, height: 640)
             w.isReleasedWhenClosed = false
             w.center()
             window = w
         }
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
+
+        if let w = window {
+            if w.isMiniaturized {
+                w.deminiaturize(nil)
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            w.makeKeyAndOrderFront(nil)
+            w.orderFrontRegardless()
+        }
     }
 
     func toggle() {

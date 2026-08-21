@@ -50,16 +50,8 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject private var controller = DictationController.shared
-    @Binding var section: SettingsSection
+    @ObservedObject var state = MainWindowState.shared
     @State private var searchText = ""
-
-    init(section: Binding<SettingsSection>? = nil) {
-        if let section {
-            self._section = section
-        } else {
-            self._section = .constant(.general)
-        }
-    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -124,7 +116,7 @@ struct SettingsView: View {
                     .padding(.bottom, 8)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "WORKSPACE" }) { item in
-                    SidebarRow(item: item, selected: item == section) { section = item }
+                    SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
 
                 // Настройки
@@ -137,7 +129,7 @@ struct SettingsView: View {
                     .padding(.bottom, 8)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
-                    SidebarRow(item: item, selected: item == section) { section = item }
+                    SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
 
                 // О программе
@@ -150,7 +142,7 @@ struct SettingsView: View {
                     .padding(.bottom, 8)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
-                    SidebarRow(item: item, selected: item == section) { section = item }
+                    SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
             } else {
                 // Результаты поиска
@@ -196,8 +188,8 @@ struct SettingsView: View {
                                 .padding(.bottom, 2)
 
                             ForEach(grouped[sec]!, id: \.id) { entry in
-                                SearchResultRow(entry: entry, isActive: section == sec) {
-                                    section = entry.section
+                                SearchResultRow(entry: entry, isActive: state.section == sec) {
+                                    state.section = entry.section
                                     searchText = ""
                                 }
                             }
@@ -245,12 +237,12 @@ struct SettingsView: View {
 
     private var detail: some View {
         Group {
-            switch section {
-            case .chat:       ChatTab(settings: settings, onOpenSection: { section = $0 })
+            switch state.section {
+            case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
             case .history:    HistoryTab()
             case .general:    GeneralTab(settings: settings)
             case .models:     ModelsHub(settings: settings)
-            case .ai:         AITab(settings: settings, onOpenModels: { section = .models })
+            case .ai:         AITab(settings: settings, onOpenModels: { state.section = .models })
             case .language:   LanguageTab(settings: settings)
             case .microphone: MicrophoneTab(settings: settings)
             case .system:     SystemTab(settings: settings)
