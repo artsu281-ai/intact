@@ -19,14 +19,14 @@ struct LLMModel: Identifiable, Hashable {
     // для причёсывания текста и коротких брифов. Прямые ссылки на конкретные файлы
     // проверены вручную (HTTP 200) на момент добавления — официальные репозитории
     // Qwen/Google на HuggingFace отдают 401 без токена, поэтому используются открытые
-    // зеркала (unsloth, lmstudio-community), актуальность стоит перепроверять время от времени.
+    // зеркала (unsloth), актуальность стоит перепроверять время от времени.
     static let catalog: [LLMModel] = [
-        .init(filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf", title: "Qwen3 4B Instruct",
-              sizeMB: 2381, note: "Хорошо держит русский и английский, быстрый на Apple Silicon.",
-              repo: "unsloth/Qwen3-4B-Instruct-2507-GGUF"),
-        .init(filename: "gemma-3-4b-it-Q4_K_M.gguf", title: "Gemma 3 4B Instruct",
-              sizeMB: 2375, note: "Свежая модель от Google с сильной многоязычной поддержкой.",
-              repo: "lmstudio-community/gemma-3-4b-it-GGUF")
+        .init(filename: "Qwen3.5-4B-Q4_K_M.gguf", title: "Qwen3.5 4B",
+              sizeMB: 2614, note: "Хорошо держит русский и английский, быстрый на Apple Silicon.",
+              repo: "unsloth/Qwen3.5-4B-GGUF"),
+        .init(filename: "gemma-4-E4B-it-Q4_K_M.gguf", title: "Gemma 4 E4B Instruct",
+              sizeMB: 4747, note: "Свежая модель от Google с сильной многоязычной поддержкой.",
+              repo: "unsloth/gemma-4-E4B-it-GGUF")
     ]
 }
 
