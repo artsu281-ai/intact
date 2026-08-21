@@ -188,9 +188,13 @@ struct GeneralTab: View {
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        SettingsPage(title: "Основное") {
-            Card(header: "Запуск диктовки") {
-                Row(title: "Горячая клавиша",
+        SettingsPage(title: L10n.tabGeneral) {
+            if !ModelManager.shared.hasAnyModelInstalled || ModelManager.shared.downloading != nil {
+                ModelOnboardingBanner()
+            }
+
+            Card(header: L10n.genHeaderHotKey) {
+                Row(title: L10n.genHotKey,
                     subtitle: activationSubtitle,
                     first: true) {
                     if settings.activationMode == .modifierHold {
@@ -715,11 +719,15 @@ struct ModelTab: View {
     @State private var advanced = false
 
     var body: some View {
-        SettingsPage(title: "Модель") {
+        SettingsPage(title: L10n.tabModel) {
+            if !models.hasAnyModelInstalled || models.downloading != nil {
+                ModelOnboardingBanner()
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Модели Whisper")
+                        Text(L10n.modelCatalogTitle)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Palette.textPrimary)
                             .padding(.leading, 2)
@@ -731,7 +739,7 @@ struct ModelTab: View {
                         }
                     }
                     Spacer()
-                    PillButton(title: models.isCheckingUpdates ? "Проверка…" : "Проверить обновления",
+                    PillButton(title: models.isCheckingUpdates ? L10n.modelChecking : L10n.modelCheckUpdates,
                                symbol: "arrow.triangle.2.circlepath") {
                         models.checkForUpdates()
                     }
@@ -823,6 +831,145 @@ struct ModelTab: View {
         panel.directoryURL = ModelManager.directory
         if panel.runModal() == .OK, let url = panel.url {
             settings.modelPath = url.path
+        }
+    }
+}
+
+// MARK: - Баннер первоначальной установки модели (Onboarding)
+
+struct ModelOnboardingBanner: View {
+    @ObservedObject var models = ModelManager.shared
+    @ObservedObject var settings = AppSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            headerView
+
+            if let downloading = models.downloading {
+                downloadProgress(filename: downloading)
+            } else {
+                installButtons
+            }
+
+            if let err = models.lastError {
+                Text(err)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Palette.cardHighlight)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Palette.accent.opacity(0.35), lineWidth: 1.5)
+                )
+        )
+    }
+
+    private var headerView: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Palette.accent.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Palette.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.onboardingWelcomeTitle)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Palette.textPrimary)
+
+                Text(L10n.onboardingWelcomeSubtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func downloadProgress(filename: String) -> some View {
+        let percentText = "\(Int(models.progress * 100))%"
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(Palette.accent)
+                Text("\(L10n.onboardingDownloading) (\(filename))")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Palette.textPrimary)
+                Spacer()
+                Text(percentText)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Palette.textSecondary)
+            }
+
+            ProgressView(value: models.progress)
+                .progressViewStyle(.linear)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Palette.dropdownBg)
+        )
+    }
+
+    private var installButtons: some View {
+        HStack(spacing: 12) {
+            Button {
+                models.download(models.recommendedModel)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(L10n.onboardingQuickInstall)
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Text(L10n.onboardingQuickInstallSub)
+                            .font(.system(size: 10.5))
+                            .opacity(0.85)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Palette.accent)
+                )
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                models.download(models.baseModel)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(L10n.onboardingBaseInstall)
+                            .font(.system(size: 12, weight: .medium))
+                        Text(L10n.onboardingBaseInstallSub)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(Palette.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Palette.pill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Palette.hairline, lineWidth: 1)
+                        )
+                )
+                .foregroundStyle(Palette.textPrimary)
+            }
+            .buttonStyle(.plain)
         }
     }
 }

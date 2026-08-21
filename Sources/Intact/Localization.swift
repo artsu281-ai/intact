@@ -27,6 +27,23 @@ enum L10n {
     // MARK: - Статус
     static var statusReady: String { isRu ? "Готов к диктовке" : "Ready for dictation" }
     static var statusLoading: String { isRu ? "Модель загружается…" : "Loading model…" }
+    static var statusNoModel: String { isRu ? "Модель не установлена" : "No model installed" }
+
+    // MARK: - Первоначальная установка (Onboarding)
+    static var onboardingTitle: String { isRu ? "Установка языковой модели" : "Install Speech Model" }
+    static var onboardingWelcomeTitle: String { isRu ? "Добро пожаловать в Intact!" : "Welcome to Intact!" }
+    static var onboardingWelcomeSubtitle: String {
+        isRu
+        ? "Для работы 100% локальной диктовки без интернета требуется языковая модель Whisper. Установите рекомендуемую модель в один клик:"
+        : "Intact performs 100% on-device speech dictation using Whisper. Install a recommended model with one click to get started:"
+    }
+    static var onboardingQuickInstall: String { isRu ? "Скачать рекомендуемую модель (large-v3-turbo)" : "Download Recommended Model (large-v3-turbo)" }
+    static var onboardingQuickInstallSub: String { isRu ? "1.5 ГБ · Высокая скорость и наилучшая точность (ru/en)" : "1.5 GB · Fast speed and best accuracy for mixed ru/en" }
+    static var onboardingBaseInstall: String { isRu ? "Быстрый старт: базовая модель (base, 148 МБ)" : "Quick Start: Base model (base, 148 MB)" }
+    static var onboardingBaseInstallSub: String { isRu ? "148 МБ · Мгновенное скачивание для быстрой проверки" : "148 MB · Instant download to start right away" }
+    static var onboardingDownloading: String { isRu ? "Загрузка модели…" : "Downloading model…" }
+    static var onboardingModelReady: String { isRu ? "✅ Модель успешно установлена и готова к работе" : "✅ Model installed and ready to dictate" }
+    static var onboardingNoModelBanner: String { isRu ? "⚠︎ Модель Whisper ещё не скачана. Нажмите для быстрой установки." : "⚠︎ Whisper model not installed yet. Click for quick install." }
 
     // MARK: - Оформление (Appearance)
     static var appearanceHeaderTheme: String { isRu ? "Тема интерфейса" : "Interface Theme" }

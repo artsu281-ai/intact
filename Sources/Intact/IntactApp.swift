@@ -182,16 +182,21 @@ struct MenuContent: View {
     }
 
     private var statusLine: String {
+        if !ModelManager.shared.hasAnyModelInstalled {
+            return "⚠︎ " + (settings.interfaceLanguage == .russian ? "Модель не установлена" : "No model installed")
+        }
         switch controller.state {
-        case .recording:    return "Запись \(controller.elapsedText)"
-        case .transcribing: return "Распознаю…"
+        case .recording:    return (settings.interfaceLanguage == .russian ? "Запись " : "Recording ") + controller.elapsedText
+        case .transcribing: return L10n.hudTranscribing
         case .idle:
             let key = settings.activationMode == .modifierHold
                 ? settings.triggerKey.symbol
                 : HotKeyManager.describe(keyCode: settings.hotKeyCode, modifiers: settings.hotKeyModifiers)
             let modelName = URL(fileURLWithPath: settings.modelPath).deletingPathExtension().lastPathComponent
                 .replacingOccurrences(of: "ggml-", with: "")
-            return controller.engineReady ? "Intact готов · \(modelName) · \(key)" : "Загрузка модели (\(modelName))…"
+            return controller.engineReady
+                ? (settings.interfaceLanguage == .russian ? "Intact готов · \(modelName) · \(key)" : "Intact ready · \(modelName) · \(key)")
+                : (settings.interfaceLanguage == .russian ? "Загрузка модели (\(modelName))…" : "Loading model (\(modelName))…")
         }
     }
 }
@@ -210,6 +215,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         atexit {
             WhisperServer.killAllOrphanedServers()
+        }
+
+        // Если моделей ещё нет (первый запуск) — сразу открываем окно настроек для скачивания
+        if !ModelManager.shared.hasAnyModelInstalled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                SettingsWindow.shared.show()
+            }
         }
 
         // ⎋ отменяет запись, если система дала права на слежение за клавишами.

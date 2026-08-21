@@ -104,6 +104,13 @@ final class DictationController: ObservableObject {
 
     func start() {
         guard state == .idle else { return }
+        guard ModelManager.shared.hasAnyModelInstalled else {
+            Log.write("start() отклонён: модель Whisper не установлена, открываю настройки")
+            DispatchQueue.main.async {
+                SettingsWindow.shared.show()
+            }
+            return
+        }
         ensureMicPermission { [weak self] granted in
             guard let self else { return }
             guard granted else {

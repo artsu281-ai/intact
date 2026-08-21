@@ -47,6 +47,21 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     @Published var progress: Double = 0
     @Published var lastError: String? = nil
 
+    /// Есть ли хотя бы одна скачанная модель для работы
+    var hasAnyModelInstalled: Bool {
+        !installed.isEmpty || FileManager.default.fileExists(atPath: AppSettings.shared.modelPath)
+    }
+
+    /// Рекомендуемая модель по умолчанию для новых пользователей
+    var recommendedModel: WhisperModel {
+        WhisperModel.catalog.first(where: { $0.filename == "ggml-large-v3-turbo.bin" }) ?? WhisperModel.catalog[0]
+    }
+
+    /// Базовая легковесная модель для мгновенного старта
+    var baseModel: WhisperModel {
+        WhisperModel.catalog.first(where: { $0.filename == "ggml-base.bin" }) ?? WhisperModel.catalog[4]
+    }
+
     /// Список моделей, для которых обнаружены обновления
     @Published var updatesAvailable: Set<String> = []
     @Published var isCheckingUpdates: Bool = false
@@ -65,7 +80,15 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
 
     func refresh() {
         let found = WhisperModel.catalog.filter(\.isInstalled)
-        DispatchQueue.main.async { self.installed = found }
+        DispatchQueue.main.async {
+            self.installed = found
+            // Если текущая модель в настройках не существует, но есть другие скачанные — переключаем на первую доступную
+            let currentExists = FileManager.default.fileExists(atPath: AppSettings.shared.modelPath)
+            if !currentExists, let first = found.first {
+                AppSettings.shared.modelPath = first.localURL.path
+                DictationController.shared.restartEngine()
+            }
+        }
     }
 
     func hasUpdate(_ model: WhisperModel) -> Bool {
@@ -200,8 +223,9 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
             self.updatesAvailable.remove(model.filename)
             self.refresh()
 
-            // Если обновилась активная в данный момент модель — перезапускаем сервер
-            if isUpdate, AppSettings.shared.modelPath == model.localURL.path {
+            let currentExists = FileManager.default.fileExists(atPath: AppSettings.shared.modelPath)
+            if !currentExists || isUpdate || AppSettings.shared.modelPath == model.localURL.path || self.installed.count <= 1 {
+                AppSettings.shared.modelPath = model.localURL.path
                 DictationController.shared.restartEngine()
             }
         }
