@@ -7,14 +7,14 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general:    return "Основное"
-        case .appearance: return "Оформление"
-        case .system:     return "Система"
-        case .model:      return "Модель"
-        case .language:   return "Язык и текст"
-        case .microphone: return "Микрофон"
-        case .history:    return "История"
-        case .about:      return "О программе"
+        case .general:    return L10n.tabGeneral
+        case .appearance: return L10n.tabAppearance
+        case .system:     return L10n.tabSystem
+        case .model:      return L10n.tabModel
+        case .language:   return L10n.tabLanguage
+        case .microphone: return L10n.tabMicrophone
+        case .history:    return L10n.tabHistory
+        case .about:      return L10n.tabAbout
         }
     }
 
@@ -34,9 +34,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var category: String {
         switch self {
         case .general, .appearance, .system, .model, .language, .microphone, .history:
-            return "НАСТРОЙКИ"
+            return "SETTINGS"
         case .about:
-            return "О ПРИЛОЖЕНИИ"
+            return "ABOUT"
         }
     }
 }
@@ -62,7 +62,7 @@ struct SettingsView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 3) {
             // Раздел: НАСТРОЙКИ
-            Text("НАСТРОЙКИ")
+            Text(L10n.sectionSettings)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -70,12 +70,12 @@ struct SettingsView: View {
                 .padding(.top, 48)
                 .padding(.bottom, 8)
 
-            ForEach(SettingsSection.allCases.filter { $0.category == "НАСТРОЙКИ" }) { item in
+            ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
                 SidebarRow(item: item, selected: item == section) { section = item }
             }
 
             // Раздел: О ПРИЛОЖЕНИИ
-            Text("ИНФОРМАЦИЯ")
+            Text(L10n.sectionInfo)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -83,7 +83,7 @@ struct SettingsView: View {
                 .padding(.top, 22)
                 .padding(.bottom, 8)
 
-            ForEach(SettingsSection.allCases.filter { $0.category == "О ПРИЛОЖЕНИИ" }) { item in
+            ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
                 SidebarRow(item: item, selected: item == section) { section = item }
             }
 
@@ -314,18 +314,32 @@ struct AppearanceTab: View {
     @ObservedObject var settings: AppSettings
 
     var body: some View {
-        SettingsPage(title: "Оформление") {
-            Card(header: "Тема интерфейса") {
+        SettingsPage(title: L10n.tabAppearance) {
+            Card(header: L10n.appearanceHeaderLanguage) {
+                Row(title: L10n.appearanceHeaderLanguage,
+                    subtitle: L10n.appearanceLanguageSubtitle,
+                    first: true) {
+                    WisprDropdown(selection: $settings.interfaceLanguage,
+                                  options: InterfaceLanguage.allCases) { lang in
+                        HStack(spacing: 6) {
+                            Text(lang.flag)
+                            Text(lang.title)
+                        }
+                    }
+                }
+            }
+
+            Card(header: L10n.appearanceHeaderTheme) {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Выберите цветовую тему интерфейса приложения и плавающего индикатора записи.")
+                    Text(L10n.appearanceThemeDescription)
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
 
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                         ThemeCard(
                             theme: .white,
-                            title: "Обычная белая",
-                            subtitle: "Чистый классический стиль macOS (по умолчанию)",
+                            title: L10n.themeWhite,
+                            subtitle: L10n.themeWhiteSub,
                             accentColor: Color(red: 0.180, green: 0.480, blue: 0.920),
                             bgSample: Color(red: 0.970, green: 0.972, blue: 0.976),
                             cardSample: Color.white,
@@ -337,8 +351,8 @@ struct AppearanceTab: View {
 
                         ThemeCard(
                             theme: .terracotta,
-                            title: "Тёплая терракотовая",
-                            subtitle: "Уютный песочно-льняной холст и глина",
+                            title: L10n.themeTerracotta,
+                            subtitle: L10n.themeTerracottaSub,
                             accentColor: Color(red: 0.780, green: 0.435, blue: 0.318),
                             bgSample: Color(red: 0.980, green: 0.965, blue: 0.941),
                             cardSample: Color(red: 0.996, green: 0.992, blue: 0.984),
@@ -350,8 +364,8 @@ struct AppearanceTab: View {
 
                         ThemeCard(
                             theme: .dark,
-                            title: "Тёмная (Оникс / Мокка)",
-                            subtitle: "Глубокий ночной фон для комфорта глаз",
+                            title: L10n.themeDark,
+                            subtitle: L10n.themeDarkSub,
                             accentColor: Color(red: 0.880, green: 0.650, blue: 0.520),
                             bgSample: Color(red: 0.086, green: 0.082, blue: 0.078),
                             cardSample: Color(red: 0.145, green: 0.141, blue: 0.137),
@@ -363,8 +377,8 @@ struct AppearanceTab: View {
 
                         ThemeCard(
                             theme: .system,
-                            title: "Как в системе",
-                            subtitle: "Автоматически следовать за темой macOS",
+                            title: L10n.themeSystem,
+                            subtitle: L10n.themeSystemSub,
                             accentColor: Color(red: 0.50, green: 0.50, blue: 0.50),
                             bgSample: Color(red: 0.935, green: 0.940, blue: 0.945),
                             cardSample: Color.white,
@@ -378,9 +392,9 @@ struct AppearanceTab: View {
                 .padding(20)
             }
 
-            Card(header: "Иконка в Dock") {
-                Row(title: "Адаптивная иконка приложения",
-                    subtitle: "В Dock автоматически отображается фирменная светлая или тёмная иконка в зависимости от активной темы",
+            Card(header: L10n.appearanceHeaderDock) {
+                Row(title: L10n.appearanceHeaderDock,
+                    subtitle: L10n.appearanceDockSubtitle,
                     first: true) {
                     HStack(spacing: 12) {
                         Image(nsImage: NSImage(contentsOfFile: "/Applications/Intact.app/Contents/Resources/AppIcon-Light.png") ?? NSImage(named: "AppIcon") ?? NSImage())
@@ -396,19 +410,19 @@ struct AppearanceTab: View {
                 }
             }
 
-            Card(header: "Индикатор диктовки") {
-                Row(title: "Показывать плавающий индикатор во время записи",
-                    subtitle: "Компактный плавающий статус с живым спектром звука",
+            Card(header: L10n.appearanceHeaderIndicator) {
+                Row(title: L10n.appearanceShowIndicator,
+                    subtitle: L10n.appearanceIndicatorSubtitle,
                     first: true) {
                     Toggle("", isOn: $settings.showIndicator)
                         .toggleStyle(WisprToggleStyle())
                 }
 
-                Row(title: "Таймаут карточки копирования",
-                    subtitle: "Через сколько секунд скрывать окно, если поле ввода не было выбрано") {
+                Row(title: L10n.appearanceTimeout,
+                    subtitle: L10n.appearanceTimeoutSubtitle) {
                     WisprDropdown(selection: $settings.copyDismissTimeoutSeconds,
                                   options: [3, 5, 10, 15, 30]) { sec in
-                        Text("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")")
+                        Text("\(sec) \(L10n.isRu ? "сек" : "sec")\(sec == 5 ? (L10n.isRu ? " (по умолч.)" : " (default)") : "")")
                     }
                 }
             }

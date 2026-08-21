@@ -48,6 +48,27 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+enum InterfaceLanguage: String, CaseIterable, Identifiable {
+    case russian = "ru"
+    case english = "en"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .russian: return "Русский"
+        case .english: return "English"
+        }
+    }
+
+    var flag: String {
+        switch self {
+        case .russian: return "🇷🇺"
+        case .english: return "🇺🇸"
+        }
+    }
+}
+
 enum OutputMode: String, CaseIterable, Identifiable {
     case paste, type, clipboard
     var id: String { rawValue }
@@ -164,6 +185,7 @@ final class AppSettings: ObservableObject {
     @Published var muteAudioWhileDictating: Bool { didSet { d.set(muteAudioWhileDictating, forKey: "muteAudioWhileDictating") } }
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
     @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
+    @Published var interfaceLanguage: InterfaceLanguage { didSet { d.set(interfaceLanguage.rawValue, forKey: "interfaceLanguage"); objectWillChange.send() } }
     @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var enableVoiceNotes: Bool { didSet { d.set(enableVoiceNotes, forKey: "enableVoiceNotes") } }
     @Published var voiceNotesFolder: String { didSet { d.set(voiceNotesFolder, forKey: "voiceNotesFolder") } }
@@ -240,6 +262,7 @@ final class AppSettings: ObservableObject {
         muteAudioWhileDictating = d.object(forKey: "muteAudioWhileDictating") == nil ? true : d.bool(forKey: "muteAudioWhileDictating")
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
         appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .white
+        interfaceLanguage = InterfaceLanguage(rawValue: d.string(forKey: "interfaceLanguage") ?? "") ?? .russian
         copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         enableVoiceNotes = d.object(forKey: "enableVoiceNotes") == nil ? true : d.bool(forKey: "enableVoiceNotes")
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"

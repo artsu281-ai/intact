@@ -99,7 +99,7 @@ struct IndicatorView: View {
                     .tint(Palette.hudIcon(theme: settings.appTheme))
                     .frame(width: 12, height: 12)
 
-                Text("Распознаю…")
+                Text(L10n.hudTranscribing)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                     .lineLimit(1)
@@ -120,7 +120,7 @@ struct IndicatorView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.green)
 
-            Text("Заметка сохранена")
+            Text(L10n.hudNoteSaved)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(Palette.hudText(theme: settings.appTheme))
         }
@@ -135,7 +135,7 @@ struct IndicatorView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color(red: 0.98, green: 0.75, blue: 0.25))
 
-            Text("Напоминание:")
+            Text(L10n.hudReminderSaved)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(Palette.hudText(theme: settings.appTheme))
 
@@ -157,7 +157,7 @@ struct IndicatorView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
 
-                Text("Текст готов к копированию")
+                Text(L10n.hudTextReady)
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Palette.textPrimary)
 
@@ -194,14 +194,14 @@ struct IndicatorView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "command")
                         .font(.system(size: 10, weight: .medium))
-                    Text("C или Enter")
+                    Text(L10n.hudCopyShortcut)
                         .font(.system(size: 11.5, weight: .medium))
                 }
                 .foregroundStyle(Palette.textSecondary)
 
                 Spacer()
 
-                SoftButton(title: "Скопировать", symbol: "doc.on.doc") {
+                SoftButton(title: L10n.hudCopyBtn, symbol: "doc.on.doc") {
                     controller.copyPending()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -212,6 +212,9 @@ struct IndicatorView: View {
     }
 
     private func wordsCountLabel(_ count: Int) -> String {
+        if !L10n.isRu {
+            return count == 1 ? "word" : "words"
+        }
         let rem10 = count % 10
         let rem100 = count % 100
         if rem10 == 1 && rem100 != 11 { return "слово" }
