@@ -8,9 +8,11 @@ struct ChatTab: View {
     var onOpenSection: ((SettingsSection) -> Void)? = nil
 
     @ObservedObject private var chat = AIChatService.shared
+    @ObservedObject private var controller = DictationController.shared
     @State private var inputText: String = ""
     @State private var copiedMessageID: UUID? = nil
     @State private var showContextPopover: Bool = false
+    @State private var isChatRecording: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -455,25 +457,99 @@ struct ChatTab: View {
 
     // MARK: - Закреплённый ввод
 
+    // MARK: - Закреплённый ввод
+
     private var inputFooter: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("Спросите что-нибудь или сформулируйте задачу…", text: $inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .font(.system(size: 14))
-                .foregroundStyle(Palette.textPrimary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Palette.card)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Palette.hairline, lineWidth: 1)
-                        )
-                )
-                .onSubmit { sendMessage() }
+            // Поле ввода или интерактивная полоса голосовой записи
+            Group {
+                if isChatRecording && controller.state == .recording {
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 9, height: 9)
+                            .opacity(controller.blink ? 0.3 : 1.0)
+                            .animation(.easeInOut(duration: 0.5).repeatForever(), value: controller.blink)
 
+                        Text("Идёт запись… (\(controller.elapsedText))")
+                            .font(.system(size: 13.5, weight: .medium))
+                            .foregroundStyle(Palette.textPrimary)
+
+                        Spacer()
+
+                        CompactEqualizer(level: controller.level, theme: settings.appTheme)
+                            .frame(width: 44, height: 18)
+
+                        Button {
+                            controller.cancel()
+                            isChatRecording = false
+                        } label: {
+                            Text("Отмена")
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(Palette.textSecondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Palette.pill))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10.5)
+                } else if isChatRecording && (controller.state == .transcribing || controller.state == .processingAI) {
+                    HStack(spacing: 10) {
+                        ProgressView().controlSize(.small)
+                        Text("Распознавание речи Whisper…")
+                            .font(.system(size: 13.5, weight: .medium))
+                            .foregroundStyle(Palette.textSecondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10.5)
+                } else {
+                    TextField("Спросите что-нибудь или надиктуйте голосом…", text: $inputText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...5)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .onSubmit { sendMessage() }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Palette.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(isChatRecording ? Color.red.opacity(0.4) : Palette.hairline, lineWidth: 1)
+                    )
+            )
+
+            // Кнопка голосового сообщения (ГС / микрофон)
+            Button {
+                toggleVoiceRecording()
+            } label: {
+                ZStack {
+                    if isChatRecording && controller.state == .recording {
+                        IntactIcon(kind: .stop, size: 14)
+                            .foregroundStyle(Color.white)
+                    } else if isChatRecording && (controller.state == .transcribing || controller.state == .processingAI) {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        IntactIcon(kind: .voice, size: 15)
+                            .foregroundStyle(Palette.accent)
+                    }
+                }
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle().fill(isChatRecording && controller.state == .recording ? Color.red : Palette.accent.opacity(0.12))
+                )
+            }
+            .buttonStyle(.plain)
+            .help(isChatRecording ? "Остановить и отправить запрос" : "Голосовой запрос в чат (нажмите для записи)")
+
+            // Кнопка отправки текста
             let canSend = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !chat.isGenerating
             Button { sendMessage() } label: {
                 IntactIcon(kind: chat.isGenerating ? .stop : .send, size: 14)
@@ -492,6 +568,21 @@ struct ChatTab: View {
     }
 
     // MARK: - Helpers
+
+    private func toggleVoiceRecording() {
+        if isChatRecording && controller.state == .recording {
+            controller.stop()
+        } else if controller.state == .idle {
+            isChatRecording = true
+            controller.startCustomDictation { recognized in
+                isChatRecording = false
+                let trimmed = recognized.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    chat.send(prompt: trimmed)
+                }
+            }
+        }
+    }
 
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)

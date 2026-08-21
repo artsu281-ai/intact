@@ -191,6 +191,7 @@ final class DictationController: ObservableObject {
 
     func cancel() {
         guard state == .recording else { return }
+        customResultHandler = nil
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -204,6 +205,7 @@ final class DictationController: ObservableObject {
     /// Пользователь нажал что-то ещё, пока держал триггер, — молча свернуться.
     func abort() {
         guard state == .recording else { return }
+        customResultHandler = nil
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -344,12 +346,36 @@ final class DictationController: ObservableObject {
         }
     }
 
+    var customResultHandler: ((String) -> Void)?
+
+    func startCustomDictation(onResult: @escaping (String) -> Void) {
+        customResultHandler = onResult
+        start()
+    }
+
     private func finishRouting(text: String, seconds: TimeInterval, latencyMs: Int) {
         lastResult = text.trimmingCharacters(in: .whitespaces)
 
         guard !lastResult.isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
             lastError = "Речь не распознана — тишина или слишком тихий микрофон."
+            if let handler = customResultHandler {
+                customResultHandler = nil
+                handler("")
+            }
+            return
+        }
+
+        // Если диктовка была запущена из внутреннего модуля (например, Чат с ИИ)
+        if let handler = customResultHandler {
+            customResultHandler = nil
+            if settings.playSounds { NSSound(named: "Pop")?.play() }
+            if settings.keepHistory {
+                History.shared.add(HistoryEntry(text: "💬 \(lastResult)",
+                                                seconds: seconds,
+                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+            }
+            handler(lastResult)
             return
         }
 
