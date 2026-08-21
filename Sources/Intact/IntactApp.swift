@@ -27,9 +27,15 @@ struct IntactApp: App {
 struct MenuContent: View {
     @ObservedObject private var controller = DictationController.shared
     @ObservedObject private var settings = AppSettings.shared
+    @ObservedObject private var history = History.shared
+    @ObservedObject private var modelManager = ModelManager.shared
 
     var body: some View {
         Text(statusLine)
+
+        if controller.lastLatencyMs > 0 && !controller.lastResult.isEmpty {
+            Text("Скорость: \(controller.lastLatencyMs) мс")
+        }
 
         if let missing = Permissions.missingDescription {
             Divider()
@@ -43,8 +49,9 @@ struct MenuContent: View {
                     Permissions.openAccessibilitySettings()
                 }
             }
-            Divider()
         }
+
+        Divider()
 
         Button(controller.state == .recording ? "Остановить и распознать" : "Начать диктовку") {
             controller.toggle()
@@ -58,10 +65,101 @@ struct MenuContent: View {
 
         if !controller.lastResult.isEmpty {
             Divider()
-            Button("Копировать последний результат") {
+            Button("Скопировать последний результат") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(controller.lastResult, forType: .string)
             }
+        }
+
+        if !history.entries.isEmpty {
+            Menu("Недавние записи (\(min(history.entries.count, 50)))") {
+                ForEach(history.entries.prefix(8)) { entry in
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(entry.text, forType: .string)
+                    } label: {
+                        Text(entry.text.prefix(45) + (entry.text.count > 45 ? "…" : ""))
+                    }
+                }
+                Divider()
+                Button("Очистить историю") {
+                    history.clear()
+                }
+            }
+        }
+
+        Divider()
+
+        Menu("Язык: \(languageTitle)") {
+            Button(action: { settings.language = "auto" }) {
+                HStack {
+                    Text("Автоопределение")
+                    if settings.language == "auto" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { settings.language = "ru" }) {
+                HStack {
+                    Text("Русский")
+                    if settings.language == "ru" { Image(systemName: "checkmark") }
+                }
+            }
+            Button(action: { settings.language = "en" }) {
+                HStack {
+                    Text("English")
+                    if settings.language == "en" { Image(systemName: "checkmark") }
+                }
+            }
+            Divider()
+            Toggle("Переводить на английский", isOn: $settings.translateToEnglish)
+        }
+
+        Menu("Режим вставки: \(settings.outputMode.shortTitle)") {
+            ForEach(OutputMode.allCases) { mode in
+                Button {
+                    settings.outputMode = mode
+                } label: {
+                    HStack {
+                        Text(mode.shortTitle)
+                        if settings.outputMode == mode { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+
+        Menu("Тема оформления: \(settings.appTheme.title)") {
+            ForEach(AppTheme.allCases) { theme in
+                Button {
+                    settings.appTheme = theme
+                } label: {
+                    HStack {
+                        Text(theme.title)
+                        if settings.appTheme == theme { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        }
+
+        Menu("Быстрые настройки") {
+            Toggle("Заглушать звук при диктовке", isOn: $settings.muteAudioWhileDictating)
+            Toggle("Пауза музыки (Apple Music/Spotify)", isOn: $settings.pauseMediaWhileDictating)
+            Toggle("Плавающий мини-индикатор", isOn: $settings.showIndicator)
+            Toggle("Звуковые сигналы", isOn: $settings.playSounds)
+            Toggle("Убирать точку в конце", isOn: $settings.trimTrailingPeriod)
+            Toggle("Добавлять пробел в конце", isOn: $settings.appendSpace)
+            Divider()
+            Toggle("Запуск при входе в macOS", isOn: $settings.launchAtLogin)
+                .onChange(of: settings.launchAtLogin) { _, new in LoginItem.set(enabled: new) }
+        }
+
+        Divider()
+
+        Button("Перезапустить движок Whisper") {
+            DictationController.shared.restartEngine()
+        }
+
+        Button("Проверить обновления моделей…") {
+            SettingsWindow.shared.show()
+            modelManager.checkForUpdates()
         }
 
         Divider()
@@ -73,6 +171,14 @@ struct MenuContent: View {
             .keyboardShortcut("q")
     }
 
+    private var languageTitle: String {
+        switch settings.language {
+        case "ru": return "Русский"
+        case "en": return "English"
+        default:   return "Авто"
+        }
+    }
+
     private var statusLine: String {
         switch controller.state {
         case .recording:    return "Запись \(controller.elapsedText)"
@@ -81,7 +187,9 @@ struct MenuContent: View {
             let key = settings.activationMode == .modifierHold
                 ? settings.triggerKey.symbol
                 : HotKeyManager.describe(keyCode: settings.hotKeyCode, modifiers: settings.hotKeyModifiers)
-            return controller.engineReady ? "Готов · держи \(key)" : "Модель загружается · \(key)"
+            let modelName = URL(fileURLWithPath: settings.modelPath).deletingPathExtension().lastPathComponent
+                .replacingOccurrences(of: "ggml-", with: "")
+            return controller.engineReady ? "Intact готов · \(modelName) · \(key)" : "Загрузка модели (\(modelName))…"
         }
     }
 }

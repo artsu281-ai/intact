@@ -46,6 +46,14 @@ enum OutputMode: String, CaseIterable, Identifiable {
         case .clipboard: return "Только в буфер обмена"
         }
     }
+    var shortTitle: String {
+        switch self {
+        case .live:      return "Живая печать"
+        case .paste:     return "Вставка (⌘V)"
+        case .type:      return "Печать посимвольно"
+        case .clipboard: return "В буфер обмена"
+        }
+    }
     var help: String {
         switch self {
         case .live:
