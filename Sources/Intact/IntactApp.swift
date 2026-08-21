@@ -140,6 +140,7 @@ struct MenuContent: View {
         }
 
         Menu("Быстрые настройки") {
+            Toggle("Заметки в Apple Notes", isOn: $settings.enableVoiceNotes)
             Toggle("Заглушать звук при диктовке", isOn: $settings.muteAudioWhileDictating)
             Toggle("Пауза музыки (Apple Music/Spotify)", isOn: $settings.pauseMediaWhileDictating)
             Toggle("Плавающий мини-индикатор", isOn: $settings.showIndicator)

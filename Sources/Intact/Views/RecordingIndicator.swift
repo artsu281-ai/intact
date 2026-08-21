@@ -7,6 +7,7 @@ struct IndicatorView: View {
 
     static let width: CGFloat = 380
     static let listeningSize = NSSize(width: 112, height: 32)
+    static let noteSavedSize = NSSize(width: 154, height: 32)
     private static let copyPad: CGFloat = 16
     private static let bodyFont = NSFont.systemFont(ofSize: 13.5)
 
@@ -39,6 +40,18 @@ struct IndicatorView: View {
                                     .strokeBorder(Palette.hairline, lineWidth: 1)
                             )
                             .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
+                    )
+            } else if controller.noteSavedText != nil {
+                noteSavedToast
+                    .frame(width: Self.noteSavedSize.width, height: Self.noteSavedSize.height)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.88))
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+                            )
+                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
                     )
             } else {
                 listening
@@ -92,6 +105,21 @@ struct IndicatorView: View {
             }
         }
         .padding(.horizontal, 10)
+    }
+
+    // MARK: - Подтверждение сохранения заметки
+
+    private var noteSavedToast: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.green)
+
+            Text("Заметка сохранена")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.95))
+        }
+        .padding(.horizontal, 12)
     }
 
     // MARK: - Вставлять некуда (Карточка копирования)
@@ -242,7 +270,7 @@ final class IndicatorPanel {
         let hosting = NSHostingView(rootView: IndicatorView(controller: controller))
         let size = interactive
             ? IndicatorView.copySize(for: controller.pendingText ?? "")
-            : IndicatorView.listeningSize
+            : (controller.noteSavedText != nil ? IndicatorView.noteSavedSize : IndicatorView.listeningSize)
         hosting.frame = NSRect(origin: .zero, size: size)
 
         let p = KeyablePanel(contentRect: hosting.frame,

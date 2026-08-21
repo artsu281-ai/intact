@@ -29,6 +29,8 @@ final class DictationController: ObservableObject {
     @Published var permissionsOK = Permissions.allGranted
     /// Текст, который не удалось никуда вставить: показывается в панели с кнопкой.
     @Published var pendingText: String? = nil
+    /// Текст сохраненной заметки для всплывающего статуса.
+    @Published var noteSavedText: String? = nil
 
     /// Было ли в фокусе редактируемое поле, когда начиналась диктовка.
     private var canInsert = true
@@ -302,6 +304,20 @@ final class DictationController: ObservableObject {
             return
         }
 
+        // Проверяем команду создания заметки в Apple Notes
+        if settings.enableVoiceNotes, let noteContent = AppleNotesService.extractNoteText(from: text) {
+            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
+            AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
+            if settings.playSounds { NSSound(named: "Glass")?.play() }
+            if settings.keepHistory {
+                History.shared.add(HistoryEntry(text: "📝 \(noteContent)",
+                                                seconds: seconds,
+                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+            }
+            showNoteSavedToast(title: noteContent)
+            return
+        }
+
         // Проверяем, доступно ли активное окно/поле для вставки
         let insertable = canInsert || FocusInspector.canInsertText
         if !insertable && settings.outputMode != .clipboard {
@@ -319,6 +335,17 @@ final class DictationController: ObservableObject {
             History.shared.add(HistoryEntry(text: lastResult,
                                             seconds: seconds,
                                             model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+        }
+    }
+
+    /// Показывает короткое всплывающее подтверждение сохранения заметки
+    private func showNoteSavedToast(title: String) {
+        noteSavedText = title
+        indicator.show(controller: self, interactive: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self, self.state == .idle else { return }
+            self.noteSavedText = nil
+            self.indicator.hide()
         }
     }
 

@@ -393,6 +393,35 @@ struct SystemTab: View {
                 }
             }
 
+            Card(header: "Голосовые заметки (Apple Notes)") {
+                Row(title: "Создавать заметки по командам",
+                    subtitle: "Фразы «Делаем заметку…», «Заметка…», «Создай заметку…» сохраняют текст в Apple Notes без вставки в поле",
+                    first: true) {
+                    Toggle("", isOn: $settings.enableVoiceNotes)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                if settings.enableVoiceNotes {
+                    Row(title: "Папка в Заметках",
+                        subtitle: "Папка в приложении Заметки (по умолчанию «Intact»)") {
+                        TextField("Intact", text: $settings.voiceNotesFolder)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Palette.dropdownBg)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Palette.hairline, lineWidth: 1)
+                                    )
+                            )
+                            .frame(width: 130)
+                    }
+                }
+            }
+
             AdvancedBlock(expanded: $advanced) {
                 if settings.activationMode == .modifierHold {
                     Row(title: "Игнорировать нажатия короче",
