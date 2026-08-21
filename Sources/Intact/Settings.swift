@@ -309,6 +309,7 @@ final class AppSettings: ObservableObject {
     @Published var aiCloudModel: String { didSet { d.set(aiCloudModel, forKey: "aiCloudModel") } }
     @Published var aiLocalModelPath: String { didSet { d.set(aiLocalModelPath, forKey: "aiLocalModelPath"); onAIProviderChange?() } }
     @Published var enableAICleanup: Bool { didSet { d.set(enableAICleanup, forKey: "enableAICleanup") } }
+    @Published var gemmaAudioModelFilename: String { didSet { d.set(gemmaAudioModelFilename, forKey: "gemmaAudioModelFilename") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
@@ -400,6 +401,7 @@ final class AppSettings: ObservableObject {
         aiCloudModel = d.string(forKey: "aiCloudModel") ?? "claude-haiku-4-5"
         aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
+        gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")

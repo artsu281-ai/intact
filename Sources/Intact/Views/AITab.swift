@@ -167,27 +167,14 @@ struct AITab: View {
         Card(header: L10n.aiExperimentHeader) {
             Row(title: L10n.aiExperimentHeader, subtitle: L10n.aiExperimentSubtitle, first: true) { EmptyView() }
 
-            if !audioModel.isInstalled {
-                Row(title: L10n.aiExperimentModelRow, subtitle: L10n.aiExperimentNotInstalled) {
-                    if audioModel.downloading {
-                        Text("\(Int(audioModel.progress * 100))%")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(Palette.textSecondary)
-                    } else {
-                        PillButton(title: L10n.aiExperimentDownloadBtn, symbol: "arrow.down.circle") {
-                            audioModel.download()
-                        }
-                    }
+            VStack(spacing: 0) {
+                ForEach(GemmaAudioModel.catalog) { model in
+                    GemmaAudioModelRow(model: model, settings: settings, models: audioModel, first: false)
                 }
-                if audioModel.downloading {
-                    Row(title: L10n.aiExperimentDownloadBtn) {
-                        ProgressView(value: audioModel.progress)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 280)
-                    }
-                }
-            } else {
-                Row(title: L10n.aiExperimentModelRow, subtitle: statusOrResultSubtitle) {
+            }
+
+            if !audioModel.installed.isEmpty {
+                Row(title: L10n.aiExperimentRecordBtn, subtitle: statusOrResultSubtitle) {
                     if isTestProcessing {
                         ProgressView().controlSize(.small)
                     } else {
@@ -320,6 +307,78 @@ struct LLMModelRow: View {
                 // Смена пути сама триггерит onAIProviderChange → прогрев нового сервера;
                 // явный stop() здесь убил бы только что запущенный процесс.
                 settings.aiLocalModelPath = model.localURL.path
+            }
+        }
+        .onHover { hovering = $0 }
+    }
+}
+
+struct GemmaAudioModelRow: View {
+    let model: GemmaAudioModel
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var models: GemmaAudioModelManager
+    var first: Bool = false
+    @State private var hovering = false
+
+    private var isActive: Bool { settings.gemmaAudioModelFilename == model.mainFilename && model.isInstalled }
+    private var isDownloading: Bool { models.downloading == model.mainFilename }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if !first {
+                Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
+            }
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isActive ? Palette.textPrimary : Palette.textTertiary)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(model.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Palette.textPrimary)
+                        Text("\(model.totalSizeMB) МБ")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    if !model.isInstalled {
+                        Text(L10n.aiExperimentNotInstalled)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.textSecondary)
+                    }
+                    if isDownloading {
+                        ProgressView(value: models.progress)
+                            .progressViewStyle(.linear)
+                            .frame(maxWidth: 280)
+                            .padding(.top, 4)
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                if isDownloading {
+                    Text("\(Int(models.progress * 100))%")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Palette.textSecondary)
+                } else if !model.isInstalled {
+                    PillButton(title: L10n.aiExperimentDownloadBtn, symbol: "arrow.down.circle") {
+                        models.download(model)
+                    }
+                } else if hovering, !isActive {
+                    PillButton(title: "Удалить", symbol: "trash") {
+                        models.delete(model)
+                    }
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if model.isInstalled {
+                settings.gemmaAudioModelFilename = model.mainFilename
+                GemmaAudioProvider.shared.stop()
             }
         }
         .onHover { hovering = $0 }
