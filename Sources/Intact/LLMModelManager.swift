@@ -22,11 +22,23 @@ struct LLMModel: Identifiable, Hashable {
     // зеркала (unsloth), актуальность стоит перепроверять время от времени.
     static let catalog: [LLMModel] = [
         .init(filename: "Qwen3.5-2B-Q4_K_M.gguf", title: "Qwen3.5 2B",
-              sizeMB: 1222, note: "Причёсывание текста — простая задача: маленькая модель справляется и держится в памяти почти бесплатно.",
+              sizeMB: 1222, note: "Самая быстрая и лёгкая. Для причёсывания текста хватает с запасом — рекомендуемый выбор по умолчанию.",
               repo: "unsloth/Qwen3.5-2B-GGUF"),
         .init(filename: "gemma-4-E2B-it-Q4_K_M.gguf", title: "Gemma 4 E2B Instruct",
-              sizeMB: 2963, note: "Альтернатива от Google с сильной многоязычной поддержкой, чуть тяжелее.",
-              repo: "unsloth/gemma-4-E2B-it-GGUF")
+              sizeMB: 2963, note: "Альтернатива от Google: сильный мультиязык, архитектура изначально заточена под работу с голосом.",
+              repo: "unsloth/gemma-4-E2B-it-GGUF"),
+        .init(filename: "Nanbeige4.2-3B-Q4_K_M.gguf", title: "Nanbeige4.2 3B",
+              sizeMB: 2455, note: "Заточена под логику, извлечение задач и вызов функций — задел на будущее, если понадобится больше, чем просто причёсывание.",
+              repo: "owao/Nanbeige4.2-3B-GGUF"),
+        .init(filename: "Qwen3.5-4B-Q4_K_M.gguf", title: "Qwen3.5 4B",
+              sizeMB: 2614, note: "Крупнее и заметно умнее 2B на сложных смешанных фразах — но и медленнее, и тяжелее в памяти.",
+              repo: "unsloth/Qwen3.5-4B-GGUF"),
+        .init(filename: "gemma-4-E4B-it-Q4_K_M.gguf", title: "Gemma 4 E4B Instruct",
+              sizeMB: 4747, note: "Крупный вариант от Google с поддержкой аудио — на будущее, если одна модель должна закрыть и голос, и текст.",
+              repo: "unsloth/gemma-4-E4B-it-GGUF"),
+        .init(filename: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf", title: "Ministral 3 3B",
+              sizeMB: 2047, note: "Универсальная модель от Mistral — золотая середина между скоростью и качеством, если не хочется выбирать между крайностями.",
+              repo: "unsloth/Ministral-3-3B-Instruct-2512-GGUF")
     ]
 }
 
