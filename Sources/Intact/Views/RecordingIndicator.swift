@@ -46,7 +46,7 @@ struct IndicatorView: View {
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .strokeBorder(Palette.hairline, lineWidth: 1)
                             )
-                            .shadow(color: Palette.hudShadow(isDark: isDark), radius: 16, y: 6)
+                            .shadow(color: Palette.hudShadow(theme: settings.appTheme), radius: 16, y: 6)
                     )
             } else if controller.noteSavedText != nil {
                 noteSavedToast
@@ -62,17 +62,17 @@ struct IndicatorView: View {
                     .background(capsuleBg)
             }
         }
-        .preferredColorScheme(isDark ? .dark : .light)
+        .preferredColorScheme(settings.appTheme.colorScheme)
     }
 
     private var capsuleBg: some View {
         Capsule()
-            .fill(Palette.hudBg(isDark: isDark))
+            .fill(Palette.hudBg(theme: settings.appTheme))
             .overlay(
                 Capsule()
-                    .strokeBorder(Palette.hudBorder(isDark: isDark), lineWidth: 0.75)
+                    .strokeBorder(Palette.hudBorder(theme: settings.appTheme), lineWidth: 0.75)
             )
-            .shadow(color: Palette.hudShadow(isDark: isDark), radius: 10, y: 3)
+            .shadow(color: Palette.hudShadow(theme: settings.appTheme), radius: 10, y: 3)
     }
 
     // MARK: - Компактный эстетичный спектр и индикатор записи
@@ -83,25 +83,25 @@ struct IndicatorView: View {
             case .recording:
                 Image(systemName: "mic.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Palette.hudIcon(isDark: isDark))
+                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                CompactEqualizer(level: controller.level, isDark: isDark)
+                CompactEqualizer(level: controller.level, theme: settings.appTheme)
                     .frame(width: 18, height: 12)
 
                 Text(controller.elapsedText)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Palette.hudTextMuted(isDark: isDark))
+                    .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
 
             case .transcribing:
                 ProgressView()
                     .controlSize(.mini)
                     .scaleEffect(0.7)
-                    .tint(Palette.hudIcon(isDark: isDark))
+                    .tint(Palette.hudIcon(theme: settings.appTheme))
                     .frame(width: 12, height: 12)
 
                 Text("Распознаю…")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.hudText(isDark: isDark))
+                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                     .lineLimit(1)
                     .fixedSize()
 
@@ -122,7 +122,7 @@ struct IndicatorView: View {
 
             Text("Заметка сохранена")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudText(isDark: isDark))
+                .foregroundStyle(Palette.hudText(theme: settings.appTheme))
         }
         .padding(.horizontal, 12)
     }
@@ -137,11 +137,11 @@ struct IndicatorView: View {
 
             Text("Напоминание:")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudText(isDark: isDark))
+                .foregroundStyle(Palette.hudText(theme: settings.appTheme))
 
             Text(text)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(Palette.hudTextMuted(isDark: isDark))
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
@@ -226,14 +226,14 @@ struct IndicatorView: View {
 /// динамически адаптирующийся под светлую и тёмную темы оформления.
 struct CompactEqualizer: View {
     let level: Float
-    var isDark: Bool = true
+    var theme: AppTheme = .white
 
     var body: some View {
         HStack(spacing: 2) {
-            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.6, isDark: isDark)
-            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 1.0, isDark: isDark)
-            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 0.85, isDark: isDark)
-            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.55, isDark: isDark)
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.6, theme: theme)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 1.0, theme: theme)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 0.85, theme: theme)
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.55, theme: theme)
         }
     }
 }
@@ -243,7 +243,7 @@ private struct EqualizerBar: View {
     let minH: CGFloat
     let maxH: CGFloat
     let weight: CGFloat
-    let isDark: Bool
+    let theme: AppTheme
 
     private var calculatedHeight: CGFloat {
         let raw = CGFloat(max(0, min(1, level)))
@@ -256,8 +256,8 @@ private struct EqualizerBar: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        Palette.hudEqTop(isDark: isDark),
-                        Palette.hudEqBottom(isDark: isDark)
+                        Palette.hudEqTop(theme: theme),
+                        Palette.hudEqBottom(theme: theme)
                     ],
                     startPoint: .top,
                     endPoint: .bottom

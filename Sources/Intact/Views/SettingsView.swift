@@ -2,12 +2,13 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, system, model, language, microphone, history, about
+    case general, appearance, system, model, language, microphone, history, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general:    return "Основное"
+        case .appearance: return "Оформление"
         case .system:     return "Система"
         case .model:      return "Модель"
         case .language:   return "Язык и текст"
@@ -20,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general:    return "slider.horizontal.3"
+        case .appearance: return "paintpalette"
         case .system:     return "macwindow"
         case .model:      return "waveform"
         case .language:   return "character.bubble"
@@ -31,7 +33,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var category: String {
         switch self {
-        case .general, .system, .model, .language, .microphone, .history:
+        case .general, .appearance, .system, .model, .language, .microphone, .history:
             return "НАСТРОЙКИ"
         case .about:
             return "О ПРИЛОЖЕНИИ"
@@ -133,6 +135,7 @@ struct SettingsView: View {
         Group {
             switch section {
             case .general:    GeneralTab(settings: settings)
+            case .appearance: AppearanceTab(settings: settings)
             case .system:     SystemTab(settings: settings)
             case .model:      ModelTab(settings: settings)
             case .language:   LanguageTab(settings: settings)
@@ -185,7 +188,7 @@ struct GeneralTab: View {
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        SettingsPage(title: "General") {
+        SettingsPage(title: "Основное") {
             Card(header: "Запуск диктовки") {
                 Row(title: "Горячая клавиша",
                     subtitle: activationSubtitle,
@@ -305,6 +308,205 @@ struct PermissionRow: View {
     }
 }
 
+// MARK: - Оформление (Appearance)
+
+struct AppearanceTab: View {
+    @ObservedObject var settings: AppSettings
+
+    var body: some View {
+        SettingsPage(title: "Оформление") {
+            Card(header: "Тема интерфейса") {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Выберите цветовую тему интерфейса приложения и плавающего индикатора записи.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.textSecondary)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                        ThemeCard(
+                            theme: .white,
+                            title: "Обычная белая",
+                            subtitle: "Чистый классический стиль macOS (по умолчанию)",
+                            accentColor: Color(red: 0.180, green: 0.480, blue: 0.920),
+                            bgSample: Color(red: 0.970, green: 0.972, blue: 0.976),
+                            cardSample: Color.white,
+                            isSelected: settings.appTheme == .white
+                        ) {
+                            settings.appTheme = .white
+                            settings.applyTheme()
+                        }
+
+                        ThemeCard(
+                            theme: .terracotta,
+                            title: "Тёплая терракотовая",
+                            subtitle: "Уютный песочно-льняной холст и глина",
+                            accentColor: Color(red: 0.780, green: 0.435, blue: 0.318),
+                            bgSample: Color(red: 0.980, green: 0.965, blue: 0.941),
+                            cardSample: Color(red: 0.996, green: 0.992, blue: 0.984),
+                            isSelected: settings.appTheme == .terracotta
+                        ) {
+                            settings.appTheme = .terracotta
+                            settings.applyTheme()
+                        }
+
+                        ThemeCard(
+                            theme: .dark,
+                            title: "Тёмная (Оникс / Мокка)",
+                            subtitle: "Глубокий ночной фон для комфорта глаз",
+                            accentColor: Color(red: 0.880, green: 0.650, blue: 0.520),
+                            bgSample: Color(red: 0.086, green: 0.082, blue: 0.078),
+                            cardSample: Color(red: 0.145, green: 0.141, blue: 0.137),
+                            isSelected: settings.appTheme == .dark
+                        ) {
+                            settings.appTheme = .dark
+                            settings.applyTheme()
+                        }
+
+                        ThemeCard(
+                            theme: .system,
+                            title: "Как в системе",
+                            subtitle: "Автоматически следовать за темой macOS",
+                            accentColor: Color(red: 0.50, green: 0.50, blue: 0.50),
+                            bgSample: Color(red: 0.935, green: 0.940, blue: 0.945),
+                            cardSample: Color.white,
+                            isSelected: settings.appTheme == .system
+                        ) {
+                            settings.appTheme = .system
+                            settings.applyTheme()
+                        }
+                    }
+                }
+                .padding(20)
+            }
+
+            Card(header: "Иконка в Dock") {
+                Row(title: "Адаптивная иконка приложения",
+                    subtitle: "В Dock автоматически отображается фирменная светлая или тёмная иконка в зависимости от активной темы",
+                    first: true) {
+                    HStack(spacing: 12) {
+                        Image(nsImage: NSImage(contentsOfFile: "/Applications/Intact.app/Contents/Resources/AppIcon-Light.png") ?? NSImage(named: "AppIcon") ?? NSImage())
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+                        Image(nsImage: NSImage(contentsOfFile: "/Applications/Intact.app/Contents/Resources/AppIcon-Dark.png") ?? NSImage(named: "AppIcon") ?? NSImage())
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                }
+            }
+
+            Card(header: "Индикатор диктовки") {
+                Row(title: "Показывать плавающий индикатор во время записи",
+                    subtitle: "Компактный плавающий статус с живым спектром звука",
+                    first: true) {
+                    Toggle("", isOn: $settings.showIndicator)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                Row(title: "Таймаут карточки копирования",
+                    subtitle: "Через сколько секунд скрывать окно, если поле ввода не было выбрано") {
+                    WisprDropdown(selection: $settings.copyDismissTimeoutSeconds,
+                                  options: [3, 5, 10, 15, 30]) { sec in
+                        Text("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")")
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct ThemeCard: View {
+    let theme: AppTheme
+    let title: String
+    let subtitle: String
+    let accentColor: Color
+    let bgSample: Color
+    let cardSample: Color
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(bgSample)
+                        .frame(height: 64)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
+                        )
+
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(accentColor)
+                            .frame(width: 12, height: 12)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(accentColor.opacity(0.85))
+                                .frame(width: 38, height: 5)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.gray.opacity(0.35))
+                                .frame(width: 60, height: 3.5)
+                        }
+                        Spacer()
+                        Capsule()
+                            .fill(accentColor)
+                            .frame(width: 20, height: 10)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(cardSample)
+                            .shadow(color: Color.black.opacity(0.06), radius: 3, y: 1)
+                    )
+                    .padding(.horizontal, 8)
+                }
+
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                            .foregroundStyle(Palette.textPrimary)
+                        Text(subtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.textSecondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    ZStack {
+                        Circle()
+                            .strokeBorder(isSelected ? Palette.accent : Palette.textTertiary, lineWidth: 1.5)
+                            .frame(width: 16, height: 16)
+                        if isSelected {
+                            Circle()
+                                .fill(Palette.accent)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Palette.cardHighlight : (hovering ? Palette.hover : Palette.card))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(isSelected ? Palette.accent : Palette.hairline, lineWidth: isSelected ? 1.5 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
 // MARK: - Система (System)
 
 struct SystemTab: View {
@@ -312,28 +514,14 @@ struct SystemTab: View {
     @State private var advanced = false
 
     var body: some View {
-        SettingsPage(title: "System") {
+        SettingsPage(title: "Система") {
             Card(header: "Настройки приложения") {
-                Row(title: "Тема оформления",
-                    subtitle: "Светлая (Sand), тёмная (Onyx) или системная",
-                    first: true) {
-                    WisprDropdown(selection: $settings.appTheme,
-                                  options: AppTheme.allCases) { theme in
-                        Text(theme.title)
-                    }
-                }
-
                 Row(title: "Запускать при входе в систему",
-                    subtitle: "Автоматический запуск Intact вместе с macOS") {
+                    subtitle: "Автоматический запуск Intact вместе с macOS",
+                    first: true) {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .toggleStyle(WisprToggleStyle())
                         .onChange(of: settings.launchAtLogin) { _, new in LoginItem.set(enabled: new) }
-                }
-
-                Row(title: "Показывать индикатор во время записи",
-                    subtitle: "Компактный плавающий статус с живым мини-эквалайзером") {
-                    Toggle("", isOn: $settings.showIndicator)
-                        .toggleStyle(WisprToggleStyle())
                 }
 
                 Row(title: "Значок в Dock",
@@ -513,7 +701,7 @@ struct ModelTab: View {
     @State private var advanced = false
 
     var body: some View {
-        SettingsPage(title: "Model") {
+        SettingsPage(title: "Модель") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {

@@ -4,33 +4,46 @@ import Foundation
 import Carbon.HIToolbox
 
 enum AppTheme: String, CaseIterable, Identifiable {
-    case system = "system"
-    case light = "light"
+    case white = "white"
+    case terracotta = "terracotta"
     case dark = "dark"
+    case system = "system"
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .system: return "Системная"
-        case .light:  return "Светлая (Sand)"
-        case .dark:   return "Тёмная (Onyx)"
+        case .white:      return "Обычная белая"
+        case .terracotta: return "Тёплая терракотовая"
+        case .dark:       return "Тёмная (Мокка / Оникс)"
+        case .system:     return "Как в системе"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .white:      return "Классический светлый стиль macOS"
+        case .terracotta: return "Уютная песочно-льняная палитра"
+        case .dark:       return "Глубокая ночная тема для комфорта глаз"
+        case .system:     return "Автоматически следовать за темой macOS"
         }
     }
 
     var colorScheme: ColorScheme? {
         switch self {
-        case .system: return nil
-        case .light:  return .light
-        case .dark:   return .dark
+        case .system:     return nil
+        case .white:      return .light
+        case .terracotta: return .light
+        case .dark:       return .dark
         }
     }
 
     var nsAppearance: NSAppearance? {
         switch self {
-        case .system: return nil
-        case .light:  return NSAppearance(named: .aqua)
-        case .dark:   return NSAppearance(named: .darkAqua)
+        case .system:     return nil
+        case .white:      return NSAppearance(named: .aqua)
+        case .terracotta: return NSAppearance(named: .aqua)
+        case .dark:       return NSAppearance(named: .darkAqua)
         }
     }
 }
@@ -131,8 +144,6 @@ final class AppSettings: ObservableObject {
     @Published var outputMode: OutputMode { didSet { d.set(outputMode.rawValue, forKey: "outputMode") } }
     @Published var trimTrailingPeriod: Bool { didSet { d.set(trimTrailingPeriod, forKey: "trimTrailingPeriod") } }
     @Published var appendSpace: Bool { didSet { d.set(appendSpace, forKey: "appendSpace") } }
-    /// Сколько последних слов черновика не печатать: их whisper переписывает чаще всего.
-    @Published var liveHoldWords: Int { didSet { d.set(liveHoldWords, forKey: "liveHoldWords") } }
 
     @Published var hotKeyCode: Int { didSet { d.set(hotKeyCode, forKey: "hotKeyCode"); onHotKeyChange?() } }
     @Published var hotKeyModifiers: Int { didSet { d.set(hotKeyModifiers, forKey: "hotKeyModifiers"); onHotKeyChange?() } }
@@ -173,7 +184,7 @@ final class AppSettings: ObservableObject {
     var isDarkMode: Bool {
         switch appTheme {
         case .dark: return true
-        case .light: return false
+        case .white, .terracotta: return false
         case .system:
             if let style = UserDefaults.standard.string(forKey: "AppleInterfaceStyle"), style.lowercased().contains("dark") {
                 return true
@@ -210,7 +221,6 @@ final class AppSettings: ObservableObject {
 
         outputMode = OutputMode(rawValue: d.string(forKey: "outputMode") ?? "") ?? .paste
         trimTrailingPeriod = d.bool(forKey: "trimTrailingPeriod")
-        liveHoldWords = d.object(forKey: "liveHoldWords") == nil ? 1 : d.integer(forKey: "liveHoldWords")
         appendSpace = d.object(forKey: "appendSpace") == nil ? true : d.bool(forKey: "appendSpace")
 
         hotKeyCode = d.object(forKey: "hotKeyCode") == nil ? kVK_Space : d.integer(forKey: "hotKeyCode")
@@ -229,7 +239,7 @@ final class AppSettings: ObservableObject {
         playSounds = d.object(forKey: "playSounds") == nil ? true : d.bool(forKey: "playSounds")
         muteAudioWhileDictating = d.object(forKey: "muteAudioWhileDictating") == nil ? true : d.bool(forKey: "muteAudioWhileDictating")
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
-        appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .system
+        appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .white
         copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         enableVoiceNotes = d.object(forKey: "enableVoiceNotes") == nil ? true : d.bool(forKey: "enableVoiceNotes")
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"
