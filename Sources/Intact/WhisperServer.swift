@@ -38,6 +38,8 @@ final class WhisperServer {
         lock.unlock()
 
         stop()
+        Self.killAllOrphanedServers()
+
         guard let bin = binary, FileManager.default.fileExists(atPath: s.modelPath) else {
             completion?(false)
             return
@@ -85,10 +87,20 @@ final class WhisperServer {
     }
 
     func stop() {
-        process?.terminate()
+        if let p = process {
+            p.terminate()
+        }
         process = nil
         port = 0
         bootedWith = ""
+    }
+
+    static func killAllOrphanedServers() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        task.arguments = ["-9", "-f", "whisper-server"]
+        try? task.run()
+        task.waitUntilExit()
     }
 
     private func ping() -> Bool {

@@ -237,5 +237,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.unregister()
         ModifierKeyMonitor.shared.stop()
         WhisperServer.shared.stop()
+        MediaController.shared.end()
     }
 }

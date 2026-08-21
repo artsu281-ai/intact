@@ -39,6 +39,7 @@ fi
 echo "==> установка в /Applications"
 pkill -x "VoiceInput" 2>/dev/null || true
 pkill -x "Intact" 2>/dev/null || true
+pkill -9 -f "whisper-server" 2>/dev/null || true
 sleep 1
 rm -rf "$DEST"
 cp -R "$BUNDLE" "$DEST"
