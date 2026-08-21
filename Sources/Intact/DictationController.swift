@@ -384,7 +384,10 @@ final class DictationController: ObservableObject {
             AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
             if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
-                History.shared.add(HistoryEntry(text: "📝 \(noteContent)",
+                // В историю кладём произнесённую фразу целиком, а не обрезок после
+                // команды: если команда сработала ошибочно, это единственный способ
+                // вернуть текст — вставка-то не состоялась.
+                History.shared.add(HistoryEntry(text: "📝 \(text)",
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
@@ -398,7 +401,8 @@ final class DictationController: ObservableObject {
             if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
                 let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
-                History.shared.add(HistoryEntry(text: "⏰ \(rem.title)\(dueInfo)",
+                // Как и с заметками — сохраняем сказанное целиком, срок дописываем справкой.
+                History.shared.add(HistoryEntry(text: "⏰ \(text)\(dueInfo)",
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
