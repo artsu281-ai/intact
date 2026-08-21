@@ -35,6 +35,7 @@ enum L10n {
     static var tabAbout: String { isRu ? "О программе" : "About" }
     static var tabAI: String { isRu ? "ИИ" : "AI" }
     static var tabChat: String { isRu ? "Чат с ИИ" : "AI Chat" }
+    static var tabAskAI: String { isRu ? "Спросите ИИ" : "Ask AI" }
     static var chatMenuTitle: String { isRu ? "Чат с ИИ…" : "AI Chat…" }
     static var chatOpenBtn: String { isRu ? "Открыть чат с ИИ" : "Open AI Chat" }
 

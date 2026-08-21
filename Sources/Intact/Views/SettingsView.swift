@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case home, voice, history, chat, briefs, models, settings, about
+    case home, voice, history, chat, askAI, briefs, models, settings, about
     var id: String { rawValue }
 
     var title: String {
@@ -11,6 +11,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .voice:      return L10n.tabVoice
         case .history:    return L10n.tabHistory
         case .chat:       return L10n.tabChat
+        case .askAI:      return L10n.tabAskAI
         case .briefs:     return L10n.tabBriefs
         case .models:     return L10n.tabModels
         case .settings:   return L10n.tabSettingsUnified
@@ -25,6 +26,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .voice:      return "mic"
         case .history:    return "clock.arrow.circlepath"
         case .chat:       return "bubble.left.and.bubble.right"
+        case .askAI:      return "questionmark.bubble"
         case .briefs:     return "note.text"
         case .models:     return "square.stack.3d.up"
         case .settings:   return "gearshape"
@@ -39,6 +41,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .voice:    return .voice
         case .history:  return .history
         case .chat:     return .chat
+        case .askAI:    return .aiStar
         case .briefs:   return .briefs
         case .models:   return .models
         case .settings: return .settingsPage
@@ -52,7 +55,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
             return "HOME"
         case .voice, .history:
             return "VOICE"
-        case .chat, .briefs:
+        case .chat, .askAI, .briefs:
             return "ASSISTANT"
         case .models, .settings:
             return "MODELS_SETTINGS"
@@ -279,6 +282,7 @@ struct SettingsView: View {
             case .voice:      VoiceTab(settings: settings)
             case .history:    HistoryTab(settings: settings)
             case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
+            case .askAI:      AskAITab(settings: settings, onOpenSection: { state.section = $0 })
             case .briefs:     BriefsTab(settings: settings, onOpenSection: { state.section = $0 })
             case .models:     ModelsHub(settings: settings)
             case .settings:   SettingsTab(settings: settings, onOpenModels: { state.section = .models })
@@ -311,6 +315,8 @@ final class SettingsSearchIndex {
               keywords: ["чат", "chat", "ии", "ai", "ассистент", "assistant", "диалог", "вопрос", "сообщение"]),
         .init(title: "Брифы и заметки", subtitle: "Сводка голосовых диктовок и заметок", section: .briefs,
               keywords: ["брифы", "briefs", "анализ", "сводка", "заметки", "задачи", "todo", "выжимка", "история", "диктовки", "apple notes", "reminders"]),
+        .init(title: "Спросите ИИ", subtitle: "Хоткей: вопрос голосом — ответ сразу вставляется", section: .askAI,
+              keywords: ["спросите", "ask", "вопрос", "хоткей", "hotkey", "правый", "option", "ии", "ai", "ответ", "мгновенный"]),
 
         // Диктовка (Voice)
         .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .voice,
