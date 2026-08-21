@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, system, model, ai, language, microphone, history, about
+    case general, appearance, system, models, ai, language, microphone, history, about
     var id: String { rawValue }
 
     var title: String {
@@ -10,7 +10,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:    return L10n.tabGeneral
         case .appearance: return L10n.tabAppearance
         case .system:     return L10n.tabSystem
-        case .model:      return L10n.tabModel
+        case .models:     return L10n.tabModels
         case .ai:         return L10n.tabAI
         case .language:   return L10n.tabLanguage
         case .microphone: return L10n.tabMicrophone
@@ -24,7 +24,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .general:    return "slider.horizontal.3"
         case .appearance: return "paintpalette"
         case .system:     return "macwindow"
-        case .model:      return "waveform"
+        case .models:     return "square.stack.3d.up"
         case .ai:         return "sparkles"
         case .language:   return "character.bubble"
         case .microphone: return "mic"
@@ -35,7 +35,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var category: String {
         switch self {
-        case .general, .appearance, .system, .model, .ai, .language, .microphone, .history:
+        case .general, .appearance, .system, .models, .ai, .language, .microphone, .history:
             return "SETTINGS"
         case .about:
             return "ABOUT"
@@ -223,8 +223,8 @@ struct SettingsView: View {
             case .general:    GeneralTab(settings: settings)
             case .appearance: AppearanceTab(settings: settings)
             case .system:     SystemTab(settings: settings)
-            case .model:      ModelTab(settings: settings)
-            case .ai:         AITab(settings: settings)
+            case .models:     ModelsHub(settings: settings)
+            case .ai:         AITab(settings: settings, onOpenModels: { section = .models })
             case .language:   LanguageTab(settings: settings)
             case .microphone: MicrophoneTab(settings: settings)
             case .history:    HistoryTab()
@@ -300,17 +300,21 @@ final class SettingsSearchIndex {
         .init(title: "Максимальная длина записи", subtitle: "Ограничение длительности", section: .system,
               keywords: ["максимальная", "maximum", "длина", "length", "запись", "recording", "duration", "ограничение", "limit"]),
 
-        // Модель (Model)
-        .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .model,
+        // Модели (Models)
+        .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .models,
               keywords: ["модель", "model", "whisper", "ggml", "скачать", "download", "установить", "install", "large", "turbo", "base", "medium", "small"]),
-        .init(title: "Потоковое распознавание", subtitle: "Текст во время речи", section: .model,
+        .init(title: "Потоковое распознавание", subtitle: "Текст во время речи", section: .models,
               keywords: ["потоковое", "streaming", "реалтайм", "realtime", "live", "черновик", "draft", "во время", "речь"]),
-        .init(title: "Потоки CPU", subtitle: "Число ядер для распознавания", section: .model,
+        .init(title: "Потоки CPU", subtitle: "Число ядер для распознавания", section: .models,
               keywords: ["потоки", "threads", "cpu", "ядра", "cores", "производительность", "performance", "скорость", "speed"]),
-        .init(title: "Файл модели", subtitle: "Путь к GGML-файлу", section: .model,
+        .init(title: "Файл модели", subtitle: "Путь к GGML-файлу", section: .models,
               keywords: ["файл", "file", "путь", "path", "ggml", "модель", "model", "папка", "folder", "выбрать"]),
-        .init(title: "whisper-server", subtitle: "Состояние движка", section: .model,
+        .init(title: "whisper-server", subtitle: "Состояние движка", section: .models,
               keywords: ["whisper", "server", "сервер", "движок", "engine", "статус", "status", "перезапустить", "restart"]),
+        .init(title: "Локальные модели ИИ", subtitle: "Причёсывание текста, GGUF", section: .models,
+              keywords: ["llm", "локальная", "модель", "gguf", "причёсывание", "cleanup"]),
+        .init(title: "Экспериментальные аудио-модели", subtitle: "Gemma, всё-в-одном", section: .models,
+              keywords: ["gemma", "аудио", "audio", "эксперимент", "experiment", "всё-в-одном"]),
 
         // ИИ (AI)
         .init(title: "Провайдер ИИ", subtitle: "Локально или в облаке", section: .ai,
@@ -1064,131 +1068,6 @@ struct AdvancedBlock<Content: View>: View {
     }
 }
 
-// MARK: - Модель (Model)
-
-struct ModelTab: View {
-    @ObservedObject var settings: AppSettings
-    @StateObject private var models = ModelManager.shared
-    @ObservedObject private var controller = DictationController.shared
-    @State private var advanced = false
-
-    var body: some View {
-        SettingsPage(title: L10n.tabModel) {
-            if !models.hasAnyModelInstalled || models.downloading != nil {
-                ModelOnboardingBanner()
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.modelCatalogTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Palette.textPrimary)
-                            .padding(.leading, 2)
-                        if let msg = models.statusMessage {
-                            Text(msg)
-                                .font(.system(size: 12))
-                                .foregroundStyle(models.updatesAvailable.isEmpty ? Palette.textTertiary : Color.orange)
-                                .padding(.leading, 2)
-                        }
-                    }
-                    Spacer()
-                    PillButton(title: models.isCheckingUpdates ? L10n.modelChecking : L10n.modelCheckUpdates,
-                               symbol: "arrow.triangle.2.circlepath") {
-                        models.checkForUpdates()
-                    }
-                }
-
-                VStack(spacing: 0) {
-                    ForEach(Array(WhisperModel.catalog.enumerated()), id: \.element.id) { index, model in
-                        ModelRow(model: model, settings: settings, models: models, first: index == 0)
-                    }
-                }
-                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Palette.card))
-            }
-
-            if let err = models.lastError {
-                Text(err).font(.system(size: 12)).foregroundStyle(.red)
-            }
-
-            Card(header: "Скорость и фоновый движок") {
-                Row(title: "Распознавать во время речи",
-                    subtitle: "Модель держится загруженной, и текст считается, пока вы говорите. К отпусканию клавиши он обычно уже готов.",
-                    first: true) {
-                    Toggle("", isOn: $settings.streaming)
-                        .toggleStyle(WisprToggleStyle())
-                        .onChange(of: settings.streaming) { _, _ in controller.restartEngine() }
-                }
-                Row(title: "Состояние whisper-server", subtitle: engineStatus) {
-                    PillButton(title: "Перезапустить", symbol: "arrow.clockwise") {
-                        controller.restartEngine()
-                    }
-                }
-            }
-
-            AdvancedBlock(expanded: $advanced) {
-                Row(title: "Задержка последней вставки", first: true) {
-                    Text(controller.lastLatencyMs == 0 ? "мгновенно" : "\(controller.lastLatencyMs) мс")
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundStyle(controller.lastLatencyMs == 0 ? Color.green : Palette.textSecondary)
-                }
-                Row(title: "Черновик каждые") {
-                    SliderControl(value: Binding(get: { Double(settings.draftIntervalMs) },
-                                                 set: { settings.draftIntervalMs = Int($0) }),
-                                  range: 200...1500, step: 50,
-                                  caption: "\(settings.draftIntervalMs) мс")
-                }
-                Row(title: "Аудиоконтекст энкодера",
-                    subtitle: "Урезанный считается быстрее, но обрезает окно распознавания") {
-                    WisprDropdown(selection: $settings.draftAudioContext,
-                                  options: [0, 768, 512]) { ctx in
-                        switch ctx {
-                        case 768: Text("768 — окно 15 с")
-                        case 512: Text("512 — окно 10 с")
-                        default:  Text("Полный контекст")
-                        }
-                    }
-                    .onChange(of: settings.draftAudioContext) { _, _ in controller.restartEngine() }
-                }
-                Row(title: "Потоков CPU") {
-                    SliderControl(value: Binding(get: { Double(settings.threads) },
-                                                 set: { settings.threads = Int($0) }),
-                                  range: 1...Double(ProcessInfo.processInfo.activeProcessorCount), step: 1,
-                                  caption: "\(settings.threads)")
-                }
-                Row(title: "Файл модели",
-                    subtitle: URL(fileURLWithPath: settings.modelPath).lastPathComponent) {
-                    HStack(spacing: 8) {
-                        PillButton(title: "Выбрать…") { pickModel() }
-                        PillButton(title: "Папка") { NSWorkspace.shared.open(ModelManager.directory) }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            if models.lastCheckTime == nil {
-                models.checkForUpdates()
-            }
-        }
-    }
-
-    private var engineStatus: String {
-        if !WhisperServer.shared.isAvailable { return "whisper-server не найден — работает запасной режим CLI" }
-        if !settings.streaming { return "Выключено: текст считается после отпускания клавиши" }
-        return controller.engineReady ? "Модель загружена в память и готова" : "Модель загружается…"
-    }
-
-    private func pickModel() {
-        let panel = NSOpenPanel()
-        panel.allowsOtherFileTypes = true
-        panel.canChooseDirectories = false
-        panel.directoryURL = ModelManager.directory
-        if panel.runModal() == .OK, let url = panel.url {
-            settings.modelPath = url.path
-        }
-    }
-}
-
 // MARK: - Баннер первоначальной установки модели (Onboarding)
 
 struct ModelOnboardingBanner: View {
@@ -1325,103 +1204,6 @@ struct ModelOnboardingBanner: View {
             }
             .buttonStyle(.plain)
         }
-    }
-}
-
-struct ModelRow: View {
-    let model: WhisperModel
-    @ObservedObject var settings: AppSettings
-    @ObservedObject var models: ModelManager
-    var first: Bool = false
-    @State private var hovering = false
-
-    private var isActive: Bool { settings.modelPath == model.localURL.path }
-    private var isDownloading: Bool { models.downloading == model.filename }
-    private var hasUpdate: Bool { models.hasUpdate(model) }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if !first {
-                Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
-            }
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? Palette.textPrimary : Palette.textTertiary)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(model.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Palette.textPrimary)
-                        Text("\(model.sizeMB) МБ")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Palette.textTertiary)
-
-                        if hasUpdate {
-                            HStack(spacing: 4) {
-                                Circle().fill(Color.orange).frame(width: 6, height: 6)
-                                Text("Доступно обновление")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.orange)
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(Color.orange.opacity(0.12))
-                            )
-                        }
-                    }
-                    Text(model.note)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Palette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if isDownloading {
-                        ProgressView(value: models.progress)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 280)
-                            .padding(.top, 4)
-                    }
-                }
-
-                Spacer(minLength: 12)
-
-                if isDownloading {
-                    Text("\(models.isUpdating ? "Обновление" : "Загрузка"): \(Int(models.progress * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(Palette.textSecondary)
-                } else if !model.isInstalled {
-                    PillButton(title: "Скачать", symbol: "arrow.down.circle") {
-                        models.download(model)
-                    }
-                } else if hasUpdate {
-                    PillButton(title: "Обновить", symbol: "arrow.triangle.2.circlepath") {
-                        models.download(model, isUpdate: true)
-                    }
-                } else if hovering {
-                    HStack(spacing: 8) {
-                        PillButton(title: "Обновить", symbol: "arrow.clockwise") {
-                            models.download(model, isUpdate: true)
-                        }
-                        if !isActive {
-                            PillButton(title: "Удалить", symbol: "trash") {
-                                models.delete(model)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if model.isInstalled {
-                settings.modelPath = model.localURL.path
-            }
-        }
-        .onHover { hovering = $0 }
     }
 }
 

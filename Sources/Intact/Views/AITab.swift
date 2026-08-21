@@ -5,6 +5,8 @@ import Combine
 /// ключ Anthropic, установка и выбор локальной модели, тумблеры фич.
 struct AITab: View {
     @ObservedObject var settings: AppSettings
+    var onOpenModels: (() -> Void)? = nil
+
     @StateObject private var models = LLMModelManager.shared
     @State private var apiKeyText: String = ""
     @State private var apiKeySaved = false
@@ -138,9 +140,11 @@ struct AITab: View {
                 }
             }
 
-            VStack(spacing: 0) {
-                ForEach(LLMModel.catalog) { model in
-                    LLMModelRow(model: model, settings: settings, models: models, first: false)
+            let currentModelName = URL(fileURLWithPath: settings.aiLocalModelPath).lastPathComponent
+            Row(title: "Модель",
+                subtitle: currentModelName.isEmpty ? "Не выбрана" : currentModelName) {
+                PillButton(title: "Управлять моделями", symbol: "square.stack.3d.up") {
+                    onOpenModels?()
                 }
             }
 
@@ -167,9 +171,11 @@ struct AITab: View {
         Card(header: L10n.aiExperimentHeader) {
             Row(title: L10n.aiExperimentHeader, subtitle: L10n.aiExperimentSubtitle, first: true) { EmptyView() }
 
-            VStack(spacing: 0) {
-                ForEach(GemmaAudioModel.catalog) { model in
-                    GemmaAudioModelRow(model: model, settings: settings, models: audioModel, first: false)
+            let currentAudioModelName = settings.gemmaAudioModelFilename
+            Row(title: "Модель",
+                subtitle: currentAudioModelName.isEmpty ? "Не выбрана" : currentAudioModelName) {
+                PillButton(title: "Управлять моделями", symbol: "square.stack.3d.up") {
+                    onOpenModels?()
                 }
             }
 
@@ -238,149 +244,5 @@ struct AITab: View {
                 }
             }
         }
-    }
-}
-
-struct LLMModelRow: View {
-    let model: LLMModel
-    @ObservedObject var settings: AppSettings
-    @ObservedObject var models: LLMModelManager
-    var first: Bool = false
-    @State private var hovering = false
-
-    private var isActive: Bool { settings.aiLocalModelPath == model.localURL.path }
-    private var isDownloading: Bool { models.downloading == model.filename }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if !first {
-                Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
-            }
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? Palette.textPrimary : Palette.textTertiary)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(model.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Palette.textPrimary)
-                        Text("\(model.sizeMB) МБ")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Palette.textTertiary)
-                    }
-                    Text(model.note)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Palette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if isDownloading {
-                        ProgressView(value: models.progress)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 280)
-                            .padding(.top, 4)
-                    }
-                }
-
-                Spacer(minLength: 12)
-
-                if isDownloading {
-                    Text("\(Int(models.progress * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(Palette.textSecondary)
-                } else if !model.isInstalled {
-                    PillButton(title: "Скачать", symbol: "arrow.down.circle") {
-                        models.download(model)
-                    }
-                } else if hovering, !isActive {
-                    PillButton(title: "Удалить", symbol: "trash") {
-                        models.delete(model)
-                    }
-                }
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if model.isInstalled {
-                // Смена пути сама триггерит onAIProviderChange → прогрев нового сервера;
-                // явный stop() здесь убил бы только что запущенный процесс.
-                settings.aiLocalModelPath = model.localURL.path
-            }
-        }
-        .onHover { hovering = $0 }
-    }
-}
-
-struct GemmaAudioModelRow: View {
-    let model: GemmaAudioModel
-    @ObservedObject var settings: AppSettings
-    @ObservedObject var models: GemmaAudioModelManager
-    var first: Bool = false
-    @State private var hovering = false
-
-    private var isActive: Bool { settings.gemmaAudioModelFilename == model.mainFilename && model.isInstalled }
-    private var isDownloading: Bool { models.downloading == model.mainFilename }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if !first {
-                Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
-            }
-            HStack(alignment: .center, spacing: 14) {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? Palette.textPrimary : Palette.textTertiary)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 8) {
-                        Text(model.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Palette.textPrimary)
-                        Text("\(model.totalSizeMB) МБ")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Palette.textTertiary)
-                    }
-                    if !model.isInstalled {
-                        Text(L10n.aiExperimentNotInstalled)
-                            .font(.system(size: 13))
-                            .foregroundStyle(Palette.textSecondary)
-                    }
-                    if isDownloading {
-                        ProgressView(value: models.progress)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 280)
-                            .padding(.top, 4)
-                    }
-                }
-
-                Spacer(minLength: 12)
-
-                if isDownloading {
-                    Text("\(Int(models.progress * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(Palette.textSecondary)
-                } else if !model.isInstalled {
-                    PillButton(title: L10n.aiExperimentDownloadBtn, symbol: "arrow.down.circle") {
-                        models.download(model)
-                    }
-                } else if hovering, !isActive {
-                    PillButton(title: "Удалить", symbol: "trash") {
-                        models.delete(model)
-                    }
-                }
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 16)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if model.isInstalled {
-                settings.gemmaAudioModelFilename = model.mainFilename
-                GemmaAudioProvider.shared.stop()
-            }
-        }
-        .onHover { hovering = $0 }
     }
 }

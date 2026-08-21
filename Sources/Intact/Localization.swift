@@ -19,6 +19,7 @@ enum L10n {
     static var tabAppearance: String { isRu ? "Оформление" : "Appearance" }
     static var tabSystem: String { isRu ? "Система" : "System" }
     static var tabModel: String { isRu ? "Модель" : "Model" }
+    static var tabModels: String { isRu ? "Модели" : "Models" }
     static var tabLanguage: String { isRu ? "Язык и текст" : "Language & Text" }
     static var tabMicrophone: String { isRu ? "Микрофон" : "Microphone" }
     static var tabHistory: String { isRu ? "История" : "History" }

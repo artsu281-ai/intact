@@ -12,7 +12,7 @@ final class CloudAIProvider: AIProvider {
         !(KeychainHelper.get(service: Self.keychainService) ?? "").isEmpty
     }
 
-    func complete(system: String, user: String, maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
+    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
         guard let apiKey = KeychainHelper.get(service: Self.keychainService), !apiKey.isEmpty else {
             completion(.failure(.notConfigured))
             return
@@ -24,12 +24,19 @@ final class CloudAIProvider: AIProvider {
             return
         }
 
-        let body: [String: Any] = [
+        let systemPrompt = messages.first(where: { $0.role == .system })?.content
+        let chatMessages = messages.filter { $0.role != .system }.map {
+            ["role": $0.role.rawValue, "content": $0.content]
+        }
+
+        var body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
-            "system": system,
-            "messages": [["role": "user", "content": user]]
+            "messages": chatMessages
         ]
+        if let systemPrompt, !systemPrompt.isEmpty {
+            body["system"] = systemPrompt
+        }
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

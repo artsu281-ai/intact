@@ -18,11 +18,23 @@ enum AIError: Error {
     }
 }
 
+/// Сообщение в истории диалога для AI-провайдеров.
+struct AIMessage {
+    enum Role: String {
+        case system
+        case user
+        case assistant
+    }
+
+    let role: Role
+    let content: String
+}
+
 /// Единый интерфейс поверх локальной и облачной LLM.
 /// Всегда вызывается с фонового потока; completion может прийти на любой очереди.
 protocol AIProvider {
     var isReady: Bool { get }
-    func complete(system: String, user: String, maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void)
+    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void)
 }
 
 /// Выбирает активного AI-провайдера по настройке пользователя и делегирует ему вызовы.
@@ -41,14 +53,25 @@ final class AIRouter {
         }
     }
 
-    func complete(system: String, user: String, maxTokens: Int = 800, completion: @escaping (Result<String, AIError>) -> Void) {
+    /// Универсальный метод для многооборотных диалогов (чат и т.д.)
+    func complete(messages: [AIMessage], maxTokens: Int = 800, completion: @escaping (Result<String, AIError>) -> Void) {
         switch AppSettings.shared.aiProviderKind {
         case .none:
             completion(.failure(.notConfigured))
         case .local:
-            LocalAIProvider.shared.complete(system: system, user: user, maxTokens: maxTokens, completion: completion)
+            LocalAIProvider.shared.complete(messages: messages, maxTokens: maxTokens, completion: completion)
         case .cloud:
-            CloudAIProvider.shared.complete(system: system, user: user, maxTokens: maxTokens, completion: completion)
+            CloudAIProvider.shared.complete(messages: messages, maxTokens: maxTokens, completion: completion)
         }
+    }
+
+    /// Convenience-перегрузка для однооборотных задач (причёсывание текста в диктовке),
+    /// чтобы существующий вызывающий код не менялся.
+    func complete(system: String, user: String, maxTokens: Int = 800, completion: @escaping (Result<String, AIError>) -> Void) {
+        let messages = [
+            AIMessage(role: .system, content: system),
+            AIMessage(role: .user, content: user)
+        ]
+        complete(messages: messages, maxTokens: maxTokens, completion: completion)
     }
 }

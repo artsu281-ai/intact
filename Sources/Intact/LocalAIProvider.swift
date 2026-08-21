@@ -107,7 +107,7 @@ final class LocalAIProvider: AIProvider {
 
     // MARK: - Запрос
 
-    func complete(system: String, user: String, maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
+    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) {
         guard isAvailable else { completion(.failure(.providerUnavailable)); return }
         ensureRunning { [weak self] ok in
             guard let self, ok, self.port != 0,
@@ -116,13 +116,19 @@ final class LocalAIProvider: AIProvider {
                 return
             }
 
+            let chatMessages = messages.map {
+                ["role": $0.role.rawValue, "content": $0.content]
+            }
+
             let body: [String: Any] = [
-                "messages": [
-                    ["role": "system", "content": system],
-                    ["role": "user", "content": user]
-                ],
+                "messages": chatMessages,
                 "max_tokens": maxTokens,
-                "temperature": 0.3
+                "temperature": 0.3,
+                // Некоторые модели (Qwen3.5 и т.п.) по умолчанию «думают» перед ответом и уходят
+                // в reasoning_content, оставляя content пустым — весь лимит токенов сгорает
+                // на рассуждения. Явно отключаем thinking-режим, если модель его поддерживает;
+                // модели без такого шаблона это поле просто игнорируют.
+                "chat_template_kwargs": ["enable_thinking": false]
             ]
 
             var req = URLRequest(url: url)
