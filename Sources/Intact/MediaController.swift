@@ -8,7 +8,7 @@ import CoreAudio
 ///    через CoreAudio, чтобы фоновый звук (YouTube, звонки, игры) не лез в микрофон
 ///    и не портил распознавание Whisper.
 /// 2. **Пауза медиаплееров (Pause Media)** — ставит на паузу Apple Music, Spotify и другие
-///    плееры во время речи, а по завершении диктовки возобновляет воспроизведение.
+///    плееры во время речи (только если они запущены), а по завершении диктовки возобновляет.
 final class MediaController {
     static let shared = MediaController()
 
@@ -130,58 +130,56 @@ final class MediaController {
     // MARK: - Плееры (Apple Music, Spotify)
 
     private func pauseActiveMedia() {
-        // Apple Music
-        let musicScript = """
-        if application "Music" is running then
-            tell application "Music"
+        // Apple Music: проверяем, запущен ли процесс перед выполнением скрипта
+        let musicApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
+        if let music = musicApps.first, !music.isTerminated {
+            let script = """
+            tell application id "com.apple.Music"
                 if player state is playing then
                     pause
                     return true
                 end if
             end tell
-        end if
-        return false
-        """
-        if runAppleScriptBool(musicScript) {
-            didPauseMusic = true
+            return false
+            """
+            if runAppleScriptBool(script) {
+                didPauseMusic = true
+            }
         }
 
-        // Spotify
-        let spotifyScript = """
-        if application "Spotify" is running then
-            tell application "Spotify"
+        // Spotify: проверяем, запущен ли процесс перед выполнением скрипта
+        let spotifyApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client")
+        if let spotify = spotifyApps.first, !spotify.isTerminated {
+            let script = """
+            tell application id "com.spotify.client"
                 if player state is playing then
                     pause
                     return true
                 end if
             end tell
-        end if
-        return false
-        """
-        if runAppleScriptBool(spotifyScript) {
-            didPauseSpotify = true
+            return false
+            """
+            if runAppleScriptBool(script) {
+                didPauseSpotify = true
+            }
         }
     }
 
     private func resumeActiveMedia() {
         if didPauseMusic {
             didPauseMusic = false
-            let script = """
-            if application "Music" is running then
-                tell application "Music" to play
-            end if
-            """
-            runAppleScript(script)
+            let musicApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
+            if let music = musicApps.first, !music.isTerminated {
+                runAppleScript("tell application id \"com.apple.Music\" to play")
+            }
         }
 
         if didPauseSpotify {
             didPauseSpotify = false
-            let script = """
-            if application "Spotify" is running then
-                tell application "Spotify" to play
-            end if
-            """
-            runAppleScript(script)
+            let spotifyApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client")
+            if let spotify = spotifyApps.first, !spotify.isTerminated {
+                runAppleScript("tell application id \"com.spotify.client\" to play")
+            }
         }
     }
 
