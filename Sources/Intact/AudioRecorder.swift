@@ -158,8 +158,8 @@ final class AudioRecorder {
 
         bufferLock.lock()
         samples.append(contentsOf: UnsafeBufferPointer(start: ch, count: n))
-        // Порог речи: заметно выше комнатного шума, но ловит и тихую речь.
-        if rms > 0.012 { lastSpeechSample = samples.count }
+        // Порог речи: ловит даже тихую речь
+        if rms > 0.003 { lastSpeechSample = samples.count }
         bufferLock.unlock()
 
         let db = 20 * log10(max(rms, 1e-7))

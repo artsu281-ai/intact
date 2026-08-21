@@ -152,8 +152,8 @@ final class DictationController: ObservableObject {
         stopDrafting()
         releaseTime = Date()
 
-        // Случайный чирк по клавише — не диктовка.
-        if heldMs < Double(settings.minHoldMs) || duration < 0.35 || lastSpeech <= 0.05 {
+        // Случайный чирк по клавише — не диктовка (менее 0.25 сек).
+        if heldMs < Double(settings.minHoldMs) || duration < 0.25 {
             indicator.hide()
             state = .idle
             draftText = ""
