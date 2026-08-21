@@ -5,10 +5,10 @@ struct IndicatorView: View {
     @ObservedObject var controller: DictationController
     @ObservedObject private var settings = AppSettings.shared
 
-    static let width: CGFloat = 420
-    static let listeningSize = NSSize(width: 156, height: 40)
+    static let width: CGFloat = 380
+    static let listeningSize = NSSize(width: 112, height: 32)
     private static let copyPad: CGFloat = 16
-    private static let bodyFont = NSFont.systemFont(ofSize: 14)
+    private static let bodyFont = NSFont.systemFont(ofSize: 13.5)
 
     static func copySize(for text: String) -> NSSize {
         NSSize(width: width, height: copyPad + 20 + 12 + textHeight(text) + 14 + 28 + copyPad)
@@ -41,7 +41,6 @@ struct IndicatorView: View {
                     )
             } else {
                 listening
-                    .padding(.horizontal, 14)
                     .frame(width: Self.listeningSize.width, height: Self.listeningSize.height)
                     .background(
                         Capsule()
@@ -50,7 +49,7 @@ struct IndicatorView: View {
                                 Capsule()
                                     .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
                             )
-                            .shadow(color: Color.black.opacity(0.22), radius: 12, y: 4)
+                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
                     )
             }
         }
@@ -60,30 +59,30 @@ struct IndicatorView: View {
     // MARK: - Компактный эстетичный спектр и индикатор записи
 
     private var listening: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 5) {
             switch controller.state {
             case .recording:
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
 
                 CompactEqualizer(level: controller.level)
-                    .frame(width: 34, height: 16)
-
-                Spacer(minLength: 0)
+                    .frame(width: 18, height: 12)
 
                 Text(controller.elapsedText)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.75))
 
             case .transcribing:
                 ProgressView()
                     .controlSize(.mini)
+                    .scaleEffect(0.7)
                     .tint(.white)
+                    .frame(width: 12, height: 12)
 
                 Text("Распознаю…")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
                     .lineLimit(1)
                     .fixedSize()
 
@@ -91,6 +90,7 @@ struct IndicatorView: View {
                 EmptyView()
             }
         }
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Вставлять некуда
@@ -139,24 +139,22 @@ struct IndicatorView: View {
 
 // MARK: - Компактный анимированный эквалайзер
 
-/// Короткий, ультра-эстетичный спектр из 5 живых анимированных столбиков,
-/// реагирующих на громкость голоса в реальном времени.
+/// Короткий, ультра-эстетичный спектр из 4 живых анимированных столбиков,
+/// реагирующих на громкость голоса без пустых промежутков.
 struct CompactEqualizer: View {
     let level: Float
 
     var body: some View {
-        HStack(spacing: 3) {
-            EqualizerBar(index: 0, level: level, minH: 3, maxH: 10, weight: 0.6)
-            EqualizerBar(index: 1, level: level, minH: 4, maxH: 15, weight: 0.9)
-            EqualizerBar(index: 2, level: level, minH: 5, maxH: 18, weight: 1.0)
-            EqualizerBar(index: 3, level: level, minH: 4, maxH: 15, weight: 0.85)
-            EqualizerBar(index: 4, level: level, minH: 3, maxH: 10, weight: 0.55)
+        HStack(spacing: 2) {
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.6)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 1.0)
+            EqualizerBar(level: level, minH: 3.5, maxH: 12, weight: 0.85)
+            EqualizerBar(level: level, minH: 2.5, maxH: 8, weight: 0.55)
         }
     }
 }
 
 private struct EqualizerBar: View {
-    let index: Int
     let level: Float
     let minH: CGFloat
     let maxH: CGFloat
@@ -169,18 +167,18 @@ private struct EqualizerBar: View {
     }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+        RoundedRectangle(cornerRadius: 1, style: .continuous)
             .fill(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.95, green: 0.95, blue: 0.98),
+                        Color(red: 0.96, green: 0.96, blue: 0.99),
                         Color(red: 0.78, green: 0.84, blue: 0.96)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-            .frame(width: 2.8, height: calculatedHeight)
+            .frame(width: 2.2, height: calculatedHeight)
             .animation(.spring(response: 0.12, dampingFraction: 0.65), value: calculatedHeight)
     }
 }
