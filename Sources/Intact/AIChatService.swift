@@ -38,6 +38,17 @@ enum AIContextSource: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Файл или папка, которые пользователь явно выбрал через диалог macOS
+/// и прикрепил к чату. Доступ — по явному выбору в NSOpenPanel, а не
+/// фоновым сканированием диска: это единственный способ дать ИИ читать
+/// произвольные файлы, не выпрашивая у системы широкие права заранее.
+struct AttachedFile: Identifiable, Hashable {
+    let id = UUID()
+    let url: URL
+    let content: String
+    var displayName: String { url.lastPathComponent }
+}
+
 /// Сервис управления сессией чата с ИИ и контекстным анализом заметок и истории.
 final class AIChatService: ObservableObject {
     static let shared = AIChatService()
@@ -50,6 +61,9 @@ final class AIChatService: ObservableObject {
     @Published var isGenerating: Bool = false
     @Published var errorMessage: String? = nil
     @Published var selectedContextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]
+    /// Файлы/папки, прикреплённые пользователем через диалог выбора — живут,
+    /// пока открыт чат, на диск не пишутся.
+    @Published var attachedFiles: [AttachedFile] = []
 
     /// Переписка активной ветки.
     ///
@@ -281,12 +295,85 @@ final class AIChatService: ObservableObject {
         send(prompt: "Проанализируй мои заметки из Apple Notes. Сделай краткую выжимку по главным темам и проектам.", forceContext: [.appleNotes])
     }
 
+    // MARK: - Прикреплённые файлы
+
+    private static let maxFileBytes = 200_000
+    private static let maxTotalAttachedBytes = 600_000
+    private static let maxFilesPerFolder = 40
+    private static let readableExtensions: Set<String> = [
+        "txt", "md", "markdown", "swift", "py", "js", "ts", "json", "yaml", "yml",
+        "csv", "log", "html", "css", "xml", "sh", "c", "cpp", "h", "m", "java", "go", "rs"
+    ]
+    private static let skippedPathComponents: Set<String> = [
+        "node_modules", ".git", ".build", "Pods", "DerivedData", ".venv"
+    ]
+
+    /// Читает файл(ы) или папки, выбранные в NSOpenPanel, и добавляет как контекст чата.
+    /// Папки разбираются не рекурсивно-бесконечно, а с потолком на число файлов и общий
+    /// объём — иначе один клик по домашней папке мог бы утащить в промпт гигабайты текста.
+    func attachFiles(urls: [URL]) {
+        var totalBytes = attachedFiles.reduce(0) { $0 + $1.content.utf8.count }
+        for base in urls {
+            for fileURL in Self.collectReadableFiles(from: base) {
+                guard totalBytes < Self.maxTotalAttachedBytes else { return }
+                guard !attachedFiles.contains(where: { $0.url == fileURL }) else { continue }
+                guard let text = Self.readTextFile(fileURL) else { continue }
+                attachedFiles.append(AttachedFile(url: fileURL, content: text))
+                totalBytes += text.utf8.count
+            }
+        }
+    }
+
+    func removeAttachedFile(_ id: UUID) {
+        attachedFiles.removeAll { $0.id == id }
+    }
+
+    func clearAttachedFiles() {
+        attachedFiles.removeAll()
+    }
+
+    private static func collectReadableFiles(from url: URL) -> [URL] {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return [] }
+        guard isDir.boolValue else { return [url] }
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        var results: [URL] = []
+        for case let item as URL in enumerator {
+            if results.count >= maxFilesPerFolder { break }
+            if item.pathComponents.contains(where: { skippedPathComponents.contains($0) }) { continue }
+            guard readableExtensions.contains(item.pathExtension.lowercased()) else { continue }
+            results.append(item)
+        }
+        return results
+    }
+
+    private static func readTextFile(_ url: URL) -> String? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (attrs[.size] as? NSNumber)?.intValue, size > 0, size <= maxFileBytes * 4 else { return nil }
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return nil }
+        return String(text.prefix(maxFileBytes))
+    }
+
     // MARK: - Сборщик контекста
 
     private func gatherContext(sources: Set<AIContextSource>, completion: @escaping (String, [String]) -> Void) {
         var contextBlocks: [String] = []
         var badges: [String] = []
         let group = DispatchGroup()
+
+        // 0. Прикреплённые файлы — не завязаны на toggle-источники, добавляются всегда.
+        if !attachedFiles.isEmpty {
+            badges.append("Файлы (\(attachedFiles.count))")
+            var text = "### Прикреплённые файлы:\n"
+            for f in attachedFiles {
+                text += "--- \(f.displayName) ---\n\(f.content)\n\n"
+            }
+            contextBlocks.append(text)
+        }
 
         // 1. Диктовки за сегодня
         if sources.contains(.dictationToday) {

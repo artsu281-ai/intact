@@ -504,6 +504,41 @@ struct ChatTab: View {
     // MARK: - Закреплённый ввод
 
     private var inputFooter: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !chat.attachedFiles.isEmpty {
+                attachedFilesRow
+            }
+            inputRow
+        }
+    }
+
+    private var attachedFilesRow: some View {
+        HStack(spacing: 6) {
+            ForEach(chat.attachedFiles) { file in
+                HStack(spacing: 5) {
+                    IntactIcon(kind: .folder, size: 11)
+                        .foregroundStyle(Palette.textTertiary)
+                    Text(file.displayName)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                    Button {
+                        chat.removeAttachedFile(file.id)
+                    } label: {
+                        IntactIcon(kind: .error, size: 9)
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Palette.pill))
+            }
+            Spacer()
+        }
+    }
+
+    private var inputRow: some View {
         HStack(alignment: .bottom, spacing: 10) {
             // Поле ввода или интерактивная полоса голосовой записи
             Group {
@@ -569,6 +604,19 @@ struct ChatTab: View {
                     )
             )
 
+            // Прикрепить файл или папку — доступ по явному выбору в системном
+            // диалоге, а не по фоновому разрешению на весь диск.
+            Button {
+                attachFilesViaPanel()
+            } label: {
+                IntactIcon(kind: .folder, size: 15)
+                    .foregroundStyle(Palette.textSecondary)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Palette.pill))
+            }
+            .buttonStyle(.plain)
+            .help("Прикрепить файл или папку")
+
             // Кнопка голосового сообщения (ГС / микрофон)
             Button {
                 toggleVoiceRecording()
@@ -625,6 +673,18 @@ struct ChatTab: View {
                 }
             }
         }
+    }
+
+    private func attachFilesViaPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Прикрепить"
+        panel.message = "Выберите файлы или папку, которые ИИ сможет прочитать в этом диалоге"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK else { return }
+        chat.attachFiles(urls: panel.urls)
     }
 
     private func sendMessage() {
