@@ -243,6 +243,7 @@ struct WisprDropdown<T: Hashable, Label: View>: View {
             )
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .fixedSize()
         .onHover { hovering = $0 }
     }
