@@ -522,26 +522,6 @@ struct GeneralTab: View {
                 }
             }
 
-            Card(header: "Голосовой вопрос к ИИ") {
-                Row(title: "Отдельный хоткей для вопросов",
-                    subtitle: "Держишь клавишу, спрашиваешь — вместо диктовки вставится ответ ИИ",
-                    first: true) {
-                    Toggle("", isOn: $settings.enableAIHotkey)
-                        .toggleStyle(WisprToggleStyle())
-                }
-                if settings.enableAIHotkey {
-                    Row(title: "Клавиша",
-                        subtitle: triggerKeysCollide
-                            ? "⚠︎ Пересекается с клавишей обычной диктовки (\(settings.triggerKey.title)) — выбери другую"
-                            : "Удерживай во время вопроса, как основной хоткей диктовки") {
-                        WisprDropdown(selection: $settings.aiTriggerKey,
-                                      options: TriggerKey.allCases) { key in
-                            Text(key.title)
-                        }
-                    }
-                }
-            }
-
             Card(header: "Устройства и язык") {
                 Row(title: "Микрофон",
                     subtitle: "Источник записи звука для распознавания",
@@ -598,14 +578,6 @@ struct GeneralTab: View {
         case .hotKeyToggle:
             return "Нажмите сочетание один раз для старта, второй — для вставки"
         }
-    }
-
-    /// Сравнение через `==` пропустило бы «Любой ⌥ Option» (по умолчанию у основной
-    /// диктовки) против «Правый ⌥ Option» (по умолчанию у вопроса к ИИ) — разные
-    /// значения enum, но physically одна и та же клавиша. Сверяем по кодам клавиш.
-    private var triggerKeysCollide: Bool {
-        guard settings.activationMode == .modifierHold else { return false }
-        return !settings.triggerKey.keyCodes.isDisjoint(with: settings.aiTriggerKey.keyCodes)
     }
 
     private var availableDeviceUIDs: [String] {
