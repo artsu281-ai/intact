@@ -160,9 +160,9 @@ struct AITab: View {
                 }
             }
 
-            let currentModel = LLMModel.matching(path: settings.aiLocalModelPath)
+            let currentMatch = LLMModel.matching(path: settings.aiLocalModelPath)
             Row(title: "Модель",
-                subtitle: currentModel?.displayName
+                subtitle: currentMatch.map { LLMModel.displayName(model: $0.model, quant: $0.quant) }
                     ?? (settings.aiLocalModelPath.isEmpty ? "Не выбрана"
                         : URL(fileURLWithPath: settings.aiLocalModelPath).lastPathComponent)) {
                 PillButton(title: "Управлять моделями", icon: .models) {

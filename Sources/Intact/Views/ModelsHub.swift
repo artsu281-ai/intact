@@ -155,7 +155,7 @@ struct ModelsHub: View {
 
     private var totalInstalledGB: Double {
         let mb = whisperModels.installed.reduce(0) { $0 + $1.sizeMB }
-                + llmModels.installed.reduce(0) { $0 + $1.sizeMB }
+                + llmModels.installedPairs.reduce(0) { $0 + $1.quant.sizeMB }
                 + audioModels.installed.reduce(0) { $0 + $1.totalSizeMB }
         return Double(mb) / 1000.0
     }
@@ -187,7 +187,6 @@ struct ModelsHub: View {
             if whisperModels.lastCheckTime == nil {
                 whisperModels.checkForUpdates()
             }
-            llmModels.refresh()
             audioModels.refresh()
         }
     }
@@ -298,32 +297,9 @@ struct ModelsHub: View {
         let models = LLMModel.catalog(tier)
         return Card(header: header) {
             ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
-                ModelCatalogRow(
-                    title: model.title,
-                    sizeMB: model.sizeMB,
-                    note: model.note,
-                    isInstalled: model.isInstalled,
-                    isActive: settings.aiLocalModelPath == model.localURL.path,
-                    isDownloading: llmModels.downloading == model.filename,
-                    progress: llmModels.progress,
-                    downloadLabel: "Скачать",
-                    badge: model.quant,
-                    warning: memoryWarning(for: model),
-                    first: index == 0,
-                    onSelect: { settings.aiLocalModelPath = model.localURL.path },
-                    onDownload: { llmModels.download(model) },
-                    onDelete: { llmModels.delete(model) }
-                )
+                LLMQuantRow(model: model, settings: settings, models: llmModels, first: index == 0)
             }
         }
-    }
-
-    /// Честное предупреждение до скачивания десяти гигабайт: без запаса памяти
-    /// llama-server уйдёт в своп и будет отвечать минутами вместо секунд.
-    private func memoryWarning(for model: LLMModel) -> String? {
-        guard !model.fitsInMemory else { return nil }
-        return String(format: "Нужно около %.0f ГБ памяти вместе с контекстом — в этом Mac %.0f ГБ. Скачать можно, но работать будет через своп.",
-                      model.estimatedRAMGB + 3, Hardware.physicalMemoryGB)
     }
 
     // MARK: - Карточка Gemma Audio
@@ -434,5 +410,118 @@ struct ModelsHub: View {
         if panel.runModal() == .OK, let url = panel.url {
             settings.modelPath = url.path
         }
+    }
+}
+
+/// Ряд LLM-модели с выбором кванта: одна модель, несколько файлов на выбор
+/// (Q3_K_M…Q8_0), скачивание/выбор/удаление применяются к выбранному кванту.
+/// Отдельный компонент, а не расширение ModelCatalogRow: у остальных двух
+/// каталогов (Whisper, Gemma-audio) кванта нет и добавлять им лишний параметр
+/// незачем — так проще, чем тащить через ModelCatalogRow условную опцию.
+struct LLMQuantRow: View {
+    let model: LLMModel
+    @ObservedObject var settings: AppSettings
+    @ObservedObject var models: LLMModelManager
+    var first: Bool = false
+
+    @State private var selectedQuant: LLMQuantOption
+    @State private var hovering = false
+
+    init(model: LLMModel, settings: AppSettings, models: LLMModelManager, first: Bool = false) {
+        self.model = model
+        self.settings = settings
+        self.models = models
+        self.first = first
+        _selectedQuant = State(initialValue: model.installedQuant ?? model.defaultQuant)
+    }
+
+    private var isInstalled: Bool { model.isInstalled(selectedQuant) }
+    private var isActive: Bool { settings.aiLocalModelPath == model.localURL(for: selectedQuant).path }
+    private var isDownloading: Bool { models.downloading == selectedQuant.filename }
+
+    /// Честное предупреждение до скачивания десяти гигабайт: без запаса памяти
+    /// llama-server уйдёт в своп и будет отвечать минутами вместо секунд.
+    private var warning: String? {
+        guard !model.fitsInMemory(selectedQuant) else { return nil }
+        return String(format: "Нужно около %.0f ГБ памяти вместе с контекстом — в этом Mac %.0f ГБ. Скачать можно, но работать будет через своп.",
+                      model.estimatedRAMGB(for: selectedQuant) + 3, Hardware.physicalMemoryGB)
+    }
+
+    private var sizeText: String {
+        selectedQuant.sizeMB >= 1000
+            ? String(format: "%.1f ГБ", Double(selectedQuant.sizeMB) / 1000.0)
+            : "\(selectedQuant.sizeMB) МБ"
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if !first {
+                Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
+            }
+            HStack(alignment: .center, spacing: 14) {
+                IntactIcon(kind: isActive ? .radioOn : .radioOff, size: 17)
+                    .foregroundStyle(isActive ? Palette.accent : Palette.iconMuted)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(model.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Palette.textPrimary)
+                        Text(sizeText)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.textTertiary)
+                        WisprDropdown(selection: $selectedQuant, options: model.quantOptions) { q in
+                            Text(q.quant)
+                        }
+                    }
+                    Text(model.note)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let warning {
+                        HStack(alignment: .top, spacing: 6) {
+                            IntactIcon(kind: .warning, size: 14)
+                                .foregroundStyle(Palette.iconWarning)
+                            Text(warning)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Palette.iconWarning)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, 2)
+                    }
+                    if isDownloading {
+                        ProgressView(value: models.progress)
+                            .progressViewStyle(.linear)
+                            .frame(maxWidth: 280)
+                            .padding(.top, 4)
+                    }
+                }
+
+                Spacer(minLength: 12)
+
+                if isDownloading {
+                    Text("\(Int(models.progress * 100))%")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Palette.textSecondary)
+                } else if !isInstalled {
+                    PillButton(title: "Скачать", icon: .download) {
+                        models.download(model, selectedQuant)
+                    }
+                } else if hovering, !isActive {
+                    PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
+                        models.delete(model, selectedQuant)
+                    }
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isInstalled {
+                settings.aiLocalModelPath = model.localURL(for: selectedQuant).path
+            }
+        }
+        .onHover { hovering = $0 }
     }
 }

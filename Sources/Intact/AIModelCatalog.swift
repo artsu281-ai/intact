@@ -78,8 +78,8 @@ enum AIModelCatalog {
             settings.aiCloudModel = model
             settings.aiProviderKind = .cloud
         case .local(let filename):
-            guard let model = LLMModel.catalog.first(where: { $0.filename == filename }) else { return }
-            settings.aiLocalModelPath = model.localURL.path
+            guard let match = LLMModel.matching(path: filename) else { return }
+            settings.aiLocalModelPath = match.model.localURL(for: match.quant).path
             settings.aiProviderKind = .local
         }
     }
@@ -94,10 +94,10 @@ enum AIModelCatalog {
         case .cloud(let id):
             return cloudModel(id: id)?.title ?? id
         case .local(let filename):
-            guard let model = LLMModel.catalog.first(where: { $0.filename == filename }) else {
+            guard let match = LLMModel.matching(path: filename) else {
                 return URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
             }
-            return model.displayName
+            return LLMModel.displayName(model: match.model, quant: match.quant)
         }
     }
 

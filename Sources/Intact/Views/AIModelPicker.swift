@@ -67,14 +67,14 @@ struct AIModelPicker: View {
 
     private var picker: some View {
         VStack(alignment: .leading, spacing: 4) {
-            let installed = llmModels.installed
+            let installed = llmModels.installedPairs
 
             if !installed.isEmpty {
                 sectionHeader("Локально · не покидает Mac")
-                ForEach(installed) { model in
-                    row(choice: .local(model.filename),
-                        title: model.title,
-                        subtitle: "\(model.quant) · \(sizeText(model.sizeMB))",
+                ForEach(installed, id: \.quant.filename) { pair in
+                    row(choice: .local(pair.quant.filename),
+                        title: pair.model.title,
+                        subtitle: "\(pair.quant.quant) · \(sizeText(pair.quant.sizeMB))",
                         enabled: true)
                 }
             }
