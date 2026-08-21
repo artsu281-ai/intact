@@ -27,6 +27,16 @@ enum Palette {
     static let toggleOff      = dynamic(light: (0.840, 0.825, 0.795), dark: (0.245, 0.240, 0.230))
     static let toggleKnob     = dynamic(light: (1.000, 1.000, 1.000), dark: (0.110, 0.105, 0.100))
 
+    // HUD Pill (плавающий мини-индикатор записи и тосты)
+    static let hudBg          = dynamicAlpha(light: (0.975, 0.968, 0.952, 0.95), dark: (0.105, 0.102, 0.098, 0.92))
+    static let hudBorder      = dynamicAlpha(light: (0, 0, 0, 0.11), dark: (1, 1, 1, 0.14))
+    static let hudShadow      = dynamicAlpha(light: (0, 0, 0, 0.12), dark: (0, 0, 0, 0.35))
+    static let hudIcon        = dynamicAlpha(light: (0.12, 0.11, 0.10, 0.90), dark: (1, 1, 1, 0.90))
+    static let hudText        = dynamicAlpha(light: (0.16, 0.15, 0.14, 0.90), dark: (1, 1, 1, 0.90))
+    static let hudTextMuted   = dynamicAlpha(light: (0.35, 0.33, 0.31, 0.78), dark: (1, 1, 1, 0.75))
+    static let hudEqTop       = dynamic(light: (0.22, 0.20, 0.18), dark: (0.96, 0.96, 0.99))
+    static let hudEqBottom    = dynamic(light: (0.45, 0.48, 0.58), dark: (0.78, 0.84, 0.96))
+
     private static func dynamic(light: (CGFloat, CGFloat, CGFloat),
                                 dark: (CGFloat, CGFloat, CGFloat)) -> Color {
         dynamicAlpha(light: (light.0, light.1, light.2, 1), dark: (dark.0, dark.1, dark.2, 1))

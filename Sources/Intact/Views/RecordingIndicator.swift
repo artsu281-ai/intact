@@ -40,47 +40,33 @@ struct IndicatorView: View {
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                                     .strokeBorder(Palette.hairline, lineWidth: 1)
                             )
-                            .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
+                            .shadow(color: Palette.hudShadow, radius: 16, y: 6)
                     )
             } else if controller.noteSavedText != nil {
                 noteSavedToast
                     .frame(width: Self.noteSavedSize.width, height: Self.noteSavedSize.height)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.88))
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-                            )
-                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
-                    )
+                    .background(capsuleBg)
             } else if let remText = controller.reminderSavedText {
                 reminderSavedToast(text: remText)
                     .frame(width: Self.reminderSavedSize.width, height: Self.reminderSavedSize.height)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.88))
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-                            )
-                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
-                    )
+                    .background(capsuleBg)
             } else {
                 listening
                     .frame(width: Self.listeningSize.width, height: Self.listeningSize.height)
-                    .background(
-                        Capsule()
-                            .fill(Color.black.opacity(0.88))
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-                            )
-                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
-                    )
+                    .background(capsuleBg)
             }
         }
         .preferredColorScheme(settings.appTheme.colorScheme)
+    }
+
+    private var capsuleBg: some View {
+        Capsule()
+            .fill(Palette.hudBg)
+            .overlay(
+                Capsule()
+                    .strokeBorder(Palette.hudBorder, lineWidth: 0.75)
+            )
+            .shadow(color: Palette.hudShadow, radius: 10, y: 3)
     }
 
     // MARK: - Компактный эстетичный спектр и индикатор записи
@@ -91,25 +77,25 @@ struct IndicatorView: View {
             case .recording:
                 Image(systemName: "mic.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Palette.hudIcon)
 
                 CompactEqualizer(level: controller.level)
                     .frame(width: 18, height: 12)
 
                 Text(controller.elapsedText)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(Palette.hudTextMuted)
 
             case .transcribing:
                 ProgressView()
                     .controlSize(.mini)
                     .scaleEffect(0.7)
-                    .tint(.white)
+                    .tint(Palette.hudIcon)
                     .frame(width: 12, height: 12)
 
                 Text("Распознаю…")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(Palette.hudText)
                     .lineLimit(1)
                     .fixedSize()
 
@@ -130,7 +116,7 @@ struct IndicatorView: View {
 
             Text("Заметка сохранена")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(Palette.hudText)
         }
         .padding(.horizontal, 12)
     }
@@ -145,11 +131,11 @@ struct IndicatorView: View {
 
             Text("Напоминание:")
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(Palette.hudText)
 
             Text(text)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.80))
+                .foregroundStyle(Palette.hudTextMuted)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
@@ -203,7 +189,7 @@ struct IndicatorView: View {
 // MARK: - Компактный анимированный эквалайзер
 
 /// Короткий, ультра-эстетичный спектр из 4 живых анимированных столбиков,
-/// реагирующих на громкость голоса без пустых промежутков.
+/// динамически адаптирующийся под светлую и тёмную темы оформления.
 struct CompactEqualizer: View {
     let level: Float
 
@@ -234,8 +220,8 @@ private struct EqualizerBar: View {
             .fill(
                 LinearGradient(
                     colors: [
-                        Color(red: 0.96, green: 0.96, blue: 0.99),
-                        Color(red: 0.78, green: 0.84, blue: 0.96)
+                        Palette.hudEqTop,
+                        Palette.hudEqBottom
                     ],
                     startPoint: .top,
                     endPoint: .bottom
