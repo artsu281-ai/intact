@@ -1,16 +1,22 @@
 import AppKit
 import ApplicationServices
 
-/// Проверка активного контекста перед вставкой:
+/// Точная проверка активного контекста перед вставкой:
 ///
-/// 1. В активных пользовательских приложениях (Antigravity, браузеры, редакторы, мессенджеры и др.)
-///    текст автоматически доставляется в выбранное поле ввода через ⌘V или прямую печать.
-/// 2. Если поле ввода не выбрано (нажатие на пустом рабочем столе Finder, в Dock или системных панелях) —
-///    приложение показывает всплывающую карточку с текстом и кнопкой «Скопировать»,
-///    которая автоматически скрывается по таймауту (по умолчанию 5 секунд).
+/// 1. Если пользователь нажал на поле ввода (в браузере Chrome/Safari, редакторе Antigravity/VS Code,
+///    мессенджере, почте, заметках или терминале) — текст сразу вставляется на место курсора.
+/// 2. Если поле ввода не выбрано (клик на фоне сайта в Chrome, пустой рабочий стол Finder,
+///    просмотр страницы без активного инпута) — приложение показывает всплывающую карточку
+///    с кнопкой «Скопировать», которая автоматически исчезает через 5 секунд.
 enum FocusInspector {
 
-    /// Системные бандлы рабочего стола и системных панелей macOS
+    private static let editableRoles: Set<String> = [
+        kAXTextFieldRole as String,
+        kAXTextAreaRole as String,
+        kAXComboBoxRole as String,
+        "AXSearchField"
+    ]
+
     private static let systemExcludedBundles: Set<String> = [
         "com.apple.dock",
         "com.apple.WindowManager",
@@ -19,39 +25,81 @@ enum FocusInspector {
         "com.apple.Spotlight"
     ]
 
-    /// Определяет, есть ли в данный момент возможность доставить текст в активное приложение.
+    /// Определяет, есть ли в данный момент выбранное поле для автоматической вставки.
     static var canInsertText: Bool {
         guard Permissions.accessibility else { return false }
 
-        // Проверяем текущее активное приложение
         guard let frontApp = NSWorkspace.shared.frontmostApplication else { return false }
         let bundleId = frontApp.bundleIdentifier ?? ""
 
-        // Игнорируем собственное приложение и системные панели
         if bundleId.isEmpty || bundleId == Bundle.main.bundleIdentifier || systemExcludedBundles.contains(bundleId) {
             return false
         }
 
-        // Особый случай для Finder: на пустом рабочем столе или в списке файлов без переименования вставки нет
-        if bundleId == "com.apple.finder" {
+        // В терминалах ввод всегда активен в текущей сессии
+        let isTerminal = bundleId == "com.apple.Terminal" || bundleId == "com.googlecode.iterm2" ||
+                         bundleId.contains("alacritty") || bundleId.contains("ghostty")
+        if isTerminal { return true }
+
+        // Проверяем наличие активного элемента ввода в текущем приложении
+        return hasEditableFocus(appPID: frontApp.processIdentifier)
+    }
+
+    private static func hasEditableFocus(appPID: pid_t) -> Bool {
+        var focusedElement: AXUIElement?
+
+        // 1. Запрашиваем фокус непосредственно у активного приложения
+        let app = AXUIElementCreateApplication(appPID)
+        var appFocused: CFTypeRef?
+        if AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &appFocused) == .success,
+           let raw = appFocused {
+            focusedElement = (raw as! AXUIElement)
+        } else {
+            // Резервный запрос через системный фокус
             let system = AXUIElementCreateSystemWide()
-            var focused: CFTypeRef?
-            if AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-               let raw = focused {
-                let element = raw as! AXUIElement
-                var roleRef: CFTypeRef?
-                AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-                let role = roleRef as? String ?? ""
-                // Если в Finder фокус в поле переименования файла или строке поиска — разрешаем вставку
-                if role == (kAXTextFieldRole as String) || role == "AXSearchField" {
-                    return true
-                }
+            var sysFocused: CFTypeRef?
+            if AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &sysFocused) == .success,
+               let raw = sysFocused {
+                focusedElement = (raw as! AXUIElement)
             }
+        }
+
+        guard let element = focusedElement else {
             return false
         }
 
-        // Для любого пользовательского приложения (Antigravity, Chrome, VS Code, Telegram, Safari, Word и др.)
-        // разрешаем прямую доставку текста
-        return true
+        // Проверяем роль элемента
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+        let role = roleRef as? String ?? ""
+
+        // Стандартные текстовые поля (включая веб-поля ввода и редакторы)
+        if editableRoles.contains(role) {
+            return true
+        }
+
+        // Наличие каретки или выделения текста
+        var caretRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &caretRef) == .success,
+           caretRef != nil {
+            if role != "AXButton" && role != "AXImage" && role != "AXLink" {
+                return true
+            }
+        }
+
+        // Позиция каретки в строке (Monaco/VS Code/Electron)
+        var lineRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXInsertionPointLineNumber" as CFString, &lineRef) == .success {
+            return true
+        }
+
+        // Изменяемое значение
+        var settable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success,
+           settable.boolValue {
+            return true
+        }
+
+        return false
     }
 }
