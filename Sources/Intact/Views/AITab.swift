@@ -13,6 +13,13 @@ struct AITab: View {
     @State private var localAvailable = LocalAIProvider.shared.isAvailable
     @State private var localRunning = LocalAIProvider.shared.isRunning
 
+    @StateObject private var audioModel = GemmaAudioModelManager.shared
+    @State private var testRecorder = AudioRecorder()
+    @State private var isTestRecording = false
+    @State private var isTestProcessing = false
+    @State private var testResult: String = ""
+    @State private var testError: String?
+
     private let statusTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -40,6 +47,8 @@ struct AITab: View {
                         .disabled(settings.aiProviderKind == .none)
                 }
             }
+
+            experimentCard
         }
         .onAppear {
             apiKeyText = KeychainHelper.get(service: CloudAIProvider.keychainService) ?? ""
@@ -150,6 +159,98 @@ struct AITab: View {
             isInstalling = false
             refreshLocalStatus()
         })
+    }
+
+    // MARK: - Эксперимент: всё-в-одном через Gemma
+
+    private var experimentCard: some View {
+        Card(header: L10n.aiExperimentHeader) {
+            Row(title: L10n.aiExperimentHeader, subtitle: L10n.aiExperimentSubtitle, first: true) { EmptyView() }
+
+            if !audioModel.isInstalled {
+                Row(title: L10n.aiExperimentModelRow, subtitle: L10n.aiExperimentNotInstalled) {
+                    if audioModel.downloading {
+                        Text("\(Int(audioModel.progress * 100))%")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(Palette.textSecondary)
+                    } else {
+                        PillButton(title: L10n.aiExperimentDownloadBtn, symbol: "arrow.down.circle") {
+                            audioModel.download()
+                        }
+                    }
+                }
+                if audioModel.downloading {
+                    Row(title: L10n.aiExperimentDownloadBtn) {
+                        ProgressView(value: audioModel.progress)
+                            .progressViewStyle(.linear)
+                            .frame(maxWidth: 280)
+                    }
+                }
+            } else {
+                Row(title: L10n.aiExperimentModelRow, subtitle: statusOrResultSubtitle) {
+                    if isTestProcessing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        PillButton(title: isTestRecording ? L10n.aiExperimentStopBtn : L10n.aiExperimentRecordBtn,
+                                   symbol: isTestRecording ? "stop.fill" : "mic.fill") {
+                            isTestRecording ? stopTest() : startTest()
+                        }
+                    }
+                }
+                if !testResult.isEmpty {
+                    Row(title: L10n.aiExperimentResultTitle) {
+                        Text(testResult)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Palette.textPrimary)
+                            .frame(maxWidth: 320, alignment: .trailing)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            if let err = testError ?? audioModel.lastError {
+                Row(title: L10n.micError, subtitle: err) { EmptyView() }
+            }
+        }
+    }
+
+    private var statusOrResultSubtitle: String {
+        isTestProcessing ? L10n.aiExperimentProcessing : ""
+    }
+
+    private func startTest() {
+        testError = nil
+        testResult = ""
+        do {
+            try testRecorder.start(preferredDeviceUID: settings.inputDeviceUID)
+            isTestRecording = true
+        } catch {
+            testError = error.localizedDescription
+        }
+    }
+
+    private func stopTest() {
+        isTestRecording = false
+        _ = testRecorder.stop()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("intact-gemma-test.wav")
+        guard testRecorder.snapshot(to: url, trimTrailingSilence: false) != nil else {
+            testError = "Слишком короткая запись."
+            return
+        }
+        isTestProcessing = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            GemmaAudioProvider.shared.transcribeAndRefine(wav: url) { result in
+                DispatchQueue.main.async {
+                    isTestProcessing = false
+                    switch result {
+                    case .success(let text):
+                        testResult = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    case .failure(let err):
+                        testError = err.localizedDescription
+                    }
+                }
+            }
+        }
     }
 }
 

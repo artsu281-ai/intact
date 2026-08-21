@@ -104,6 +104,19 @@ enum L10n {
     static var aiCleanupToggle: String { isRu ? "Причёсывать текст ИИ" : "Clean up text with AI" }
     static var aiCleanupToggleSub: String { isRu ? "Убирает слова-паразиты и поправляет пунктуацию перед вставкой" : "Removes filler words and fixes punctuation before inserting" }
     static var hudProcessingAI: String { isRu ? "Улучшаю…" : "Refining…" }
+    static var aiExperimentHeader: String { isRu ? "Эксперимент: всё-в-одном через Gemma" : "Experiment: all-in-one via Gemma" }
+    static var aiExperimentSubtitle: String {
+        isRu
+        ? "Отдельная песочница для сравнения — не участвует в основной диктовке. Gemma сама распознаёт голос и сразу причёсывает текст, без Whisper."
+        : "A separate sandbox for comparison — not part of normal dictation. Gemma transcribes speech and cleans it up in one pass, without Whisper."
+    }
+    static var aiExperimentModelRow: String { isRu ? "Gemma 4 E2B с поддержкой аудио" : "Gemma 4 E2B with audio support" }
+    static var aiExperimentDownloadBtn: String { isRu ? "Скачать" : "Download" }
+    static var aiExperimentNotInstalled: String { isRu ? "Сначала скачай модель (~3.2 ГБ, два файла)" : "Download the model first (~3.2 GB, two files)" }
+    static var aiExperimentRecordBtn: String { isRu ? "Записать" : "Record" }
+    static var aiExperimentStopBtn: String { isRu ? "Остановить" : "Stop" }
+    static var aiExperimentProcessing: String { isRu ? "Gemma распознаёт и причёсывает…" : "Gemma is transcribing and cleaning up…" }
+    static var aiExperimentResultTitle: String { isRu ? "Результат" : "Result" }
 
     // MARK: - Индикатор диктовки (HUD)
     static var hudTranscribing: String { isRu ? "Распознаю…" : "Transcribing…" }

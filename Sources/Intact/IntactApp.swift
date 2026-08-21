@@ -369,6 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ModifierKeyMonitor.shared.stop()
         WhisperServer.shared.stop()
         LocalAIProvider.shared.stop()
+        GemmaAudioProvider.shared.stop()
         MediaController.shared.end()
     }
 }
