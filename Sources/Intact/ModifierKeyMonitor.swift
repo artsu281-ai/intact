@@ -83,12 +83,10 @@ final class ModifierKeyMonitor {
             return
         }
 
-        // Мышь тоже отменяет: ⌥-клик и ⌥-перетаскивание — не диктовка.
+        // Отслеживаем только смену модификаторов и нажатия других клавиш на клавиатуре.
+        // Клики мышкой НЕ сбрасывают запись, чтобы можно было кликнуть в поле во время речи.
         let mask = (1 << CGEventType.flagsChanged.rawValue)
                  | (1 << CGEventType.keyDown.rawValue)
-                 | (1 << CGEventType.leftMouseDown.rawValue)
-                 | (1 << CGEventType.rightMouseDown.rawValue)
-                 | (1 << CGEventType.otherMouseDown.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -130,9 +128,8 @@ final class ModifierKeyMonitor {
             return
         }
 
-        if held, type == .keyDown || type == .leftMouseDown
-                 || type == .rightMouseDown || type == .otherMouseDown {
-            // Триггер зажат, но пошёл обычный ввод — значит это сочетание, а не диктовка.
+        if held, type == .keyDown {
+            // Триггер зажат, но нажали обычную клавишу на клавиатуре (например ⌥C, ⌥Tab) — это сочетание, а не диктовка.
             held = false
             DispatchQueue.main.async { self.onAbort?() }
             return
