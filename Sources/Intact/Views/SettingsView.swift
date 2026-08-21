@@ -468,15 +468,6 @@ struct SystemTab: View {
                                   range: 30...1800, step: 30,
                                   caption: "\(settings.maxSeconds / 60) мин")
                 }
-                if settings.outputMode == .live {
-                    Row(title: "Придерживать последних слов",
-                        subtitle: "Хвост черновика самый неустойчивый: эти слова допечатаются на отпускании") {
-                        SliderControl(value: Binding(get: { Double(settings.liveHoldWords) },
-                                                     set: { settings.liveHoldWords = Int($0) }),
-                                      range: 0...3, step: 1,
-                                      caption: "\(settings.liveHoldWords)")
-                    }
-                }
             }
         }
     }

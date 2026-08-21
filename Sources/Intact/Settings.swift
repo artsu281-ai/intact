@@ -36,38 +36,34 @@ enum AppTheme: String, CaseIterable, Identifiable {
 }
 
 enum OutputMode: String, CaseIterable, Identifiable {
-    case live, paste, type, clipboard
+    case paste, type, clipboard
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .live:      return "Печатать вживую, пока говоришь"
-        case .paste:     return "Вставить целиком на отпускании клавиши"
-        case .type:      return "Напечатать целиком в конце"
-        case .clipboard: return "Только в буфер обмена"
+        case .paste:     return "Вставить целиком на отпускании клавиши (⌘V)"
+        case .type:      return "Напечатать целиком в конце (посимвольно)"
+        case .clipboard: return "Только в буфер обмена (без вставки)"
         }
     }
     var shortTitle: String {
         switch self {
-        case .live:      return "Живая печать"
         case .paste:     return "Вставка (⌘V)"
-        case .type:      return "Печать посимвольно"
-        case .clipboard: return "В буфер обмена"
+        case .type:      return "Посимвольно"
+        case .clipboard: return "В буфер"
         }
     }
     var help: String {
         switch self {
-        case .live:
-            return "Слова появляются в поле по мере речи. Буфер обмена не используется вообще: текст идёт прямыми событиями клавиатуры, а уточнённые whisper слова переписываются на месте."
         case .paste:
-            return "Пока клавиша зажата, в поле ничего не лезет — распознавание идёт в фоне. Отпустил — весь текст появляется разом. Буфер обмена восстанавливается сразу после вставки."
+            return "Пока клавиша зажата, в поле ничего не лезет. Отпустил — весь готовый текст чисто появляется разом через ⌘V. Буфер обмена восстанавливается сразу после вставки."
         case .type:
-            return "Как вставка, но прямыми нажатиями клавиш — для полей, где ⌘V заблокирован. Буфер не трогается."
+            return "Как вставка, но прямыми быстрыми нажатиями клавиш в конце — для полей, где ⌘V заблокирован."
         case .clipboard:
-            return "Никуда не вставляется, текст просто оказывается в буфере."
+            return "Никуда не вставляется, текст просто оказывается в буфере обмена."
         }
     }
     /// Режимы, работающие прямыми событиями клавиатуры, без буфера обмена.
-    var usesKeyboard: Bool { self == .live || self == .type }
+    var usesKeyboard: Bool { self == .type }
 }
 
 enum ActivationMode: String, CaseIterable, Identifiable {

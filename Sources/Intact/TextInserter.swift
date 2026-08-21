@@ -17,9 +17,6 @@ enum TextInserter {
             paste(text)
         case .type:
             typeOut(text)
-        case .live:
-            // Текст уже напечатан вживую во время речи — здесь делать нечего.
-            break
         }
     }
 

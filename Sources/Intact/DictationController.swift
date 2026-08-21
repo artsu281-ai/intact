@@ -122,7 +122,6 @@ final class DictationController: ObservableObject {
                 self.elapsedText = "0:00"
                 self.pendingText = nil
                 self.pendingTimer?.invalidate()
-                if self.settings.outputMode == .live { LiveTyper.shared.reset() }
                 if self.settings.showIndicator { self.indicator.show(controller: self) }
                 if self.settings.playSounds { NSSound(named: "Tink")?.play() }
                 MediaController.shared.begin(muteAudio: self.settings.muteAudioWhileDictating,
@@ -148,7 +147,6 @@ final class DictationController: ObservableObject {
 
         // Случайный чирк по клавише — не диктовка.
         if heldMs < Double(settings.minHoldMs) || duration < 0.35 || lastSpeech <= 0.05 {
-            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
             indicator.hide()
             state = .idle
             draftText = ""
@@ -179,7 +177,6 @@ final class DictationController: ObservableObject {
     func cancel() {
         guard state == .recording else { return }
         MediaController.shared.end()
-        if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
         recorder.stop()
         stopTicker()
         stopDrafting()
@@ -193,7 +190,6 @@ final class DictationController: ObservableObject {
     func abort() {
         guard state == .recording else { return }
         MediaController.shared.end()
-        if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
         recorder.stop()
         stopTicker()
         stopDrafting()
@@ -238,16 +234,6 @@ final class DictationController: ObservableObject {
                     self.draftText = text
                     self.draftCoverage = coverage
                     self.lastLatencyMs = ms
-                    // Живая печать: отдаём в поле устойчивую часть черновика,
-                    // не дожидаясь конца фразы (только если это не голосовая заметка или напоминание).
-                    if self.settings.outputMode == .live, self.state == .recording, FocusInspector.canInsertText {
-                        let isNote = self.settings.enableVoiceNotes && AppleNotesService.extractNoteText(from: text) != nil
-                        let isReminder = self.settings.enableVoiceReminders && AppleRemindersService.extractReminder(from: text) != nil
-                        if !isNote && !isReminder {
-                            LiveTyper.shared.update(draft: text,
-                                                    holdBack: self.settings.liveHoldWords)
-                        }
-                    }
                 }
                 if self.awaitingFinish {
                     self.awaitingFinish = false
@@ -302,7 +288,6 @@ final class DictationController: ObservableObject {
         lastResult = text.trimmingCharacters(in: .whitespaces)
 
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
-            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
             if settings.playSounds { NSSound(named: "Basso")?.play() }
             lastError = "Речь не распознана — тишина или слишком тихий микрофон."
             return
@@ -310,7 +295,6 @@ final class DictationController: ObservableObject {
 
         // Проверяем команду создания заметки в Apple Notes
         if settings.enableVoiceNotes, let noteContent = AppleNotesService.extractNoteText(from: text) {
-            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
             AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
             if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
@@ -324,7 +308,6 @@ final class DictationController: ObservableObject {
 
         // Проверяем команду создания напоминания в Apple Reminders
         if settings.enableVoiceReminders, let rem = AppleRemindersService.extractReminder(from: text) {
-            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
             AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList)
             if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
@@ -344,11 +327,7 @@ final class DictationController: ObservableObject {
             return
         }
 
-        if settings.outputMode == .live {
-            LiveTyper.shared.finish(with: text, appendSpace: settings.appendSpace)
-        } else {
-            TextInserter.deliver(text, mode: settings.outputMode)
-        }
+        TextInserter.deliver(text, mode: settings.outputMode)
         if settings.playSounds { NSSound(named: "Pop")?.play() }
         if settings.keepHistory {
             History.shared.add(HistoryEntry(text: lastResult,
