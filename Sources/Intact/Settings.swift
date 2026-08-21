@@ -189,6 +189,13 @@ final class AppSettings: ObservableObject {
             for window in NSApp.windows {
                 window.appearance = targetAppearance
             }
+
+            // Динамическая смена иконки в Dock (светлая/тёмная)
+            let iconName = self.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light"
+            if let iconUrl = Bundle.main.url(forResource: iconName, withExtension: "png"),
+               let image = NSImage(contentsOf: iconUrl) {
+                NSApp.applicationIconImage = image
+            }
         }
     }
 
