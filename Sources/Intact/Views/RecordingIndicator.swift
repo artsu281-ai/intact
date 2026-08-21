@@ -11,16 +11,17 @@ struct IndicatorView: View {
     private static let bodyFont = NSFont.systemFont(ofSize: 13.5)
 
     static func copySize(for text: String) -> NSSize {
-        NSSize(width: width, height: copyPad + 20 + 12 + textHeight(text) + 14 + 28 + copyPad)
+        let h = copyPad + 22 + 10 + textHeight(text) + 14 + 28 + copyPad
+        return NSSize(width: width, height: max(118, h))
     }
 
     static func textHeight(_ text: String) -> CGFloat {
         let lineHeight = ceil(bodyFont.boundingRectForFont.height) + 3
         let box = (text as NSString).boundingRect(
-            with: NSSize(width: width - copyPad * 2, height: lineHeight * 3),
+            with: NSSize(width: width - copyPad * 2, height: lineHeight * 4),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: bodyFont])
-        return min(ceil(box.height), lineHeight * 3)
+        return min(ceil(box.height), lineHeight * 4)
     }
 
     var body: some View {
@@ -31,11 +32,11 @@ struct IndicatorView: View {
                     .frame(width: Self.copySize(for: pending).width,
                            height: Self.copySize(for: pending).height)
                     .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.96))
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Palette.card)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(Palette.hairline, lineWidth: 1)
                             )
                             .shadow(color: Color.black.opacity(0.18), radius: 16, y: 6)
                     )
@@ -93,33 +94,33 @@ struct IndicatorView: View {
         .padding(.horizontal, 10)
     }
 
-    // MARK: - Вставлять некуда
+    // MARK: - Вставлять некуда (Карточка копирования)
 
     private func noPlaceToInsert(text: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color.primary)
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Palette.textPrimary)
+
+                Text("Поле для ввода не выбрано")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(1)
 
                 Spacer(minLength: 8)
 
-                Text("Поставьте курсор в поле ввода")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color.secondary)
-                    .lineLimit(1)
-
                 CircleIconButton(symbol: "xmark") { controller.dismissPending() }
             }
-            .frame(height: 20)
+            .frame(height: 22)
 
-            Spacer().frame(height: 12)
+            Spacer().frame(height: 10)
 
             Text(text)
-                .font(.system(size: 14))
-                .foregroundStyle(Color.primary)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Palette.textPrimary)
                 .lineSpacing(3)
-                .lineLimit(3)
+                .lineLimit(4)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: Self.textHeight(text), alignment: .top)
@@ -193,15 +194,16 @@ struct SoftButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Image(systemName: symbol).font(.system(size: 11, weight: .medium))
-                Text(title).font(.system(size: 12, weight: .medium))
+                Text(title).font(.system(size: 12.5, weight: .medium))
             }
-            .foregroundStyle(Color.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
+            .foregroundStyle(Palette.textPrimary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
             .background(
-                Capsule().fill(Color.primary.opacity(hovering ? 0.14 : 0.08))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hovering ? Palette.pillHover : Palette.pill)
             )
         }
         .buttonStyle(.plain)
@@ -218,9 +220,9 @@ struct CircleIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(Color.secondary.opacity(hovering ? 1.0 : 0.7))
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0.06)))
+                .foregroundStyle(Palette.textSecondary)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(hovering ? Palette.pillHover : Palette.pill))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -251,7 +253,7 @@ final class IndicatorPanel {
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false
-        p.level = .statusBar
+        p.level = interactive ? .floating : .statusBar
         p.ignoresMouseEvents = !interactive
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         reposition(p)
