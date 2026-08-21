@@ -1,11 +1,11 @@
 import SwiftUI
 
 // MARK: - Intact Custom Icon Library
-// Все иконки реализованы как нативные SwiftUI Shape / View через SVG-пути.
-// Использование: IntactIcon(.chat, size: 18).foregroundStyle(Palette.accent)
+// Все иконки отрисовываются через векторные Path и всегда рендерятся через stroke,
+// поэтому никогда не заливаются сплошным цветом и идеально адаптируются к любой теме.
 
-enum IntactIconKind {
-    case chat           // диалог с ИИ (сайдбар, заголовок)
+enum IntactIconKind: CaseIterable {
+    case chat           // диалог с ИИ
     case history        // история записей
     case send           // отправить сообщение
     case clearChat      // очистить диалог (метла)
@@ -21,7 +21,7 @@ enum IntactIconKind {
     case stop           // остановить генерацию
     // Разделы UX
     case home           // домашний экран (домик)
-    case voice          // диктовка (микрофон с волной)
+    case voice          // диктовка (микрофон)
     case briefs         // брифы и заметки (листы со звёздочкой)
     case models         // каталог моделей (стек 3D слоёв)
     case settingsPage   // единый экран настроек (слайдеры)
@@ -31,380 +31,351 @@ enum IntactIconKind {
     case warning        // предупреждение
     case lock           // замок / приватность
     case user           // пользователь (силуэт)
-    // Опции очистки истории
-    case clearHour      // за последний час
-    case clearToday     // за сегодня
-    case clearWeek      // старше 7 дней
-    case clearAll       // всё
-    case chevronDown    // шеврон вниз
     case close          // крестик / закрыть
+    case chevronDown    // шеврон вниз
+    // Опции очистки истории
+    case clearHour      // за последний час (часы со стрелкой отката)
+    case clearToday     // за сегодня (календарь с цифрой 1)
+    case clearWeek      // старше 7 дней (календарь с цифрой 7)
+    case clearAll       // всю историю (мусорная корзина)
 }
 
-struct IntactIcon: View {
-    let kind: IntactIconKind
-    var size: CGFloat = 16
-
-    var body: some View {
-        iconShape
-            .frame(width: size, height: size)
-    }
-
-    @ViewBuilder
-    private var iconShape: some View {
-        switch kind {
-        case .chat:          ChatIconShape().aspectRatio(contentMode: .fit)
-        case .history:       HistoryIconShape().aspectRatio(contentMode: .fit)
-        case .send:          SendIconShape().aspectRatio(contentMode: .fit)
-        case .clearChat:     ClearChatIconShape().aspectRatio(contentMode: .fit)
-        case .copy:          CopyIconShape().aspectRatio(contentMode: .fit)
-        case .copied:        CopiedIconShape().aspectRatio(contentMode: .fit)
-        case .context:       ContextIconShape().aspectRatio(contentMode: .fit)
-        case .aiStar:        AIStarIconShape().aspectRatio(contentMode: .fit)
-        case .quickSummary:  QuickSummaryIconShape().aspectRatio(contentMode: .fit)
-        case .quickTasks:    QuickTasksIconShape().aspectRatio(contentMode: .fit)
-        case .quickNotes:    QuickNotesIconShape().aspectRatio(contentMode: .fit)
-        case .settings:      SettingsIconShape().aspectRatio(contentMode: .fit)
-        case .statusDot:     StatusDotShape().aspectRatio(contentMode: .fit)
-        case .stop:          StopIconShape().aspectRatio(contentMode: .fit)
-        case .home:          HomeIconShape().aspectRatio(contentMode: .fit)
-        case .voice:         VoiceIconShape().aspectRatio(contentMode: .fit)
-        case .briefs:        BriefsIconShape().aspectRatio(contentMode: .fit)
-        case .models:        ModelsIconShape().aspectRatio(contentMode: .fit)
-        case .settingsPage:  SettingsPageIconShape().aspectRatio(contentMode: .fit)
-        case .about:         AboutIconShape().aspectRatio(contentMode: .fit)
-        case .search:        SearchIconShape().aspectRatio(contentMode: .fit)
-        case .warning:       WarningIconShape().aspectRatio(contentMode: .fit)
-        case .lock:          LockIconShape().aspectRatio(contentMode: .fit)
-        case .user:          UserIconShape().aspectRatio(contentMode: .fit)
-        case .clearHour:     ClearHourIconShape().aspectRatio(contentMode: .fit)
-        case .clearToday:    ClearTodayIconShape().aspectRatio(contentMode: .fit)
-        case .clearWeek:     ClearWeekIconShape().aspectRatio(contentMode: .fit)
-        case .clearAll:      ClearAllIconShape().aspectRatio(contentMode: .fit)
-        case .chevronDown:   ChevronDownIconShape().aspectRatio(contentMode: .fit)
-        case .close:         CloseIconShape().aspectRatio(contentMode: .fit)
+extension IntactIconKind {
+    var shape: any Shape {
+        switch self {
+        case .chat:          return ChatIconShape()
+        case .history:       return HistoryIconShape()
+        case .send:          return SendIconShape()
+        case .clearChat:     return ClearChatIconShape()
+        case .copy:          return CopyIconShape()
+        case .copied:        return CopiedIconShape()
+        case .context:       return ContextIconShape()
+        case .aiStar:        return AIStarIconShape()
+        case .quickSummary:  return QuickSummaryIconShape()
+        case .quickTasks:    return QuickTasksIconShape()
+        case .quickNotes:    return QuickNotesIconShape()
+        case .settings:      return SettingsIconShape()
+        case .statusDot:     return StatusDotShape()
+        case .stop:          return StopIconShape()
+        case .home:          return HomeIconShape()
+        case .voice:         return VoiceIconShape()
+        case .briefs:        return BriefsIconShape()
+        case .models:        return ModelsIconShape()
+        case .settingsPage:  return SettingsPageIconShape()
+        case .about:         return AboutIconShape()
+        case .search:        return SearchIconShape()
+        case .warning:       return WarningIconShape()
+        case .lock:          return LockIconShape()
+        case .user:          return UserIconShape()
+        case .close:         return CloseIconShape()
+        case .chevronDown:   return ChevronDownIconShape()
+        case .clearHour:     return ClearHourIconShape()
+        case .clearToday:    return ClearTodayIconShape()
+        case .clearWeek:     return ClearWeekIconShape()
+        case .clearAll:      return ClearAllIconShape()
         }
     }
 }
 
-// MARK: - Chat (два пузыря + звёздочка внутри)
+/// Универсальный рендерер кастомной векторной иконки Intact.
+/// Всегда рендерится через контурный stroke с поддержкой .foregroundStyle().
+struct IntactIcon: View {
+    let kind: IntactIconKind
+    var size: CGFloat = 16
+    var strokeWidth: CGFloat? = nil
+
+    private var effectiveStrokeWidth: CGFloat {
+        strokeWidth ?? max(1.2, size * 0.08)
+    }
+
+    var body: some View {
+        Canvas { ctx, sz in
+            let rect = CGRect(origin: .zero, size: sz)
+            let path = kind.shape.path(in: rect)
+            ctx.stroke(path,
+                       with: .foreground,
+                       style: StrokeStyle(lineWidth: effectiveStrokeWidth, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Рендерит кастомную иконку для бокового меню (сайдбара).
+struct SidebarIntactIcon: View {
+    let kind: IntactIconKind
+    let selected: Bool
+    var size: CGFloat = 16
+
+    var body: some View {
+        IntactIcon(kind: kind, size: size, strokeWidth: selected ? 1.4 : 1.2)
+            .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
+    }
+}
+
+// MARK: - 1. Chat (два пузыря диалога)
 struct ChatIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
         // Большой пузырь слева
-        let br: CGFloat = w * 0.18
-        let bx = w * 0.04, by = h * 0.08
-        let bw = w * 0.68, bh = h * 0.58
+        let br: CGFloat = w * 0.16
+        let bx = w * 0.06, by = h * 0.08
+        let bw = w * 0.64, bh = h * 0.52
         p.addRoundedRect(in: CGRect(x: bx, y: by, width: bw, height: bh),
                          cornerSize: CGSize(width: br, height: br))
-        // Хвост большого пузыря (треугольник вниз-влево)
-        let tailBig = Path { t in
-            t.move(to: CGPoint(x: bx + w * 0.08, y: by + bh - 1))
-            t.addLine(to: CGPoint(x: bx + w * 0.02, y: by + bh + h * 0.14))
-            t.addLine(to: CGPoint(x: bx + w * 0.22, y: by + bh - 1))
-            t.closeSubpath()
-        }
-        p.addPath(tailBig)
+        // Хвост большого пузыря
+        p.move(to: CGPoint(x: bx + w * 0.10, y: by + bh))
+        p.addLine(to: CGPoint(x: bx + w * 0.04, y: by + bh + h * 0.14))
+        p.addLine(to: CGPoint(x: bx + w * 0.24, y: by + bh))
+
         // Маленький пузырь справа-снизу
-        let sr: CGFloat = w * 0.15
-        let sx = w * 0.50, sy = h * 0.42
-        let sw = w * 0.46, sh = h * 0.46
+        let sr: CGFloat = w * 0.14
+        let sx = w * 0.48, sy = h * 0.44
+        let sw = w * 0.46, sh = h * 0.42
         p.addRoundedRect(in: CGRect(x: sx, y: sy, width: sw, height: sh),
                          cornerSize: CGSize(width: sr, height: sr))
-        // Хвост маленького пузыря (вниз-вправо)
-        let tailSmall = Path { t in
-            t.move(to: CGPoint(x: sx + sw - w * 0.22, y: sy + sh - 1))
-            t.addLine(to: CGPoint(x: sx + sw - w * 0.02, y: sy + sh + h * 0.12))
-            t.addLine(to: CGPoint(x: sx + sw - w * 0.08, y: sy + sh - 1))
-            t.closeSubpath()
-        }
-        p.addPath(tailSmall)
+        // Хвост маленького пузыря
+        p.move(to: CGPoint(x: sx + sw - w * 0.24, y: sy + sh))
+        p.addLine(to: CGPoint(x: sx + sw - w * 0.04, y: sy + sh + h * 0.12))
+        p.addLine(to: CGPoint(x: sx + sw - w * 0.10, y: sy + sh))
         return p
     }
 }
 
-// MARK: - History (часы с закруглённой стрелкой)
+// MARK: - 2. History (часы со стрелкой отката)
 struct HistoryIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2, cy = h / 2, r = min(w, h) * 0.44
+        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.42
         var p = Path()
-        // Циферблат (кольцо)
-        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Вырезаем внутренность — рисуем через stroke
-        // Минутная стрелка (12 часов → 3 часа)
+        // Циферблат с разрывом сверху
+        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
+                 startAngle: .degrees(-65), endAngle: .degrees(245), clockwise: false)
+        // Стрелка против часовой стрелки на конце разрыва
+        let ax = cx + cos(Double(-65) * .pi / 180) * r
+        let ay = cy + sin(Double(-65) * .pi / 180) * r
+        p.move(to: CGPoint(x: ax - w * 0.14, y: ay - h * 0.02))
+        p.addLine(to: CGPoint(x: ax, y: ay))
+        p.addLine(to: CGPoint(x: ax - w * 0.02, y: ay + h * 0.14))
+
+        // Стрелки часов (10:10)
         p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.62))
-        // Часовая стрелка (→ 2 часа)
+        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.60))
         p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx + r * 0.46, y: cy - r * 0.26))
-        // Дуга-стрелка «возврат» снаружи справа-сверху
-        p.move(to: CGPoint(x: cx + r * 0.9, y: cy - r * 0.38))
-        p.addArc(center: CGPoint(x: cx, y: cy),
-                 radius: r * 1.0,
-                 startAngle: .degrees(-25),
-                 endAngle: .degrees(-110),
-                 clockwise: true)
+        p.addLine(to: CGPoint(x: cx + r * 0.45, y: cy + r * 0.15))
         return p
     }
 }
 
-// MARK: - Send (стрелка вверх в круге)
+// MARK: - 3. Send (стрелка вверх в круге)
 struct SendIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2, cy = h / 2, r = min(w, h) * 0.46
+        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.44
         var p = Path()
-        // Круг
         p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Стрелка вверх (тело)
-        let aw = w * 0.12, ah = h * 0.44
-        let ax = cx - aw / 2, ay = cy - ah * 0.38 + h * 0.04
-        p.addRect(CGRect(x: ax, y: ay, width: aw, height: ah * 0.56))
-        // Наконечник стрелки (треугольник)
-        let tip = Path { t in
-            t.move(to: CGPoint(x: cx, y: cy - r * 0.52))
-            t.addLine(to: CGPoint(x: cx - w * 0.20, y: cy - r * 0.10))
-            t.addLine(to: CGPoint(x: cx + w * 0.20, y: cy - r * 0.10))
-            t.closeSubpath()
-        }
-        p.addPath(tip)
+        // Стрелка вверх
+        p.move(to: CGPoint(x: cx, y: cy + r * 0.45))
+        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.45))
+        // Наконечник
+        p.move(to: CGPoint(x: cx - w * 0.22, y: cy - r * 0.10))
+        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.45))
+        p.addLine(to: CGPoint(x: cx + w * 0.22, y: cy - r * 0.10))
         return p
     }
 }
 
-// MARK: - Clear Chat (метла)
+// MARK: - 4. ClearChat (метла)
 struct ClearChatIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        // Ручка метлы — диагональная линия
-        p.move(to: CGPoint(x: w * 0.72, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.28, y: h * 0.62))
-        // Ворс метлы — веер из 5 линий
-        let fBase = CGPoint(x: w * 0.28, y: h * 0.62)
-        let angles: [Double] = [-30, -15, 0, 15, 30]
-        for deg in angles {
-            let rad = (deg + 110) * .pi / 180
-            let ex = fBase.x + cos(rad) * w * 0.26
-            let ey = fBase.y + sin(rad) * h * 0.30
-            p.move(to: fBase)
-            p.addLine(to: CGPoint(x: ex, y: ey))
-        }
-        // Горизонтальная черта у основания ворса
-        p.move(to: CGPoint(x: w * 0.08, y: h * 0.84))
-        p.addLine(to: CGPoint(x: w * 0.56, y: h * 0.84))
-        // Маленький квадратик ластика на конце ручки
-        let er: CGFloat = w * 0.10
-        p.addRoundedRect(in: CGRect(x: w * 0.68, y: h * 0.02, width: er, height: er),
-                         cornerSize: CGSize(width: 2, height: 2))
+        // Ручка
+        p.move(to: CGPoint(x: w * 0.76, y: h * 0.12))
+        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.52))
+        // Перетяжка
+        p.move(to: CGPoint(x: w * 0.28, y: h * 0.46))
+        p.addLine(to: CGPoint(x: w * 0.48, y: h * 0.58))
+        // Ворс
+        p.move(to: CGPoint(x: w * 0.30, y: h * 0.52))
+        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.88))
+        p.move(to: CGPoint(x: w * 0.38, y: h * 0.52))
+        p.addLine(to: CGPoint(x: w * 0.26, y: h * 0.90))
+        p.move(to: CGPoint(x: w * 0.46, y: h * 0.56))
+        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.88))
+        // Низ ворса
+        p.move(to: CGPoint(x: w * 0.08, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.46, y: h * 0.88))
         return p
     }
 }
 
-// MARK: - Copy (два листа)
+// MARK: - 5. Copy (два наложенных листа)
 struct CopyIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        let r: CGFloat = w * 0.12
-        // Задний лист (сдвинут вправо-вниз)
-        p.addRoundedRect(in: CGRect(x: w * 0.26, y: h * 0.26, width: w * 0.60, height: h * 0.66),
-                         cornerSize: CGSize(width: r, height: r))
-        // Передний лист (перекрывает)
-        p.addRoundedRect(in: CGRect(x: w * 0.14, y: h * 0.08, width: w * 0.60, height: h * 0.66),
-                         cornerSize: CGSize(width: r, height: r))
-        // Линии текста на переднем листе
-        for i in 0..<3 {
-            let ly = h * (0.26 + CGFloat(i) * 0.16)
-            p.move(to: CGPoint(x: w * 0.24, y: ly))
-            p.addLine(to: CGPoint(x: w * 0.64, y: ly))
-        }
+        let cr: CGFloat = w * 0.10
+        // Задний лист
+        p.addRoundedRect(in: CGRect(x: w * 0.30, y: h * 0.10, width: w * 0.58, height: h * 0.65),
+                         cornerSize: CGSize(width: cr, height: cr))
+        // Передний лист
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.25, width: w * 0.58, height: h * 0.65),
+                         cornerSize: CGSize(width: cr, height: cr))
         return p
     }
 }
 
-// MARK: - Copied (галочка)
+// MARK: - 6. Copied (галочка подтверждения)
 struct CopiedIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.52))
-        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.80))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.22))
+        p.move(to: CGPoint(x: w * 0.15, y: h * 0.52))
+        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.78))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.24))
         return p
     }
 }
 
-// MARK: - Context / Paperclip (скрепка)
+// MARK: - 7. Context (скрепка)
 struct ContextIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2
         var p = Path()
-        // Внешняя дуга скрепки
-        p.addArc(center: CGPoint(x: cx, y: h * 0.36),
-                 radius: w * 0.30,
-                 startAngle: .degrees(180),
-                 endAngle: .degrees(0),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: cx + w * 0.30, y: h * 0.76))
-        p.addArc(center: CGPoint(x: cx, y: h * 0.76),
-                 radius: w * 0.30,
-                 startAngle: .degrees(0),
-                 endAngle: .degrees(180),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: cx - w * 0.30, y: h * 0.36))
-        // Внутренняя дуга
-        let ir = w * 0.16
-        p.move(to: CGPoint(x: cx + ir, y: h * 0.36))
-        p.addArc(center: CGPoint(x: cx, y: h * 0.36),
-                 radius: ir,
-                 startAngle: .degrees(0),
-                 endAngle: .degrees(180),
-                 clockwise: false)
-        p.addLine(to: CGPoint(x: cx - ir, y: h * 0.72))
-        p.addArc(center: CGPoint(x: cx, y: h * 0.72),
-                 radius: ir,
-                 startAngle: .degrees(180),
-                 endAngle: .degrees(0),
-                 clockwise: false)
+        p.move(to: CGPoint(x: w * 0.42, y: h * 0.70))
+        p.addLine(to: CGPoint(x: w * 0.42, y: h * 0.35))
+        p.addArc(center: CGPoint(x: w * 0.55, y: h * 0.35), radius: w * 0.13,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.65))
+        p.addArc(center: CGPoint(x: w * 0.50, y: h * 0.65), radius: w * 0.18,
+                 startAngle: .degrees(0), endAngle: .degrees(180), clockwise: false)
+        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.28))
+        p.addArc(center: CGPoint(x: w * 0.54, y: h * 0.28), radius: w * 0.22,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.60))
         return p
     }
 }
 
-// MARK: - AI Star (четырёхлучевая звезда)
+// MARK: - 8. AI Star (четырёхлучевая звезда ассистента)
 struct AIStarIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2, cy = h / 2
-        let outer = min(w, h) * 0.46
-        let inner = outer * 0.38
+        let cx = w * 0.50, cy = h * 0.50
         var p = Path()
-        for i in 0..<8 {
+        let points = 8
+        let rOuter = min(w, h) * 0.48
+        let rInner = rOuter * 0.32
+        for i in 0..<points {
             let angle = Double(i) * .pi / 4 - .pi / 2
-            let r = i % 2 == 0 ? outer : inner
-            let x = cx + cos(angle) * r
-            let y = cy + sin(angle) * r
-            if i == 0 { p.move(to: CGPoint(x: x, y: y)) }
-            else { p.addLine(to: CGPoint(x: x, y: y)) }
+            let r = i % 2 == 0 ? rOuter : rInner
+            let pt = CGPoint(x: cx + cos(angle) * r, y: cy + sin(angle) * r)
+            if i == 0 { p.move(to: pt) }
+            else { p.addLine(to: pt) }
         }
         p.closeSubpath()
         return p
     }
 }
 
-// MARK: - Quick Summary / Lightning (молния)
+// MARK: - 9. Quick Summary (молния)
 struct QuickSummaryIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        p.move(to: CGPoint(x: w * 0.60, y: h * 0.04))
-        p.addLine(to: CGPoint(x: w * 0.22, y: h * 0.54))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.54))
-        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.96))
-        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.46))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.46))
+        p.move(to: CGPoint(x: w * 0.56, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.22, y: h * 0.52))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.52))
+        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.44))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.44))
         p.closeSubpath()
         return p
     }
 }
 
-// MARK: - Quick Tasks / Checklist (три строки с галочкой)
+// MARK: - 10. Quick Tasks (чеклист с галочками)
 struct QuickTasksIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        let rows: [(CGFloat, Bool)] = [(0.20, true), (0.50, true), (0.78, false)]
-        for (yf, checked) in rows {
-            let cy = h * yf
-            let r = w * 0.10
-            // Квадратик чекбокса
-            p.addRoundedRect(in: CGRect(x: w * 0.06, y: cy - r, width: r * 2, height: r * 2),
-                             cornerSize: CGSize(width: 2, height: 2))
-            if checked {
-                // Галочка внутри
-                p.move(to: CGPoint(x: w * 0.09, y: cy + r * 0.1))
-                p.addLine(to: CGPoint(x: w * 0.13, y: cy + r * 0.60))
-                p.addLine(to: CGPoint(x: w * 0.23, y: cy - r * 0.44))
-            }
-            // Строка текста рядом
-            p.move(to: CGPoint(x: w * 0.32, y: cy))
-            p.addLine(to: CGPoint(x: w * 0.92, y: cy))
+        // Рамка блокнота
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.10, width: w * 0.76, height: h * 0.80),
+                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
+        // 3 строки чеклиста
+        for i in 0..<3 {
+            let y = h * (0.30 + CGFloat(i) * 0.20)
+            // Чекбокс
+            p.move(to: CGPoint(x: w * 0.24, y: y))
+            p.addLine(to: CGPoint(x: w * 0.32, y: y + h * 0.06))
+            p.addLine(to: CGPoint(x: w * 0.40, y: y - h * 0.04))
+            // Линия задачи
+            p.move(to: CGPoint(x: w * 0.48, y: y))
+            p.addLine(to: CGPoint(x: w * 0.76, y: y))
         }
         return p
     }
 }
 
-// MARK: - Quick Notes / Paper (листок с уголком)
+// MARK: - 11. Quick Notes (листок с загнутым уголком)
 struct QuickNotesIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let fold = w * 0.28
         var p = Path()
+        let fold = w * 0.22
         // Контур листа
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.88 - fold, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.06 + fold))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.94))
-        p.addLine(to: CGPoint(x: w * 0.12, y: h * 0.94))
+        p.move(to: CGPoint(x: w * 0.15, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.08 + fold))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.15, y: h * 0.92))
         p.closeSubpath()
-        // Загнутый уголок
-        p.move(to: CGPoint(x: w * 0.88 - fold, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.88 - fold, y: h * 0.06 + fold))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.06 + fold))
+        // Сгиб
+        p.move(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.85 - fold, y: h * 0.08 + fold))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.08 + fold))
         // Строки текста
-        let lines: [CGFloat] = [0.36, 0.52, 0.68]
-        for yf in lines {
-            p.move(to: CGPoint(x: w * 0.24, y: h * yf))
-            p.addLine(to: CGPoint(x: w * 0.76, y: h * yf))
+        for i in 0..<3 {
+            let y = h * (0.38 + CGFloat(i) * 0.16)
+            p.move(to: CGPoint(x: w * 0.28, y: y))
+            p.addLine(to: CGPoint(x: w * 0.72, y: y))
         }
         return p
     }
 }
 
-// MARK: - Settings (шестерня с отверстием)
+// MARK: - 12. Settings (шестерня)
 struct SettingsIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2, cy = h / 2
-        let outer = min(w, h) * 0.46
-        let inner = outer * 0.54
-        let toothH = outer * 0.22
-        let teeth = 8
+        let cx = w * 0.50, cy = h * 0.50
         var p = Path()
-        for i in 0..<teeth {
-            let a0 = Double(i) * .pi * 2 / Double(teeth) - .pi / 2
-            let a1 = a0 + .pi / Double(teeth) * 0.5
-            let a2 = a0 + .pi / Double(teeth) * 1.5
-            let a3 = a0 + .pi * 2 / Double(teeth)
-            let pts: [(CGFloat, CGFloat)] = [
-                (cx + cos(a0) * outer, cy + sin(a0) * outer),
-                (cx + cos(a1) * (outer + toothH), cy + sin(a1) * (outer + toothH)),
-                (cx + cos(a2) * (outer + toothH), cy + sin(a2) * (outer + toothH)),
-                (cx + cos(a3) * outer, cy + sin(a3) * outer)
-            ]
-            if i == 0 { p.move(to: CGPoint(x: pts[0].0, y: pts[0].1)) }
-            else { p.addLine(to: CGPoint(x: pts[0].0, y: pts[0].1)) }
-            for pt in pts.dropFirst() {
-                p.addLine(to: CGPoint(x: pt.0, y: pt.1))
-            }
+        let teeth = 6
+        let rOut = min(w, h) * 0.44
+        let rIn = rOut * 0.65
+        for i in 0..<(teeth * 2) {
+            let a = Double(i) * .pi / Double(teeth) - .pi / 2
+            let r = i % 2 == 0 ? rOut : rIn
+            let pt = CGPoint(x: cx + cos(a) * r, y: cy + sin(a) * r)
+            if i == 0 { p.move(to: pt) }
+            else { p.addLine(to: pt) }
         }
         p.closeSubpath()
-        // Отверстие в центре (вычтем через EvenOdd)
-        p.addEllipse(in: CGRect(x: cx - inner, y: cy - inner, width: inner * 2, height: inner * 2))
+        // Внутренний круг
+        p.addEllipse(in: CGRect(x: cx - rIn * 0.40, y: cy - rIn * 0.40, width: rIn * 0.80, height: rIn * 0.80))
         return p
     }
 }
 
-// MARK: - Status Dot (заполненный круг)
+// MARK: - 13. StatusDot
 struct StatusDotShape: Shape {
     func path(in rect: CGRect) -> Path {
-        Path(ellipseIn: rect.insetBy(dx: rect.width * 0.08, dy: rect.height * 0.08))
+        Path(ellipseIn: rect)
     }
 }
 
-// MARK: - Stop (квадрат)
+// MARK: - 14. Stop (квадрат остановки)
 struct StopIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         Path(roundedRect: rect.insetBy(dx: rect.width * 0.22, dy: rect.height * 0.22),
@@ -412,163 +383,80 @@ struct StopIconShape: Shape {
     }
 }
 
-// MARK: - Sidebar icon helper (stroke rendered per shape)
-/// Рендерит кастомную иконку с правильным stroke для сайдбара.
-struct SidebarIntactIcon: View {
-    let kind: IntactIconKind
-    let selected: Bool
-    var size: CGFloat = 16
-
-    private var strokeColor: Color { selected ? Palette.accent : Palette.textSecondary }
-    private var strokeWidth: CGFloat { selected ? 1.4 : 1.2 }
-
-    var body: some View {
-        Canvas { ctx, sz in
-            let rect = CGRect(origin: .zero, size: sz)
-            let shape: any Shape
-            switch kind {
-            case .chat:         shape = ChatIconShape()
-            case .history:      shape = HistoryIconShape()
-            case .send:         shape = SendIconShape()
-            case .clearChat:    shape = ClearChatIconShape()
-            case .copy:         shape = CopyIconShape()
-            case .copied:       shape = CopiedIconShape()
-            case .context:      shape = ContextIconShape()
-            case .aiStar:       shape = AIStarIconShape()
-            case .quickSummary: shape = QuickSummaryIconShape()
-            case .quickTasks:   shape = QuickTasksIconShape()
-            case .quickNotes:   shape = QuickNotesIconShape()
-            case .settings:     shape = SettingsIconShape()
-            case .statusDot:    shape = StatusDotShape()
-            case .stop:         shape = StopIconShape()
-            case .home:         shape = HomeIconShape()
-            case .voice:        shape = VoiceIconShape()
-            case .briefs:       shape = BriefsIconShape()
-            case .models:       shape = ModelsIconShape()
-            case .settingsPage: shape = SettingsPageIconShape()
-            case .about:        shape = AboutIconShape()
-            case .search:       shape = SearchIconShape()
-            case .warning:      shape = WarningIconShape()
-            case .lock:         shape = LockIconShape()
-            case .user:         shape = UserIconShape()
-            case .clearHour:    shape = ClearHourIconShape()
-            case .clearToday:   shape = ClearTodayIconShape()
-            case .clearWeek:    shape = ClearWeekIconShape()
-            case .clearAll:     shape = ClearAllIconShape()
-            case .chevronDown:  shape = ChevronDownIconShape()
-            case .close:        shape = CloseIconShape()
-            }
-            let path = shape.path(in: rect)
-            ctx.stroke(path,
-                       with: .color(strokeColor),
-                       style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round, lineJoin: .round))
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-// MARK: - Home (домик с крышей и окошком)
+// MARK: - 15. Home (домик)
 struct HomeIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        // Крыша — треугольник
-        p.move(to: CGPoint(x: w * 0.10, y: h * 0.50))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.10))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.50))
-        // Стены и дверь
-        p.move(to: CGPoint(x: w * 0.18, y: h * 0.50))
-        p.addLine(to: CGPoint(x: w * 0.18, y: h * 0.92))
-        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.92))
-        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.50))
+        // Крыша
+        p.move(to: CGPoint(x: w * 0.10, y: h * 0.48))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.12))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.48))
+        // Стены
+        p.move(to: CGPoint(x: w * 0.18, y: h * 0.48))
+        p.addLine(to: CGPoint(x: w * 0.18, y: h * 0.90))
+        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.90))
+        p.addLine(to: CGPoint(x: w * 0.82, y: h * 0.48))
         // Дверь
-        let dr = w * 0.06
-        p.addRoundedRect(in: CGRect(x: w * 0.40, y: h * 0.62, width: w * 0.20, height: h * 0.30),
-                         cornerSize: CGSize(width: dr, height: dr))
+        p.move(to: CGPoint(x: w * 0.38, y: h * 0.90))
+        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.60))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.60))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.90))
         return p
     }
 }
 
-// MARK: - Voice (микрофон с волнами активности)
+// MARK: - 16. Voice (микрофон)
 struct VoiceIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let cx = w / 2
+        let cx = w * 0.50
         var p = Path()
-        // Капсула микрофона
+        // Капсула
         let mw = w * 0.28, mh = h * 0.46
-        let mx = cx - mw / 2, my = h * 0.06
-        p.addRoundedRect(in: CGRect(x: mx, y: my, width: mw, height: mh),
+        p.addRoundedRect(in: CGRect(x: cx - mw / 2, y: h * 0.08, width: mw, height: mh),
                          cornerSize: CGSize(width: mw / 2, height: mw / 2))
-        // Дуга стойки
-        p.addArc(center: CGPoint(x: cx, y: h * 0.52),
-                 radius: w * 0.30,
-                 startAngle: .degrees(180),
-                 endAngle: .degrees(0),
-                 clockwise: true)
+        // Дуга подвеса
+        p.addArc(center: CGPoint(x: cx, y: h * 0.50), radius: w * 0.30,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: true)
         // Ножка
-        p.move(to: CGPoint(x: cx, y: h * 0.82))
-        p.addLine(to: CGPoint(x: cx, y: h * 0.94))
+        p.move(to: CGPoint(x: cx, y: h * 0.80))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.92))
         // Подставка
-        p.move(to: CGPoint(x: cx - w * 0.24, y: h * 0.94))
-        p.addLine(to: CGPoint(x: cx + w * 0.24, y: h * 0.94))
+        p.move(to: CGPoint(x: cx - w * 0.22, y: h * 0.92))
+        p.addLine(to: CGPoint(x: cx + w * 0.22, y: h * 0.92))
         return p
     }
 }
 
-// MARK: - Briefs (листок со звёздочкой — заметки + ИИ)
+// MARK: - 17. Briefs (лист с мини-звездой)
 struct BriefsIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        // Лист бумаги
-        let fold = w * 0.24
-        p.move(to: CGPoint(x: w * 0.10, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.06 + fold))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.94))
-        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.94))
+        let fold = w * 0.22
+        // Лист
+        p.move(to: CGPoint(x: w * 0.14, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.08 + fold))
+        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.92))
+        p.addLine(to: CGPoint(x: w * 0.14, y: h * 0.92))
         p.closeSubpath()
-        // Загнутый уголок
-        p.move(to: CGPoint(x: w * 0.76, y: h * 0.06))
-        p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.06 + fold))
-        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.06 + fold))
-        // Мини-звезда (4 луча) в центре листа
-        let sx = w * 0.50, sy = h * 0.54, sr = w * 0.14, si = sr * 0.40
-        for i in 0..<8 {
-            let a = Double(i) * .pi / 4 - .pi / 2
-            let r = i % 2 == 0 ? sr : si
-            let x = sx + cos(a) * r
-            let y = sy + sin(a) * r
-            if i == 0 { p.move(to: CGPoint(x: x, y: y)) }
-            else { p.addLine(to: CGPoint(x: x, y: y)) }
-        }
-        p.closeSubpath()
+        // Уголок
+        p.move(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.86 - fold, y: h * 0.08 + fold))
+        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.08 + fold))
+        // Мини-звезда
+        let sx = w * 0.50, sy = h * 0.56, r = w * 0.16
+        p.move(to: CGPoint(x: sx, y: sy - r))
+        p.addLine(to: CGPoint(x: sx, y: sy + r))
+        p.move(to: CGPoint(x: sx - r, y: sy))
+        p.addLine(to: CGPoint(x: sx + r, y: sy))
         return p
     }
 }
 
-// MARK: - SettingsPage (три горизонтальных слайдера)
-struct SettingsPageIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        let rows: [(CGFloat, CGFloat)] = [(0.22, 0.55), (0.50, 0.30), (0.76, 0.70)]
-        for (yf, knobX) in rows {
-            let cy = h * yf
-            // Дорожка слайдера
-            p.move(to: CGPoint(x: w * 0.08, y: cy))
-            p.addLine(to: CGPoint(x: w * 0.92, y: cy))
-            // Кружок-ручка
-            let kx = w * knobX
-            p.addEllipse(in: CGRect(x: kx - w * 0.08, y: cy - h * 0.10,
-                                    width: w * 0.16, height: h * 0.20))
-        }
-        return p
-    }
-}
-
-// MARK: - Models (стек из 3 изометрических слоёв)
+// MARK: - 18. Models (изометрический стек 3D-слоёв)
 struct ModelsIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
@@ -580,12 +468,10 @@ struct ModelsIconShape: Shape {
         p.addLine(to: CGPoint(x: cx, y: h * 0.46))
         p.addLine(to: CGPoint(x: w * 0.12, y: h * 0.28))
         p.closeSubpath()
-
         // Средний слой
         p.move(to: CGPoint(x: w * 0.12, y: h * 0.48))
         p.addLine(to: CGPoint(x: cx, y: h * 0.66))
         p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.48))
-
         // Нижний слой
         p.move(to: CGPoint(x: w * 0.12, y: h * 0.68))
         p.addLine(to: CGPoint(x: cx, y: h * 0.86))
@@ -594,23 +480,40 @@ struct ModelsIconShape: Shape {
     }
 }
 
-// MARK: - About (круг с точкой и палочкой i)
+// MARK: - 19. SettingsPage (горизонтальные слайдеры)
+struct SettingsPageIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        let rows: [(CGFloat, CGFloat)] = [(0.24, 0.60), (0.50, 0.35), (0.76, 0.70)]
+        for (yf, knobX) in rows {
+            let cy = h * yf
+            p.move(to: CGPoint(x: w * 0.10, y: cy))
+            p.addLine(to: CGPoint(x: w * 0.90, y: cy))
+            let kx = w * knobX
+            p.addEllipse(in: CGRect(x: kx - w * 0.08, y: cy - h * 0.10, width: w * 0.16, height: h * 0.20))
+        }
+        return p
+    }
+}
+
+// MARK: - 20. About (круг с буквой i)
 struct AboutIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.44
         var p = Path()
         p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Точка буквы i
-        p.addEllipse(in: CGRect(x: cx - w * 0.05, y: cy - h * 0.24, width: w * 0.10, height: h * 0.10))
-        // Палочка буквы i
+        // Точка
+        p.addEllipse(in: CGRect(x: cx - w * 0.04, y: cy - h * 0.24, width: w * 0.08, height: h * 0.08))
+        // Палочка
         p.move(to: CGPoint(x: cx, y: cy - h * 0.06))
         p.addLine(to: CGPoint(x: cx, y: cy + h * 0.22))
         return p
     }
 }
 
-// MARK: - Search (лупа)
+// MARK: - 21. Search (лупа)
 struct SearchIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
@@ -618,44 +521,43 @@ struct SearchIconShape: Shape {
         let r = w * 0.28
         let cx = w * 0.40, cy = h * 0.40
         p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
-        // Ручка
-        let angle: Double = 45 * .pi / 180
-        let sx = cx + cos(angle) * r
-        let sy = cy + sin(angle) * r
+        let rad = 45.0 * .pi / 180.0
+        let sx = cx + cos(rad) * r
+        let sy = cy + sin(rad) * r
         p.move(to: CGPoint(x: sx, y: sy))
         p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.86))
         return p
     }
 }
 
-// MARK: - Warning (треугольник)
+// MARK: - 22. Warning (треугольник с «!»)
 struct WarningIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         var p = Path()
-        p.move(to: CGPoint(x: w * 0.50, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.92, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.08, y: h * 0.88))
+        p.move(to: CGPoint(x: w * 0.50, y: h * 0.10))
+        p.addLine(to: CGPoint(x: w * 0.90, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.10, y: h * 0.88))
         p.closeSubpath()
         // Восклицательный знак
         p.move(to: CGPoint(x: w * 0.50, y: h * 0.36))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.62))
-        p.addEllipse(in: CGRect(x: w * 0.46, y: h * 0.72, width: w * 0.08, height: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.60))
+        p.addEllipse(in: CGRect(x: w * 0.46, y: h * 0.70, width: w * 0.08, height: h * 0.08))
         return p
     }
 }
 
-// MARK: - Lock (замок)
+// MARK: - 23. Lock (замок)
 struct LockIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        var p = Path()
         let cx = w * 0.50
-        // Дужка замка
-        p.addArc(center: CGPoint(x: cx, y: h * 0.40), radius: w * 0.20,
+        var p = Path()
+        // Дужка
+        p.addArc(center: CGPoint(x: cx, y: h * 0.38), radius: w * 0.20,
                  startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
         p.addLine(to: CGPoint(x: cx + w * 0.20, y: h * 0.48))
-        // Корпус замка
+        // Корпус
         p.addRoundedRect(in: CGRect(x: w * 0.18, y: h * 0.48, width: w * 0.64, height: h * 0.44),
                          cornerSize: CGSize(width: w * 0.08, height: w * 0.08))
         // Скважина
@@ -665,126 +567,21 @@ struct LockIconShape: Shape {
     }
 }
 
-// MARK: - User (силуэт пользователя: голова и плечи)
+// MARK: - 24. User (силуэт)
 struct UserIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
         let cx = w * 0.50
         var p = Path()
-        // Голова
-        let hr = w * 0.22
+        let hr = w * 0.20
         p.addEllipse(in: CGRect(x: cx - hr, y: h * 0.08, width: hr * 2, height: hr * 2))
-        // Плечи
-        p.addArc(center: CGPoint(x: cx, y: h * 0.90), radius: w * 0.36,
+        p.addArc(center: CGPoint(x: cx, y: h * 0.90), radius: w * 0.35,
                  startAngle: .degrees(190), endAngle: .degrees(350), clockwise: false)
         return p
     }
 }
 
-// MARK: - ClearHour (часы со стрелкой назад)
-struct ClearHourIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.40
-        var p = Path()
-        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
-                 startAngle: .degrees(-60), endAngle: .degrees(240), clockwise: false)
-        // Стрелка
-        p.move(to: CGPoint(x: cx - w * 0.04, y: cy - r - h * 0.12))
-        p.addLine(to: CGPoint(x: cx + w * 0.14, y: cy - r))
-        p.addLine(to: CGPoint(x: cx - w * 0.04, y: cy - r + h * 0.12))
-        // Стрелки циферблата
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx, y: cy - h * 0.22))
-        p.move(to: CGPoint(x: cx, y: cy))
-        p.addLine(to: CGPoint(x: cx + w * 0.16, y: cy - h * 0.10))
-        return p
-    }
-}
-
-// MARK: - ClearToday (календарь с точкой)
-struct ClearTodayIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.20, width: w * 0.76, height: h * 0.72),
-                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.44))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.44))
-        p.move(to: CGPoint(x: w * 0.32, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.24))
-        p.move(to: CGPoint(x: w * 0.68, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.24))
-        let cx = w * 0.50, cy = h * 0.66
-        p.addEllipse(in: CGRect(x: cx - w * 0.08, y: cy - h * 0.08, width: w * 0.16, height: h * 0.16))
-        return p
-    }
-}
-
-// MARK: - ClearWeek (календарь с сеткой)
-struct ClearWeekIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.20, width: w * 0.76, height: h * 0.72),
-                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.44))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.44))
-        p.move(to: CGPoint(x: w * 0.32, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.24))
-        p.move(to: CGPoint(x: w * 0.68, y: h * 0.08))
-        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.24))
-        let dotR = w * 0.035
-        for row in 0..<2 {
-            for col in 0..<3 {
-                let dx = w * 0.30 + CGFloat(col) * w * 0.20
-                let dy = h * 0.57 + CGFloat(row) * h * 0.17
-                p.addEllipse(in: CGRect(x: dx - dotR, y: dy - dotR, width: dotR * 2, height: dotR * 2))
-            }
-        }
-        return p
-    }
-}
-
-// MARK: - ClearAll (корзина)
-struct ClearAllIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        // Крышка
-        p.move(to: CGPoint(x: w * 0.12, y: h * 0.24))
-        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.24))
-        p.move(to: CGPoint(x: w * 0.36, y: h * 0.24))
-        p.addLine(to: CGPoint(x: w * 0.36, y: h * 0.12))
-        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.12))
-        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.24))
-        // Бак
-        p.move(to: CGPoint(x: w * 0.22, y: h * 0.24))
-        p.addLine(to: CGPoint(x: w * 0.26, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.74, y: h * 0.88))
-        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.24))
-        // Продольные полоски
-        p.move(to: CGPoint(x: w * 0.40, y: h * 0.38))
-        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.74))
-        p.move(to: CGPoint(x: w * 0.60, y: h * 0.38))
-        p.addLine(to: CGPoint(x: w * 0.60, y: h * 0.74))
-        return p
-    }
-}
-
-// MARK: - ChevronDown (шеврона)
-struct ChevronDownIconShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        var p = Path()
-        p.move(to: CGPoint(x: w * 0.15, y: h * 0.35))
-        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.70))
-        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.35))
-        return p
-    }
-}
-
-// MARK: - Close (крестик)
+// MARK: - 25. Close (крестик)
 struct CloseIconShape: Shape {
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
@@ -797,6 +594,118 @@ struct CloseIconShape: Shape {
     }
 }
 
+// MARK: - 26. ChevronDown
+struct ChevronDownIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.15, y: h * 0.35))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.70))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.35))
+        return p
+    }
+}
 
+// MARK: - 27. ClearHour (Часы со стрелкой назад — 1 час)
+struct ClearHourIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let cx = w * 0.50, cy = h * 0.52, r = min(w, h) * 0.40
+        var p = Path()
+        // Циферблат со срезом сверху-справа
+        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
+                 startAngle: .degrees(-70), endAngle: .degrees(230), clockwise: false)
+        // Стрелка отката против часовой стрелки
+        let ax = cx + cos(Double(-70) * .pi / 180) * r
+        let ay = cy + sin(Double(-70) * .pi / 180) * r
+        p.move(to: CGPoint(x: ax - w * 0.14, y: ay - h * 0.02))
+        p.addLine(to: CGPoint(x: ax, y: ay))
+        p.addLine(to: CGPoint(x: ax - w * 0.02, y: ay + h * 0.14))
+        // Стрелки на циферблате: часовая на 1 час (30°), минутная на 12 (0°)
+        p.move(to: CGPoint(x: cx, y: cy))
+        p.addLine(to: CGPoint(x: cx, y: cy - r * 0.62))
+        p.move(to: CGPoint(x: cx, y: cy))
+        p.addLine(to: CGPoint(x: cx + r * 0.40, y: cy - r * 0.28))
+        return p
+    }
+}
 
+// MARK: - 28. ClearToday (Календарь с цифрой 1 — сегодня)
+struct ClearTodayIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Лист календаря
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.14, width: w * 0.76, height: h * 0.76),
+                         cornerSize: CGSize(width: w * 0.12, height: w * 0.12))
+        // Разделитель шапки
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.38))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.38))
+        // Люверсы / кольца сверху
+        p.move(to: CGPoint(x: w * 0.32, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.20))
+        p.move(to: CGPoint(x: w * 0.68, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.20))
+        // Чёткая цифра «1»
+        p.move(to: CGPoint(x: w * 0.42, y: h * 0.56))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.48))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.78))
+        p.move(to: CGPoint(x: w * 0.38, y: h * 0.78))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.78))
+        return p
+    }
+}
 
+// MARK: - 29. ClearWeek (Календарь с цифрой 7 — за неделю)
+struct ClearWeekIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Лист календаря
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.14, width: w * 0.76, height: h * 0.76),
+                         cornerSize: CGSize(width: w * 0.12, height: w * 0.12))
+        // Разделитель шапки
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.38))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.38))
+        // Люверсы / кольца сверху
+        p.move(to: CGPoint(x: w * 0.32, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.20))
+        p.move(to: CGPoint(x: w * 0.68, y: h * 0.06))
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.20))
+        // Чёткая цифра «7»
+        p.move(to: CGPoint(x: w * 0.36, y: h * 0.48))
+        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.48))
+        p.addLine(to: CGPoint(x: w * 0.44, y: h * 0.78))
+        // Поперечная черточка семёрки
+        p.move(to: CGPoint(x: w * 0.45, y: h * 0.63))
+        p.addLine(to: CGPoint(x: w * 0.57, y: h * 0.63))
+        return p
+    }
+}
+
+// MARK: - 30. ClearAll (Мусорная корзина / полный сброс)
+struct ClearAllIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Ручка крышки
+        p.move(to: CGPoint(x: w * 0.38, y: h * 0.20))
+        p.addLine(to: CGPoint(x: w * 0.38, y: h * 0.10))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.10))
+        p.addLine(to: CGPoint(x: w * 0.62, y: h * 0.20))
+        // Крышка
+        p.move(to: CGPoint(x: w * 0.14, y: h * 0.20))
+        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.20))
+        // Корпус бака
+        p.move(to: CGPoint(x: w * 0.22, y: h * 0.20))
+        p.addLine(to: CGPoint(x: w * 0.27, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.73, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.20))
+        // Продольные линии
+        p.move(to: CGPoint(x: w * 0.40, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.74))
+        p.move(to: CGPoint(x: w * 0.60, y: h * 0.34))
+        p.addLine(to: CGPoint(x: w * 0.60, y: h * 0.74))
+        return p
+    }
+}
