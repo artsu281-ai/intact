@@ -228,10 +228,7 @@ struct GeneralTab: View {
 
                 Row(title: "Язык диктовки",
                     subtitle: "Автоопределение поддерживает смесь русского и английского") {
-                    WisprDropdown(selection: $settings.language,
-                                  options: Language.all.map { $0.code }) { code in
-                        Text(Language.all.first(where: { $0.code == code })?.name ?? code)
-                    }
+                    SearchableLanguageDropdown(selection: $settings.language)
                 }
 
                 Row(title: "Вставка текста",
@@ -325,10 +322,7 @@ struct AppearanceTab: View {
                     first: true) {
                     WisprDropdown(selection: $settings.interfaceLanguage,
                                   options: InterfaceLanguage.allCases) { lang in
-                        HStack(spacing: 6) {
-                            Text(lang.flag)
-                            Text(lang.title)
-                        }
+                        Text(lang.title)
                     }
                 }
             }

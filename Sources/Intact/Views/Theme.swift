@@ -411,3 +411,178 @@ struct SliderControl: View {
         }
     }
 }
+
+/// Выпадающий список выбора языка с быстрым многоязычным поиском (без флагов)
+struct SearchableLanguageDropdown: View {
+    @Binding var selection: String
+    @State private var isOpen = false
+    @State private var search = ""
+    @State private var hovering = false
+    @FocusState private var isSearchFocused: Bool
+
+    private var currentLanguage: Language {
+        Language.find(code: selection)
+    }
+
+    private var filteredLanguages: [Language] {
+        if search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return Language.all
+        }
+        return Language.all.filter { $0.matches(query: search) }
+    }
+
+    var body: some View {
+        Button {
+            isOpen.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Text(currentLanguage.displayName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Palette.textPrimary)
+
+                Text(currentLanguage.code.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Palette.textTertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Palette.pill)
+                    )
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Palette.textSecondary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hovering ? Palette.pillHover : Palette.dropdownBg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Palette.hairline, lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.02), radius: 2, y: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+            VStack(spacing: 0) {
+                // Поле поиска с иконкой
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Palette.textSecondary)
+
+                    TextField("Поиск: русский, english, de, fr...", text: $search)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .focused($isSearchFocused)
+
+                    if !search.isEmpty {
+                        Button {
+                            search = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Palette.pill)
+
+                Divider()
+                    .overlay(Palette.hairline)
+
+                // Список языков
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if filteredLanguages.isEmpty {
+                            Text("Язык не найден")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Palette.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 24)
+                        } else {
+                            if search.isEmpty {
+                                Text("Часто используемые")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Palette.textTertiary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 2)
+
+                                ForEach(Language.popular) { lang in
+                                    languageRow(lang)
+                                }
+
+                                Text("Все языки (\(Language.all.count))")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Palette.textTertiary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 2)
+                            }
+
+                            ForEach(filteredLanguages) { lang in
+                                languageRow(lang)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .frame(width: 320, height: 260)
+            }
+            .background(Palette.card)
+            .onAppear {
+                isSearchFocused = true
+            }
+        }
+    }
+
+    private func languageRow(_ lang: Language) -> some View {
+        Button {
+            selection = lang.code
+            isOpen = false
+            search = ""
+        } label: {
+            HStack(spacing: 8) {
+                Text(lang.displayName)
+                    .font(.system(size: 13, weight: lang.code == selection ? .semibold : .regular))
+                    .foregroundStyle(Palette.textPrimary)
+
+                Spacer()
+
+                Text(lang.code.uppercased())
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Palette.textTertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(
+                        Capsule()
+                            .fill(Palette.pill)
+                    )
+
+                if lang.code == selection {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Palette.accent)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(lang.code == selection ? Palette.accent.opacity(0.10) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+    }
+}

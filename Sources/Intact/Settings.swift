@@ -95,13 +95,6 @@ enum InterfaceLanguage: String, CaseIterable, Identifiable {
         case .english: return "English"
         }
     }
-
-    var flag: String {
-        switch self {
-        case .russian: return "🇷🇺"
-        case .english: return "🇺🇸"
-        }
-    }
 }
 
 enum OutputMode: String, CaseIterable, Identifiable {
@@ -159,24 +152,96 @@ enum ActivationMode: String, CaseIterable, Identifiable {
 
 struct Language: Identifiable, Hashable {
     let code: String
-    let name: String
+    let name: String            // Родное название (напр. "English", "Русский", "Deutsch")
+    let russianName: String     // Русское название (напр. "Английский", "Русский", "Немецкий")
+    let englishName: String     // Английское название (напр. "English", "Russian", "German")
+    let aliases: [String]       // Синонимы и сокращения для поиска
+
     var id: String { code }
 
+    var displayName: String {
+        if code == "auto" {
+            return "Автоопределение"
+        }
+        if name.lowercased() == russianName.lowercased() {
+            return "\(name) (\(englishName))"
+        }
+        return "\(name) · \(russianName)"
+    }
+
+    func matches(query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if q.isEmpty { return true }
+        if code.lowercased() == q { return true }
+        if name.lowercased().contains(q) { return true }
+        if russianName.lowercased().contains(q) { return true }
+        if englishName.lowercased().contains(q) { return true }
+        for a in aliases {
+            if a.lowercased().contains(q) { return true }
+        }
+        return false
+    }
+
+    static func find(code: String) -> Language {
+        all.first(where: { $0.code == code }) ?? .init(code: code, name: code.uppercased(), russianName: code, englishName: code, aliases: [code])
+    }
+
+    static let popular: [Language] = [
+        .init(code: "auto", name: "Автоопределение", russianName: "Авто", englishName: "Auto Detect", aliases: ["auto", "авто", "автоопределение", "detect", "automatic"]),
+        .init(code: "ru",   name: "Русский",        russianName: "Русский", englishName: "Russian",     aliases: ["ru", "rus", "russian", "рус", "русский", "рос", "раша"]),
+        .init(code: "en",   name: "English",        russianName: "Английский", englishName: "English",   aliases: ["en", "eng", "english", "англ", "английский", "инглиш"])
+    ]
+
     static let all: [Language] = [
-        .init(code: "auto", name: "Автоопределение"),
-        .init(code: "ru",   name: "Русский"),
-        .init(code: "en",   name: "English"),
-        .init(code: "uk",   name: "Українська"),
-        .init(code: "de",   name: "Deutsch"),
-        .init(code: "fr",   name: "Français"),
-        .init(code: "es",   name: "Español"),
-        .init(code: "it",   name: "Italiano"),
-        .init(code: "pt",   name: "Português"),
-        .init(code: "pl",   name: "Polski"),
-        .init(code: "tr",   name: "Türkçe"),
-        .init(code: "zh",   name: "中文"),
-        .init(code: "ja",   name: "日本語"),
-        .init(code: "ko",   name: "한국어")
+        .init(code: "auto", name: "Автоопределение", russianName: "Авто", englishName: "Auto Detect", aliases: ["auto", "авто", "автоопределение", "detect", "automatic"]),
+        .init(code: "ru",   name: "Русский",        russianName: "Русский", englishName: "Russian",     aliases: ["ru", "rus", "russian", "рус", "русский", "рос", "россия"]),
+        .init(code: "en",   name: "English",        russianName: "Английский", englishName: "English",   aliases: ["en", "eng", "english", "англ", "английский", "инглиш"]),
+        .init(code: "az",   name: "Azərbaycan",     russianName: "Азербайджанский", englishName: "Azerbaijani", aliases: ["az", "aze", "azerbaijani", "азербайджанский", "азер"]),
+        .init(code: "sq",   name: "Shqip",          russianName: "Албанский", englishName: "Albanian", aliases: ["sq", "alb", "albanian", "албанский"]),
+        .init(code: "ar",   name: "العربية",        russianName: "Арабский", englishName: "Arabic",     aliases: ["ar", "ara", "arabic", "арабский", "араб"]),
+        .init(code: "hy",   name: "Հայերեն",        russianName: "Армянский", englishName: "Armenian",   aliases: ["hy", "arm", "hye", "armenian", "армянский", "арм"]),
+        .init(code: "be",   name: "Беларуская",     russianName: "Белорусский", englishName: "Belarusian", aliases: ["be", "bel", "belarusian", "белорусский", "бел", "беларусь"]),
+        .init(code: "bg",   name: "Български",      russianName: "Болгарский", englishName: "Bulgarian",  aliases: ["bg", "bul", "bulgarian", "болгарский", "болг"]),
+        .init(code: "bs",   name: "Bosanski",       russianName: "Боснийский", englishName: "Bosnian",    aliases: ["bs", "bos", "bosnian", "боснийский"]),
+        .init(code: "hu",   name: "Magyar",         russianName: "Венгерский", englishName: "Hungarian",  aliases: ["hu", "hun", "hungarian", "magyar", "венгерский", "венгр"]),
+        .init(code: "vi",   name: "Tiếng Việt",     russianName: "Вьетнамский", englishName: "Vietnamese", aliases: ["vi", "vie", "vietnamese", "вьетнамский", "вьетнам"]),
+        .init(code: "nl",   name: "Nederlands",     russianName: "Нидерландский", englishName: "Dutch",   aliases: ["nl", "nld", "dut", "dutch", "nederlands", "нидерландский", "голландский"]),
+        .init(code: "el",   name: "Ελληνικά",       russianName: "Греческий", englishName: "Greek",       aliases: ["el", "ell", "gre", "greek", "ellinika", "греческий", "греч"]),
+        .init(code: "ka",   name: "ქართული",        russianName: "Грузинский", englishName: "Georgian",   aliases: ["ka", "kat", "geo", "georgian", "грузинский", "груз"]),
+        .init(code: "da",   name: "Dansk",          russianName: "Датский", englishName: "Danish",       aliases: ["da", "dan", "danish", "dansk", "датский"]),
+        .init(code: "he",   name: "עברית",          russianName: "Иврит", englishName: "Hebrew",         aliases: ["he", "heb", "hebrew", "иврит"]),
+        .init(code: "id",   name: "Bahasa Indonesia", russianName: "Индонезийский", englishName: "Indonesian", aliases: ["id", "ind", "indonesian", "индонезийский"]),
+        .init(code: "es",   name: "Español",        russianName: "Испанский", englishName: "Spanish",    aliases: ["es", "spa", "spanish", "espanol", "español", "испанский", "исп"]),
+        .init(code: "it",   name: "Italiano",       russianName: "Итальянский", englishName: "Italian",  aliases: ["it", "ita", "italian", "italiano", "итальянский", "итал"]),
+        .init(code: "kk",   name: "Қазақша",        russianName: "Казахский", englishName: "Kazakh",     aliases: ["kk", "kaz", "kazakh", "казахский", "каз", "қазақ", "казахстан"]),
+        .init(code: "ca",   name: "Català",         russianName: "Каталанский", englishName: "Catalan",  aliases: ["ca", "cat", "catalan", "каталанский"]),
+        .init(code: "zh",   name: "中文",           russianName: "Китайский", englishName: "Chinese",    aliases: ["zh", "chi", "zho", "chinese", "китайский", "кит", "китай", "mandarin"]),
+        .init(code: "ko",   name: "한국어",          russianName: "Корейский", englishName: "Korean",     aliases: ["ko", "kor", "korean", "корейский", "кор", "корея"]),
+        .init(code: "lv",   name: "Latviešu",       russianName: "Латышский", englishName: "Latvian",    aliases: ["lv", "lav", "latvian", "latviesu", "латвийский", "латышский", "латвия"]),
+        .init(code: "lt",   name: "Lietuvių",       russianName: "Литовский", englishName: "Lithuanian", aliases: ["lt", "lit", "lithuanian", "lietuviu", "литовский", "литва"]),
+        .init(code: "mk",   name: "Македонски",     russianName: "Македонский", englishName: "Macedonian", aliases: ["mk", "mkd", "macedonian", "македонский"]),
+        .init(code: "ms",   name: "Bahasa Melayu",  russianName: "Малайский", englishName: "Malay",      aliases: ["ms", "msa", "may", "malay", "малайский"]),
+        .init(code: "de",   name: "Deutsch",        russianName: "Немецкий", englishName: "German",      aliases: ["de", "deu", "ger", "german", "deutsch", "немецкий", "нем", "германия"]),
+        .init(code: "no",   name: "Norsk",          russianName: "Норвежский", englishName: "Norwegian",  aliases: ["no", "nor", "norwegian", "norsk", "норвежский", "норв"]),
+        .init(code: "fa",   name: "فارسی",          russianName: "Персидский (Фарси)", englishName: "Persian", aliases: ["fa", "per", "fas", "persian", "farsi", "персидский", "фарси"]),
+        .init(code: "pl",   name: "Polski",         russianName: "Польский", englishName: "Polish",      aliases: ["pl", "pol", "polish", "polski", "польский", "пол", "польша"]),
+        .init(code: "pt",   name: "Português",      russianName: "Португальский", englishName: "Portuguese", aliases: ["pt", "por", "portuguese", "portugues", "португальский", "порт"]),
+        .init(code: "ro",   name: "Română",         russianName: "Румынский", englishName: "Romanian",   aliases: ["ro", "ron", "rum", "romanian", "romana", "румынский", "рум"]),
+        .init(code: "sr",   name: "Српски",         russianName: "Сербский", englishName: "Serbian",     aliases: ["sr", "srp", "serbian", "сербский", "серб"]),
+        .init(code: "sk",   name: "Slovenčina",     russianName: "Словацкий", englishName: "Slovak",     aliases: ["sk", "slk", "slo", "slovak", "slovencina", "словацкий", "слов"]),
+        .init(code: "sl",   name: "Slovenščina",    russianName: "Словенский", englishName: "Slovenian",  aliases: ["sl", "slv", "slovenian", "slovenscina", "словенский"]),
+        .init(code: "th",   name: "ไทย",            russianName: "Тайский", englishName: "Thai",         aliases: ["th", "tha", "thai", "тайский", "таиланд"]),
+        .init(code: "tr",   name: "Türkçe",         russianName: "Турецкий", englishName: "Turkish",     aliases: ["tr", "tur", "turkish", "turkce", "турецкий", "тур", "турция"]),
+        .init(code: "uz",   name: "Oʻzbekcha",      russianName: "Узбекский", englishName: "Uzbek",       aliases: ["uz", "uzb", "uzbek", "узбекский", "узб", "узбекистан"]),
+        .init(code: "uk",   name: "Українська",     russianName: "Украинский", englishName: "Ukrainian",  aliases: ["uk", "ukr", "ukrainian", "украинский", "укр", "україна"]),
+        .init(code: "fi",   name: "Suomi",          russianName: "Финский", englishName: "Finnish",       aliases: ["fi", "fin", "finnish", "suomi", "финский", "финляндия"]),
+        .init(code: "fr",   name: "Français",       russianName: "Французский", englishName: "French",   aliases: ["fr", "fra", "fre", "french", "francais", "французский", "франц", "франция"]),
+        .init(code: "hi",   name: "हिन्दी",          russianName: "Хинди", englishName: "Hindi",           aliases: ["hi", "hin", "hindi", "хинди", "индия"]),
+        .init(code: "hr",   name: "Hrvatski",       russianName: "Хорватский", englishName: "Croatian",   aliases: ["hr", "hrv", "croatian", "hrvatski", "хорватский", "хорв"]),
+        .init(code: "cs",   name: "Čeština",        russianName: "Чешский", englishName: "Czech",         aliases: ["cs", "ces", "cze", "czech", "cestina", "чешский", "чехия"]),
+        .init(code: "sv",   name: "Svenska",        russianName: "Шведский", englishName: "Swedish",     aliases: ["sv", "swe", "swedish", "svenska", "шведский", "швеция"]),
+        .init(code: "et",   name: "Eesti",          russianName: "Эстонский", englishName: "Estonian",   aliases: ["et", "est", "estonian", "eesti", "эстонский", "эстония"]),
+        .init(code: "ja",   name: "日本語",          russianName: "Японский", englishName: "Japanese",   aliases: ["ja", "jpn", "japanese", "японский", "яп", "япония"])
     ]
 }
 
