@@ -48,6 +48,46 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppIconStyle: String, CaseIterable, Identifiable {
+    case auto = "auto"
+    case light = "light"
+    case dark = "dark"
+    case black = "black"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto:  return L10n.iconStyleAuto
+        case .light: return L10n.iconStyleLight
+        case .dark:  return L10n.iconStyleDark
+        case .black: return L10n.iconStyleBlack
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .auto:  return L10n.iconStyleAutoSub
+        case .light: return L10n.iconStyleLightSub
+        case .dark:  return L10n.iconStyleDarkSub
+        case .black: return L10n.iconStyleBlackSub
+        }
+    }
+
+    var resourceFileName: String {
+        switch self {
+        case .auto:
+            return AppSettings.shared.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light"
+        case .light:
+            return "AppIcon-Light"
+        case .dark:
+            return "AppIcon-Dark"
+        case .black:
+            return "AppIcon-Black"
+        }
+    }
+}
+
 enum InterfaceLanguage: String, CaseIterable, Identifiable {
     case russian = "ru"
     case english = "en"
@@ -185,6 +225,7 @@ final class AppSettings: ObservableObject {
     @Published var muteAudioWhileDictating: Bool { didSet { d.set(muteAudioWhileDictating, forKey: "muteAudioWhileDictating") } }
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
     @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
+    @Published var appIconStyle: AppIconStyle { didSet { d.set(appIconStyle.rawValue, forKey: "appIconStyle"); applyTheme() } }
     @Published var interfaceLanguage: InterfaceLanguage { didSet { d.set(interfaceLanguage.rawValue, forKey: "interfaceLanguage"); objectWillChange.send() } }
     @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var enableVoiceNotes: Bool { didSet { d.set(enableVoiceNotes, forKey: "enableVoiceNotes") } }
@@ -223,8 +264,8 @@ final class AppSettings: ObservableObject {
                 window.appearance = targetAppearance
             }
 
-            // Динамическая смена иконки в Dock (светлая/тёмная)
-            let iconName = self.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light"
+            // Динамическая смена иконки в Dock (Светлая / Тёмная / Чёрная / Авто)
+            let iconName = self.appIconStyle.resourceFileName
             if let iconUrl = Bundle.main.url(forResource: iconName, withExtension: "png"),
                let image = NSImage(contentsOf: iconUrl) {
                 NSApp.applicationIconImage = image
@@ -269,6 +310,7 @@ final class AppSettings: ObservableObject {
         muteAudioWhileDictating = d.object(forKey: "muteAudioWhileDictating") == nil ? true : d.bool(forKey: "muteAudioWhileDictating")
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
         appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .white
+        appIconStyle = AppIconStyle(rawValue: d.string(forKey: "appIconStyle") ?? "") ?? .auto
         interfaceLanguage = InterfaceLanguage(rawValue: d.string(forKey: "interfaceLanguage") ?? "") ?? .russian
         copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         enableVoiceNotes = d.object(forKey: "enableVoiceNotes") == nil ? true : d.bool(forKey: "enableVoiceNotes")

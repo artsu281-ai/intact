@@ -397,21 +397,59 @@ struct AppearanceTab: View {
             }
 
             Card(header: L10n.appearanceHeaderDock) {
-                Row(title: L10n.appearanceHeaderDock,
-                    subtitle: L10n.appearanceDockSubtitle,
-                    first: true) {
-                    HStack(spacing: 12) {
-                        Image(nsImage: NSImage(contentsOfFile: "/Applications/Intact.app/Contents/Resources/AppIcon-Light.png") ?? NSImage(named: "AppIcon") ?? NSImage())
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(L10n.appearanceDockSubtitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.textSecondary)
 
-                        Image(nsImage: NSImage(contentsOfFile: "/Applications/Intact.app/Contents/Resources/AppIcon-Dark.png") ?? NSImage(named: "AppIcon") ?? NSImage())
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ], spacing: 12) {
+                        AppIconChoiceCard(
+                            style: .light,
+                            title: L10n.iconStyleLight,
+                            subtitle: L10n.iconStyleLightSub,
+                            imageName: "AppIcon-Light",
+                            isSelected: settings.appIconStyle == .light
+                        ) {
+                            settings.appIconStyle = .light
+                        }
+
+                        AppIconChoiceCard(
+                            style: .dark,
+                            title: L10n.iconStyleDark,
+                            subtitle: L10n.iconStyleDarkSub,
+                            imageName: "AppIcon-Dark",
+                            isSelected: settings.appIconStyle == .dark
+                        ) {
+                            settings.appIconStyle = .dark
+                        }
+
+                        AppIconChoiceCard(
+                            style: .black,
+                            title: L10n.iconStyleBlack,
+                            subtitle: L10n.iconStyleBlackSub,
+                            imageName: "AppIcon-Black",
+                            isSelected: settings.appIconStyle == .black
+                        ) {
+                            settings.appIconStyle = .black
+                        }
+
+                        AppIconChoiceCard(
+                            style: .auto,
+                            title: L10n.iconStyleAuto,
+                            subtitle: L10n.iconStyleAutoSub,
+                            imageName: settings.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light",
+                            isSelected: settings.appIconStyle == .auto
+                        ) {
+                            settings.appIconStyle = .auto
+                        }
                     }
                 }
+                .padding(20)
             }
 
             Card(header: L10n.appearanceHeaderIndicator) {
@@ -431,6 +469,83 @@ struct AppearanceTab: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Интерактивная карточка выбора иконки приложения
+
+struct AppIconChoiceCard: View {
+    let style: AppIconStyle
+    let title: String
+    let subtitle: String
+    let imageName: String
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    private var iconImage: NSImage {
+        if let url = Bundle.main.url(forResource: imageName, withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        if let resourcePath = Bundle.main.resourcePath {
+            let p = (resourcePath as NSString).appendingPathComponent("\(imageName).png")
+            if let img = NSImage(contentsOfFile: p) { return img }
+        }
+        if let img = NSImage(contentsOfFile: "/Users/artsu/work_tree/voice/Resources/\(imageName).png") {
+            return img
+        }
+        return NSImage(named: "AppIcon") ?? NSImage()
+    }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(nsImage: iconImage)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fit)
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.14), radius: 4, y: 2)
+                    .padding(.top, 4)
+
+                VStack(spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(Palette.textPrimary)
+
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(1)
+                }
+
+                ZStack {
+                    Circle()
+                        .strokeBorder(isSelected ? Palette.accent : Palette.textTertiary, lineWidth: 1.5)
+                        .frame(width: 14, height: 14)
+                    if isSelected {
+                        Circle()
+                            .fill(Palette.accent)
+                            .frame(width: 7, height: 7)
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Palette.cardHighlight : (hovering ? Palette.hover : Palette.card))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(isSelected ? Palette.accent : Palette.hairline, lineWidth: isSelected ? 1.5 : 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
