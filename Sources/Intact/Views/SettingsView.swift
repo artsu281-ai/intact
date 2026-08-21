@@ -114,10 +114,12 @@ struct SettingsView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 6)
                     .padding(.bottom, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "WORKSPACE" }) { item in
                     SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
 
                 // Настройки
                 Text(L10n.sectionSettings)
@@ -127,10 +129,12 @@ struct SettingsView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 18)
                     .padding(.bottom, 8)
+                    .transition(.opacity)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "SETTINGS" }) { item in
                     SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
+                .transition(.opacity)
 
                 // О программе
                 Text(L10n.sectionInfo)
@@ -140,18 +144,22 @@ struct SettingsView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 18)
                     .padding(.bottom, 8)
+                    .transition(.opacity)
 
                 ForEach(SettingsSection.allCases.filter { $0.category == "ABOUT" }) { item in
                     SidebarRow(item: item, selected: item == state.section) { state.section = item }
                 }
+                .transition(.opacity)
             } else {
                 // Результаты поиска
                 searchResultsView
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             Spacer(minLength: 20)
             footer
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.8), value: searchText.isEmpty)
         .padding(.horizontal, 12)
         .padding(.bottom, 16)
         .frame(width: 236)
@@ -444,6 +452,8 @@ struct SidebarRow: View {
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
                     .frame(width: 20)
+                    .scaleEffect(selected ? 1.08 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
@@ -452,8 +462,18 @@ struct SidebarRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(selected ? Palette.selected : (hovering ? Palette.hover : Color.clear))
+                ZStack {
+                    if selected {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Palette.accent.opacity(0.12))
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .strokeBorder(Palette.accent.opacity(0.18), lineWidth: 1)
+                    } else if hovering {
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Palette.hover)
+                    }
+                }
+                .animation(.spring(response: 0.22, dampingFraction: 0.8), value: selected)
             )
             .contentShape(Rectangle())
         }
