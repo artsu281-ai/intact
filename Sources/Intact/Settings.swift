@@ -228,6 +228,13 @@ final class AppSettings: ObservableObject {
             if let iconUrl = Bundle.main.url(forResource: iconName, withExtension: "png"),
                let image = NSImage(contentsOf: iconUrl) {
                 NSApp.applicationIconImage = image
+            } else if let resourcePath = Bundle.main.resourcePath {
+                let directPath = (resourcePath as NSString).appendingPathComponent("\(iconName).png")
+                if let image = NSImage(contentsOfFile: directPath) {
+                    NSApp.applicationIconImage = image
+                }
+            } else if let image = NSImage(contentsOfFile: "/Users/artsu/work_tree/voice/Resources/\(iconName).png") {
+                NSApp.applicationIconImage = image
             }
         }
     }

@@ -271,6 +271,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// уже на ходу — так его можно выключить без перезапуска.
     static func applyDockIcon() {
         NSApp.setActivationPolicy(AppSettings.shared.showDockIcon ? .regular : .accessory)
+        AppSettings.shared.applyTheme()
     }
 
     /// Клик по значку в Dock, когда открытых окон нет.

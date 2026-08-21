@@ -45,5 +45,7 @@ pkill -9 -f "whisper-server" 2>/dev/null || true
 sleep 1
 rm -rf "$DEST"
 cp -R "$BUNDLE" "$DEST"
+touch "$DEST"
+killall Dock 2>/dev/null || true
 
 echo "==> готово: $DEST"
