@@ -98,9 +98,9 @@ struct SettingsView: View {
                     Button {
                         searchText = ""
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
+                        IntactIcon(kind: .close, size: 10)
                             .foregroundStyle(Palette.textTertiary)
+                            .padding(2)
                     }
                     .buttonStyle(.plain)
                 }
@@ -1438,9 +1438,9 @@ struct HistoryTab: View {
                             Button {
                                 query = ""
                             } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 12))
+                                IntactIcon(kind: .close, size: 10)
                                     .foregroundStyle(Palette.textTertiary)
+                                    .padding(2)
                             }
                             .buttonStyle(.plain)
                         }
@@ -1473,8 +1473,7 @@ struct HistoryTab: View {
                             IntactIcon(kind: .clearChat, size: 12)
                             Text(L10n.historyClearBtn)
                                 .font(.system(size: 13, weight: .medium))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8, weight: .bold))
+                            IntactIcon(kind: .chevronDown, size: 8)
                                 .foregroundStyle(Palette.textTertiary)
                         }
                         .foregroundStyle(Palette.textPrimary)
@@ -1522,7 +1521,7 @@ struct HistoryTab: View {
     }
 }
 
-// MARK: - Поповер очистки истории с растровыми иконками
+// MARK: - Поповер очистки истории с кастомными векторными иконками
 
 struct HistoryClearPopoverView: View {
     let onSelect: (HistoryClearRange) -> Void
@@ -1545,7 +1544,7 @@ struct HistoryClearPopoverView: View {
                 .padding(.bottom, 4)
 
             HistoryClearOptionRow(
-                iconName: "history_clear_1h",
+                iconKind: .clearHour,
                 title: L10n.historyClearLastHour,
                 subtitle: L10n.historyClearLastHourSub,
                 isDestructive: false
@@ -1554,7 +1553,7 @@ struct HistoryClearPopoverView: View {
             }
 
             HistoryClearOptionRow(
-                iconName: "history_clear_today",
+                iconKind: .clearToday,
                 title: L10n.historyClearToday,
                 subtitle: L10n.historyClearTodaySub,
                 isDestructive: false
@@ -1563,7 +1562,7 @@ struct HistoryClearPopoverView: View {
             }
 
             HistoryClearOptionRow(
-                iconName: "history_clear_7d",
+                iconKind: .clearWeek,
                 title: L10n.historyClearOlder7Days,
                 subtitle: L10n.historyClearOlder7DaysSub,
                 isDestructive: false
@@ -1572,7 +1571,7 @@ struct HistoryClearPopoverView: View {
             }
 
             HistoryClearOptionRow(
-                iconName: "history_clear_all",
+                iconKind: .clearAll,
                 title: L10n.historyClearAll,
                 subtitle: L10n.historyClearAllSub,
                 isDestructive: true
@@ -1587,7 +1586,7 @@ struct HistoryClearPopoverView: View {
 }
 
 struct HistoryClearOptionRow: View {
-    let iconName: String
+    let iconKind: IntactIconKind
     let title: String
     let subtitle: String
     let isDestructive: Bool
@@ -1597,12 +1596,14 @@ struct HistoryClearOptionRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                if let img = loadLocalHistoryIcon(iconName) {
-                    Image(nsImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(isDestructive ? Color.red.opacity(0.12) : Palette.accent.opacity(0.10))
                         .frame(width: 34, height: 34)
+                    IntactIcon(kind: iconKind, size: 16)
+                        .foregroundStyle(isDestructive ? Color.red : Palette.accent)
                 }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 13, weight: .semibold))
@@ -1618,21 +1619,12 @@ struct HistoryClearOptionRow: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(hovering ? (isDestructive ? Color.red.opacity(0.12) : Palette.hover) : Color.clear)
+                    .fill(hovering ? (isDestructive ? Color.red.opacity(0.10) : Palette.hover) : Color.clear)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-    }
-
-    private func loadLocalHistoryIcon(_ name: String) -> NSImage? {
-        if let bundleURL = Bundle.main.url(forResource: name, withExtension: "png"),
-           let img = NSImage(contentsOf: bundleURL) {
-            return img
-        }
-        let localPath = "/Users/artsu/work_tree/voice/Resources/\(name).png"
-        return NSImage(contentsOfFile: localPath)
     }
 }
 
@@ -1674,15 +1666,29 @@ struct HistoryRow: View {
                     .buttonStyle(.plain)
                     .help(L10n.historyDeleteTooltip)
 
-                    PillButton(title: copied ? (L10n.isRu ? "Скопировано!" : "Copied!") : L10n.historyCopyBtn,
-                               symbol: copied ? "checkmark" : "doc.on.doc") {
+                    Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(entry.text, forType: .string)
                         copied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                             copied = false
                         }
+                    } label: {
+                        HStack(spacing: 5) {
+                            IntactIcon(kind: copied ? .copied : .copy, size: 12)
+                                .foregroundStyle(copied ? Palette.accent : Palette.textSecondary)
+                            Text(copied ? (L10n.isRu ? "Скопировано!" : "Copied!") : L10n.historyCopyBtn)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(copied ? Palette.accent : Palette.textPrimary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(copied ? Palette.accent.opacity(0.10) : Palette.pill)
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
                 .opacity(hovering ? 1 : 0)
             }

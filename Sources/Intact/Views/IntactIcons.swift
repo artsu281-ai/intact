@@ -31,6 +31,13 @@ enum IntactIconKind {
     case warning        // предупреждение
     case lock           // замок / приватность
     case user           // пользователь (силуэт)
+    // Опции очистки истории
+    case clearHour      // за последний час
+    case clearToday     // за сегодня
+    case clearWeek      // старше 7 дней
+    case clearAll       // всё
+    case chevronDown    // шеврон вниз
+    case close          // крестик / закрыть
 }
 
 struct IntactIcon: View {
@@ -69,6 +76,12 @@ struct IntactIcon: View {
         case .warning:       WarningIconShape().aspectRatio(contentMode: .fit)
         case .lock:          LockIconShape().aspectRatio(contentMode: .fit)
         case .user:          UserIconShape().aspectRatio(contentMode: .fit)
+        case .clearHour:     ClearHourIconShape().aspectRatio(contentMode: .fit)
+        case .clearToday:    ClearTodayIconShape().aspectRatio(contentMode: .fit)
+        case .clearWeek:     ClearWeekIconShape().aspectRatio(contentMode: .fit)
+        case .clearAll:      ClearAllIconShape().aspectRatio(contentMode: .fit)
+        case .chevronDown:   ChevronDownIconShape().aspectRatio(contentMode: .fit)
+        case .close:         CloseIconShape().aspectRatio(contentMode: .fit)
         }
     }
 }
@@ -438,6 +451,12 @@ struct SidebarIntactIcon: View {
             case .warning:      shape = WarningIconShape()
             case .lock:         shape = LockIconShape()
             case .user:         shape = UserIconShape()
+            case .clearHour:    shape = ClearHourIconShape()
+            case .clearToday:   shape = ClearTodayIconShape()
+            case .clearWeek:    shape = ClearWeekIconShape()
+            case .clearAll:     shape = ClearAllIconShape()
+            case .chevronDown:  shape = ChevronDownIconShape()
+            case .close:        shape = CloseIconShape()
             }
             let path = shape.path(in: rect)
             ctx.stroke(path,
@@ -661,5 +680,123 @@ struct UserIconShape: Shape {
         return p
     }
 }
+
+// MARK: - ClearHour (часы со стрелкой назад)
+struct ClearHourIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.40
+        var p = Path()
+        p.addArc(center: CGPoint(x: cx, y: cy), radius: r,
+                 startAngle: .degrees(-60), endAngle: .degrees(240), clockwise: false)
+        // Стрелка
+        p.move(to: CGPoint(x: cx - w * 0.04, y: cy - r - h * 0.12))
+        p.addLine(to: CGPoint(x: cx + w * 0.14, y: cy - r))
+        p.addLine(to: CGPoint(x: cx - w * 0.04, y: cy - r + h * 0.12))
+        // Стрелки циферблата
+        p.move(to: CGPoint(x: cx, y: cy))
+        p.addLine(to: CGPoint(x: cx, y: cy - h * 0.22))
+        p.move(to: CGPoint(x: cx, y: cy))
+        p.addLine(to: CGPoint(x: cx + w * 0.16, y: cy - h * 0.10))
+        return p
+    }
+}
+
+// MARK: - ClearToday (календарь с точкой)
+struct ClearTodayIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.20, width: w * 0.76, height: h * 0.72),
+                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.44))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.44))
+        p.move(to: CGPoint(x: w * 0.32, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.24))
+        p.move(to: CGPoint(x: w * 0.68, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.24))
+        let cx = w * 0.50, cy = h * 0.66
+        p.addEllipse(in: CGRect(x: cx - w * 0.08, y: cy - h * 0.08, width: w * 0.16, height: h * 0.16))
+        return p
+    }
+}
+
+// MARK: - ClearWeek (календарь с сеткой)
+struct ClearWeekIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.addRoundedRect(in: CGRect(x: w * 0.12, y: h * 0.20, width: w * 0.76, height: h * 0.72),
+                         cornerSize: CGSize(width: w * 0.10, height: w * 0.10))
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.44))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.44))
+        p.move(to: CGPoint(x: w * 0.32, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.32, y: h * 0.24))
+        p.move(to: CGPoint(x: w * 0.68, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.68, y: h * 0.24))
+        let dotR = w * 0.035
+        for row in 0..<2 {
+            for col in 0..<3 {
+                let dx = w * 0.30 + CGFloat(col) * w * 0.20
+                let dy = h * 0.57 + CGFloat(row) * h * 0.17
+                p.addEllipse(in: CGRect(x: dx - dotR, y: dy - dotR, width: dotR * 2, height: dotR * 2))
+            }
+        }
+        return p
+    }
+}
+
+// MARK: - ClearAll (корзина)
+struct ClearAllIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Крышка
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.24))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.24))
+        p.move(to: CGPoint(x: w * 0.36, y: h * 0.24))
+        p.addLine(to: CGPoint(x: w * 0.36, y: h * 0.12))
+        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.12))
+        p.addLine(to: CGPoint(x: w * 0.64, y: h * 0.24))
+        // Бак
+        p.move(to: CGPoint(x: w * 0.22, y: h * 0.24))
+        p.addLine(to: CGPoint(x: w * 0.26, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.74, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.24))
+        // Продольные полоски
+        p.move(to: CGPoint(x: w * 0.40, y: h * 0.38))
+        p.addLine(to: CGPoint(x: w * 0.40, y: h * 0.74))
+        p.move(to: CGPoint(x: w * 0.60, y: h * 0.38))
+        p.addLine(to: CGPoint(x: w * 0.60, y: h * 0.74))
+        return p
+    }
+}
+
+// MARK: - ChevronDown (шеврона)
+struct ChevronDownIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.15, y: h * 0.35))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.70))
+        p.addLine(to: CGPoint(x: w * 0.85, y: h * 0.35))
+        return p
+    }
+}
+
+// MARK: - Close (крестик)
+struct CloseIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.22, y: h * 0.22))
+        p.addLine(to: CGPoint(x: w * 0.78, y: h * 0.78))
+        p.move(to: CGPoint(x: w * 0.78, y: h * 0.22))
+        p.addLine(to: CGPoint(x: w * 0.22, y: h * 0.78))
+        return p
+    }
+}
+
+
 
 

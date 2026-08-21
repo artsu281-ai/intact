@@ -481,9 +481,9 @@ struct SearchableLanguageDropdown: View {
                         Button {
                             search = ""
                         } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 12))
+                            IntactIcon(kind: .close, size: 10)
                                 .foregroundStyle(Palette.textTertiary)
+                                .padding(2)
                         }
                         .buttonStyle(.plain)
                     }
