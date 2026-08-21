@@ -26,9 +26,12 @@ enum AppleNotesService {
         "^(take a note|make a note|create a note|new note|quick note)(\\s*(that|about|:|-|—|\\.)\\s*|\\s+)"
     ]
 
+    // Разделитель после голого «заметка»/«заметку» — раньше только «:», «-», «—».
+    // На практике человек делает паузу, а Whisper превращает её в точку или запятую,
+    // а не в тире: «Заметка, завтра в 10 кино» — обычная живая речь, не повод не сработать.
     private static let weakPatterns: [String] = [
-        "^(заметка|заметку)\\s*[:\\-—]\\s*",
-        "^(note)\\s*[:\\-—]\\s*"
+        "^(заметка|заметку)\\s*[:\\-—,.]\\s*",
+        "^(note)\\s*[:\\-—,.]\\s*"
     ]
 
     private static var commandPatterns: [String] { strongPatterns + weakPatterns }
