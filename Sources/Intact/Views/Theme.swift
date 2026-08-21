@@ -7,65 +7,73 @@ import SwiftUI
 /// для заголовков, мягкие скругленные карточки, кастомные минималистичные
 /// переключатели-таблетки и аккуратные бейджи хоткеев.
 enum Palette {
-    static let page           = dynamic(light: (0.985, 0.980, 0.973), dark: (0.075, 0.072, 0.070))
-    static let sidebar        = dynamic(light: (0.965, 0.957, 0.941), dark: (0.105, 0.102, 0.098))
-    static let card           = dynamic(light: (0.949, 0.941, 0.922), dark: (0.145, 0.141, 0.137))
-    static let cardHighlight  = dynamic(light: (0.922, 0.910, 0.886), dark: (0.185, 0.180, 0.175))
-    static let pill           = dynamic(light: (0.910, 0.898, 0.871), dark: (0.205, 0.200, 0.192))
-    static let pillHover      = dynamic(light: (0.865, 0.851, 0.820), dark: (0.260, 0.252, 0.245))
-    static let dropdownBg     = dynamic(light: (0.990, 0.988, 0.982), dark: (0.170, 0.165, 0.160))
+    // Основные фоны (Oatmeal Linen & Warm Canvas)
+    static let page           = dynamic(light: (0.980, 0.965, 0.941), dark: (0.086, 0.082, 0.078)) // #FAF6F0
+    static let sidebar        = dynamic(light: (0.949, 0.922, 0.878), dark: (0.118, 0.114, 0.110)) // #F2EBE0
+    static let card           = dynamic(light: (0.996, 0.992, 0.984), dark: (0.145, 0.141, 0.137)) // #FCFAF6
+    static let cardHighlight  = dynamic(light: (0.957, 0.925, 0.882), dark: (0.185, 0.180, 0.175)) // #F4ECE1
+    static let pill           = dynamic(light: (0.929, 0.898, 0.847), dark: (0.205, 0.200, 0.192)) // #EDE5D8
+    static let pillHover      = dynamic(light: (0.894, 0.855, 0.796), dark: (0.260, 0.252, 0.245)) // #E4DACB
+    static let dropdownBg     = dynamic(light: (0.996, 0.992, 0.984), dark: (0.170, 0.165, 0.160))
 
-    static let textPrimary    = dynamic(light: (0.095, 0.090, 0.085), dark: (0.965, 0.957, 0.941))
-    static let textSecondary  = dynamic(light: (0.435, 0.420, 0.395), dark: (0.650, 0.635, 0.610))
-    static let textTertiary   = dynamic(light: (0.615, 0.600, 0.575), dark: (0.460, 0.445, 0.425))
+    // Брендовый терракотовый акцент (Terracotta Clay)
+    static let accent         = dynamic(light: (0.780, 0.435, 0.318), dark: (0.900, 0.580, 0.460)) // #C76F51
+    static let accentHover    = dynamic(light: (0.720, 0.375, 0.260), dark: (0.940, 0.640, 0.520))
 
-    static let hairline       = dynamicAlpha(light: (0, 0, 0, 0.055), dark: (1, 1, 1, 0.070))
-    static let selected       = dynamicAlpha(light: (0, 0, 0, 0.065), dark: (1, 1, 1, 0.095))
-    static let hover          = dynamicAlpha(light: (0, 0, 0, 0.035), dark: (1, 1, 1, 0.055))
+    // Типографика (Deep Espresso & Warm Cocoa Slate)
+    static let textPrimary    = dynamic(light: (0.133, 0.110, 0.094), dark: (0.975, 0.968, 0.952)) // #221C18
+    static let textSecondary  = dynamic(light: (0.459, 0.416, 0.365), dark: (0.680, 0.665, 0.640)) // #756A5D
+    static let textTertiary   = dynamic(light: (0.620, 0.576, 0.522), dark: (0.480, 0.465, 0.445)) // #9E9385
 
-    static let toggleOn       = dynamic(light: (0.110, 0.105, 0.100), dark: (0.965, 0.957, 0.941))
-    static let toggleOff      = dynamic(light: (0.840, 0.825, 0.795), dark: (0.245, 0.240, 0.230))
+    // Разделители и состояния
+    static let hairline       = dynamicAlpha(light: (0.50, 0.40, 0.30, 0.14), dark: (1, 1, 1, 0.08))
+    static let selected       = dynamicAlpha(light: (0.780, 0.435, 0.318, 0.12), dark: (1, 1, 1, 0.10))
+    static let hover          = dynamicAlpha(light: (0.50, 0.40, 0.30, 0.06), dark: (1, 1, 1, 0.055))
+
+    // Переключатели
+    static let toggleOn       = dynamic(light: (0.780, 0.435, 0.318), dark: (0.880, 0.550, 0.430)) // #C76F51
+    static let toggleOff      = dynamic(light: (0.860, 0.825, 0.780), dark: (0.245, 0.240, 0.230))
     static let toggleKnob     = dynamic(light: (1.000, 1.000, 1.000), dark: (0.110, 0.105, 0.100))
 
     // HUD Pill (плавающий мини-индикатор записи и тосты)
     static func hudBg(isDark: Bool) -> Color {
-        isDark ? Color(red: 0.110, green: 0.108, blue: 0.105).opacity(0.92)
-               : Color(red: 0.975, green: 0.968, blue: 0.952).opacity(0.96)
+        isDark ? Color(red: 0.095, green: 0.090, blue: 0.086).opacity(0.94)
+               : Color(red: 0.957, green: 0.925, blue: 0.882).opacity(0.96) // #F4ECE1
     }
 
     static func hudBorder(isDark: Bool) -> Color {
         isDark ? Color.white.opacity(0.14)
-               : Color.black.opacity(0.12)
+               : Color(red: 0.50, green: 0.40, blue: 0.30).opacity(0.18)
     }
 
     static func hudShadow(isDark: Bool) -> Color {
-        isDark ? Color.black.opacity(0.35)
-               : Color.black.opacity(0.12)
+        isDark ? Color.black.opacity(0.40)
+               : Color(red: 0.35, green: 0.25, blue: 0.15).opacity(0.14)
     }
 
     static func hudIcon(isDark: Bool) -> Color {
-        isDark ? Color.white.opacity(0.90)
-               : Color(red: 0.12, green: 0.11, blue: 0.10).opacity(0.90)
+        isDark ? Color(red: 0.98, green: 0.95, blue: 0.91)
+               : Color(red: 0.780, green: 0.435, blue: 0.318) // Terracotta accent icon
     }
 
     static func hudText(isDark: Bool) -> Color {
-        isDark ? Color.white.opacity(0.90)
-               : Color(red: 0.16, green: 0.15, blue: 0.14).opacity(0.90)
+        isDark ? Color(red: 0.98, green: 0.95, blue: 0.91)
+               : Color(red: 0.133, green: 0.110, blue: 0.094)
     }
 
     static func hudTextMuted(isDark: Bool) -> Color {
-        isDark ? Color.white.opacity(0.75)
-               : Color(red: 0.35, green: 0.33, blue: 0.31).opacity(0.78)
+        isDark ? Color(red: 0.80, green: 0.76, blue: 0.72)
+               : Color(red: 0.459, green: 0.416, blue: 0.365)
     }
 
     static func hudEqTop(isDark: Bool) -> Color {
-        isDark ? Color(red: 0.96, green: 0.96, blue: 0.99)
-               : Color(red: 0.22, green: 0.20, blue: 0.18)
+        isDark ? Color(red: 0.98, green: 0.94, blue: 0.90)
+               : Color(red: 0.780, green: 0.435, blue: 0.318) // Terracotta #C76F51
     }
 
     static func hudEqBottom(isDark: Bool) -> Color {
-        isDark ? Color(red: 0.78, green: 0.84, blue: 0.96)
-               : Color(red: 0.45, green: 0.48, blue: 0.58)
+        isDark ? Color(red: 0.86, green: 0.62, blue: 0.49)
+               : Color(red: 0.900, green: 0.580, blue: 0.460)
     }
 
     private static func dynamic(light: (CGFloat, CGFloat, CGFloat),
@@ -146,15 +154,24 @@ struct Card<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let header {
-                Text(header)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Palette.textPrimary)
-                    .padding(.leading, 2)
+                Text(header.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.textTertiary)
+                    .kerning(0.8)
+                    .padding(.leading, 4)
             }
             VStack(spacing: 0) {
                 content
             }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Palette.card))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Palette.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Palette.hairline, lineWidth: 1)
+                    )
+                    .shadow(color: Color(red: 0.35, green: 0.25, blue: 0.15).opacity(0.035), radius: 6, y: 2)
+            )
         }
     }
 }

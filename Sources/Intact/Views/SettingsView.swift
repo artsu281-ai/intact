@@ -154,11 +154,11 @@ struct SidebarRow: View {
         Button(action: action) {
             HStack(spacing: 11) {
                 Image(systemName: item.icon)
-                    .font(.system(size: 13.5, weight: selected ? .medium : .regular))
-                    .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
+                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
                     .frame(width: 20)
                 Text(item.title)
-                    .font(.system(size: 13.5, weight: selected ? .medium : .regular))
+                    .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
                 Spacer(minLength: 0)
             }
