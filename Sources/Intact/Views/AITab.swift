@@ -14,6 +14,7 @@ struct AITab: View {
     @State private var installLog: String = ""
     @State private var localAvailable = LocalAIProvider.shared.isAvailable
     @State private var localRunning = LocalAIProvider.shared.isRunning
+    @State private var webSearchAvailable = false
 
     @StateObject private var audioModel = GemmaAudioModelManager.shared
     @State private var testRecorder = AudioRecorder()
@@ -67,6 +68,17 @@ struct AITab: View {
     private func refreshLocalStatus() {
         localAvailable = LocalAIProvider.shared.isAvailable
         localRunning = LocalAIProvider.shared.isRunning
+        checkWebSearchAvailability()
+    }
+
+    private func checkWebSearchAvailability() {
+        guard let url = URL(string: "\(WebTools.searxngURL)/") else { return }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 2
+        URLSession.shared.dataTask(with: req) { _, response, _ in
+            let ok = (response as? HTTPURLResponse)?.statusCode == 200
+            DispatchQueue.main.async { webSearchAvailable = ok }
+        }.resume()
     }
 
     // MARK: - Облако
@@ -156,6 +168,15 @@ struct AITab: View {
                 PillButton(title: "Управлять моделями", icon: .models) {
                     onOpenModels?()
                 }
+            }
+
+            Row(title: "Доступ в интернет",
+                subtitle: webSearchAvailable
+                    ? "Локальная модель сможет искать и читать страницы через свой SearXNG (127.0.0.1:8888)"
+                    : "Нужен запущенный контейнер intact-searxng — сейчас он недоступен") {
+                Toggle("", isOn: $settings.enableLocalWebSearch)
+                    .toggleStyle(WisprToggleStyle())
+                    .disabled(!webSearchAvailable)
             }
 
             if let err = models.lastError {

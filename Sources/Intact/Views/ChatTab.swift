@@ -185,9 +185,11 @@ struct ChatTab: View {
     private var generatingIndicator: some View {
         HStack(spacing: 10) {
             ThinkingDots(size: 18, tone: .process)
-            Text("Анализирую и формирую ответ…")
+            Text(chat.toolStatus ?? "Анализирую и формирую ответ…")
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Spacer()
         }
         .padding(.horizontal, 14)

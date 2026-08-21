@@ -22,16 +22,35 @@ enum AIError: Error {
     }
 }
 
+/// Вызов инструмента (web-поиск и т.п.), который запросила модель.
+struct AIToolCall: Hashable {
+    let id: String
+    let name: String
+    /// JSON-строка с аргументами — так, как её вернула модель, без парсинга здесь.
+    let arguments: String
+}
+
 /// Сообщение в истории диалога для AI-провайдеров.
 struct AIMessage {
     enum Role: String {
         case system
         case user
         case assistant
+        /// Результат вызова инструмента — привязан к конкретному tool call по id.
+        case tool
     }
 
     let role: Role
     let content: String
+    var toolCalls: [AIToolCall]? = nil
+    var toolCallId: String? = nil
+
+    init(role: Role, content: String, toolCalls: [AIToolCall]? = nil, toolCallId: String? = nil) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallId = toolCallId
+    }
 }
 
 /// Хэндл на уже запущенный запрос к ИИ — единственное, что вызывающий код

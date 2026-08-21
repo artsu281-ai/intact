@@ -351,6 +351,8 @@ final class AppSettings: ObservableObject {
     @Published var aiLocalModelPath: String { didSet { d.set(aiLocalModelPath, forKey: "aiLocalModelPath"); onAIProviderChange?() } }
     @Published var enableAICleanup: Bool { didSet { d.set(enableAICleanup, forKey: "enableAICleanup") } }
     @Published var gemmaAudioModelFilename: String { didSet { d.set(gemmaAudioModelFilename, forKey: "gemmaAudioModelFilename") } }
+    /// Доступ в интернет для локальной модели через собственный SearXNG (см. WebTools).
+    @Published var enableLocalWebSearch: Bool { didSet { d.set(enableLocalWebSearch, forKey: "enableLocalWebSearch") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var historyLimitOption: HistoryLimitOption { didSet { d.set(historyLimitOption.rawValue, forKey: "historyLimitOption"); History.shared.performAutoCleanup() } }
@@ -449,6 +451,7 @@ final class AppSettings: ObservableObject {
         aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""
+        enableLocalWebSearch = d.object(forKey: "enableLocalWebSearch") == nil ? false : d.bool(forKey: "enableLocalWebSearch")
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         historyLimitOption = HistoryLimitOption(rawValue: d.object(forKey: "historyLimitOption") == nil ? 500 : d.integer(forKey: "historyLimitOption")) ?? .limit500

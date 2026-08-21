@@ -62,6 +62,9 @@ final class AIChatService: ObservableObject {
     @Published var isGenerating: Bool = false
     /// Хэндл на текущий запрос к ИИ — держим, чтобы кнопка «Стоп» могла его отменить.
     private var currentTask: AITask?
+    /// Что сейчас делает модель в рамках цикла вызова инструментов — «Ищу…», «Читаю…».
+    /// nil, когда либо не генерируем, либо ждём обычный текстовый ответ.
+    @Published var toolStatus: String? = nil
     @Published var errorMessage: String? = nil
     @Published var selectedContextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]
     /// Файлы/папки, прикреплённые пользователем через диалог выбора — живут,
@@ -241,7 +244,11 @@ final class AIChatService: ObservableObject {
             var aiMessages: [AIMessage] = []
 
             // System prompt + прикрепленный контекст
+            let useWebSearch = AppSettings.shared.aiProviderKind == .local && AppSettings.shared.enableLocalWebSearch
             var systemContent = self.baseSystemPrompt
+            if useWebSearch {
+                systemContent += "\n\n" + Self.webSearchAddendum
+            }
             if !contextText.isEmpty {
                 systemContent += "\n\n=== АКТУАЛЬНЫЙ КОНТЕКСТ ПОЛЬЗОВАТЕЛЯ ===\n\(contextText)\n=== КОНЕЦ КОНТЕКСТА ==="
             }
@@ -250,6 +257,11 @@ final class AIChatService: ObservableObject {
             // Добавляем историю текущего диалога
             for m in self.messages {
                 aiMessages.append(AIMessage(role: m.role, content: m.content))
+            }
+
+            if useWebSearch {
+                self.runWithTools(aiMessages, targetThreadID: targetThreadID, roundsLeft: 3)
+                return
             }
 
             // Лимит подняли с 2048: на этом пороге модель обрывала ответ
@@ -277,6 +289,123 @@ final class AIChatService: ObservableObject {
         }
     }
 
+    private static let webSearchAddendum = """
+    У тебя есть доступ в интернет через инструменты web_search и fetch_page — используй их, \
+    когда вопрос касается текущих событий, свежих версий чего-либо, точных дат, курсов, погоды \
+    или любых фактов, в которых ты не уверен на 100%. Не угадывай — лучше поищи. Если после поиска \
+    нужны подробности с конкретной страницы — открой её через fetch_page.
+    """
+
+    /// Цикл вызова инструментов: модель либо отвечает текстом, либо просит выполнить
+    /// web_search/fetch_page. Дошли до предела раундов — обрываем и заставляем ответить
+    /// без инструментов, чтобы не зависнуть в бесконечном поиске.
+    private func runWithTools(_ messages: [AIMessage], targetThreadID: UUID, roundsLeft: Int) {
+        guard roundsLeft > 0 else {
+            finalizeWithoutTools(messages, targetThreadID: targetThreadID)
+            return
+        }
+
+        self.currentTask = LocalAIProvider.shared.completeWithTools(
+            messages: messages, tools: WebTools.toolDefinitions, maxTokens: 2048
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success(let outcome):
+                    if outcome.toolCalls.isEmpty {
+                        let text = (outcome.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                        self.isGenerating = false
+                        self.currentTask = nil
+                        self.toolStatus = nil
+                        if !text.isEmpty { self.appendDelta(text, to: targetThreadID) }
+                        self.finishStreaming(in: targetThreadID)
+                    } else {
+                        self.runToolCalls(outcome.toolCalls, priorMessages: messages,
+                                          assistantContent: outcome.content ?? "",
+                                          targetThreadID: targetThreadID, roundsLeft: roundsLeft)
+                    }
+                case .failure(let error):
+                    self.isGenerating = false
+                    self.currentTask = nil
+                    self.toolStatus = nil
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func runToolCalls(_ calls: [AIToolCall], priorMessages: [AIMessage], assistantContent: String,
+                              targetThreadID: UUID, roundsLeft: Int) {
+        let group = DispatchGroup()
+        var resultMessages: [UUID: AIMessage] = [:]
+        let order = calls.map { $0.id }
+
+        for call in calls {
+            group.enter()
+            let args = (try? JSONSerialization.jsonObject(with: Data(call.arguments.utf8))) as? [String: Any]
+
+            let statusText: String
+            switch call.name {
+            case "web_search":
+                let q = (args?["query"] as? String) ?? ""
+                statusText = "Ищу в интернете: \(q)"
+                DispatchQueue.main.async { self.toolStatus = statusText }
+                WebTools.search(query: q) { resultText in
+                    resultMessages[UUID(uuidString: call.id) ?? UUID()] = AIMessage(role: .tool, content: resultText, toolCallId: call.id)
+                    group.leave()
+                }
+            case "fetch_page":
+                let u = (args?["url"] as? String) ?? ""
+                statusText = "Читаю страницу: \(u)"
+                DispatchQueue.main.async { self.toolStatus = statusText }
+                WebTools.fetchPage(urlString: u) { resultText in
+                    resultMessages[UUID(uuidString: call.id) ?? UUID()] = AIMessage(role: .tool, content: resultText, toolCallId: call.id)
+                    group.leave()
+                }
+            default:
+                resultMessages[UUID(uuidString: call.id) ?? UUID()] = AIMessage(role: .tool, content: "Неизвестный инструмент.", toolCallId: call.id)
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            guard let self else { return }
+            var next = priorMessages
+            next.append(AIMessage(role: .assistant, content: assistantContent, toolCalls: calls))
+            // Порядок ответов должен совпадать с порядком запросов — id инструментов уникальны на раунд.
+            for id in order {
+                if let msg = resultMessages.values.first(where: { $0.toolCallId == id }) {
+                    next.append(msg)
+                }
+            }
+            self.toolStatus = nil
+            self.runWithTools(next, targetThreadID: targetThreadID, roundsLeft: roundsLeft - 1)
+        }
+    }
+
+    /// Раунды с инструментами кончились, а ответа так и нет — просим ответить прямо,
+    /// без права снова попросить инструмент, чтобы разговор не завис молча.
+    private func finalizeWithoutTools(_ messages: [AIMessage], targetThreadID: UUID) {
+        self.currentTask = AIRouter.shared.stream(
+            messages: messages, maxTokens: 4096,
+            onDelta: { [weak self] piece in
+                DispatchQueue.main.async { self?.appendDelta(piece, to: targetThreadID) }
+            },
+            completion: { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.isGenerating = false
+                    self.currentTask = nil
+                    self.toolStatus = nil
+                    self.finishStreaming(in: targetThreadID)
+                    if case .failure(let error) = result {
+                        self.errorMessage = error.localizedDescription
+                    }
+                }
+            }
+        )
+    }
+
     /// Останавливает генерацию по нажатию «Стоп» в чате. Уже накопленный
     /// кусок ответа не пропадает — `finishStreaming` сохранит его как есть.
     func stopGenerating() {
@@ -284,6 +413,7 @@ final class AIChatService: ObservableObject {
         currentTask?.cancel()
         currentTask = nil
         isGenerating = false
+        toolStatus = nil
         finishStreaming(in: activeThreadID)
     }
 

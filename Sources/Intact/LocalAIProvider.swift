@@ -174,9 +174,91 @@ final class LocalAIProvider: AIProvider {
         return AITask(onCancel: { cancelToken.cancel() })
     }
 
-    private static func requestBody(messages: [AIMessage], maxTokens: Int) -> [String: Any] {
-        [
-            "messages": messages.map { ["role": $0.role.rawValue, "content": $0.content] },
+    struct ToolCompletionResult {
+        let content: String?
+        let toolCalls: [AIToolCall]
+    }
+
+    /// Как `complete`, но с полем `tools` — модель может либо ответить текстом,
+    /// либо попросить вызвать один из инструментов (веб-поиск, чтение страницы).
+    /// Только для локального провайдера: облачный доступ в интернет — отдельный
+    /// вопрос, здесь речь конкретно про «дать локальной модели интернет».
+    @discardableResult
+    func completeWithTools(messages: [AIMessage], tools: [[String: Any]], maxTokens: Int,
+                            completion: @escaping (Result<ToolCompletionResult, AIError>) -> Void) -> AITask {
+        let cancelToken = CancelToken()
+        guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
+        ensureRunning { [weak self] ok in
+            guard !cancelToken.isCancelled else { return }
+            guard let self, ok, self.port != 0,
+                  let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
+                completion(.failure(.providerUnavailable))
+                return
+            }
+
+            let body = Self.requestBody(messages: messages, maxTokens: maxTokens, tools: tools)
+
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+            req.timeoutInterval = 120
+
+            let task = URLSession.shared.dataTask(with: req) { data, response, error in
+                if let error {
+                    if (error as NSError).code == NSURLErrorCancelled { return }
+                    completion(.failure((error as NSError).code == NSURLErrorTimedOut ? .timeout : .network(error)))
+                    return
+                }
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                      let data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let choices = json["choices"] as? [[String: Any]],
+                      let message = choices.first?["message"] as? [String: Any] else {
+                    completion(.failure(.badResponse))
+                    return
+                }
+
+                let content = message["content"] as? String
+                var toolCalls: [AIToolCall] = []
+                if let rawCalls = message["tool_calls"] as? [[String: Any]] {
+                    for call in rawCalls {
+                        guard let id = call["id"] as? String,
+                              let function = call["function"] as? [String: Any],
+                              let name = function["name"] as? String,
+                              let arguments = function["arguments"] as? String else { continue }
+                        toolCalls.append(AIToolCall(id: id, name: name, arguments: arguments))
+                    }
+                }
+                guard content != nil || !toolCalls.isEmpty else {
+                    completion(.failure(.badResponse))
+                    return
+                }
+                completion(.success(ToolCompletionResult(content: content, toolCalls: toolCalls)))
+            }
+            cancelToken.task = task
+            task.resume()
+        }
+        return AITask(onCancel: { cancelToken.cancel() })
+    }
+
+    private static func messageJSON(_ m: AIMessage) -> [String: Any] {
+        var dict: [String: Any] = ["role": m.role.rawValue, "content": m.content]
+        if let calls = m.toolCalls, !calls.isEmpty {
+            dict["tool_calls"] = calls.map { call in
+                ["id": call.id, "type": "function",
+                 "function": ["name": call.name, "arguments": call.arguments]]
+            }
+        }
+        if let toolCallId = m.toolCallId {
+            dict["tool_call_id"] = toolCallId
+        }
+        return dict
+    }
+
+    private static func requestBody(messages: [AIMessage], maxTokens: Int, tools: [[String: Any]]? = nil) -> [String: Any] {
+        var body: [String: Any] = [
+            "messages": messages.map { messageJSON($0) },
             "max_tokens": maxTokens,
             "temperature": 0.3,
             // Некоторые модели (Qwen3.5 и т.п.) по умолчанию «думают» перед ответом и уходят
@@ -185,6 +267,8 @@ final class LocalAIProvider: AIProvider {
             // модели без такого шаблона это поле просто игнорируют.
             "chat_template_kwargs": ["enable_thinking": false]
         ]
+        if let tools, !tools.isEmpty { body["tools"] = tools }
+        return body
     }
 
     // MARK: - Потоковая генерация
