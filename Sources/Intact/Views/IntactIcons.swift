@@ -19,11 +19,17 @@ enum IntactIconKind {
     case settings       // настройки (шестерня)
     case statusDot      // индикатор статуса
     case stop           // остановить генерацию
-    // Новые разделы UX-редизайна
+    // Разделы UX
     case home           // домашний экран (домик)
     case voice          // диктовка (микрофон с волной)
     case briefs         // брифы и заметки (листы со звёздочкой)
+    case models         // каталог моделей (стек 3D слоёв)
     case settingsPage   // единый экран настроек (слайдеры)
+    case about          // о программе (круг с i)
+    // Утилитарные иконки
+    case search         // лупа
+    case warning        // предупреждение
+    case lock           // замок / приватность
 }
 
 struct IntactIcon: View {
@@ -55,7 +61,12 @@ struct IntactIcon: View {
         case .home:          HomeIconShape().aspectRatio(contentMode: .fit)
         case .voice:         VoiceIconShape().aspectRatio(contentMode: .fit)
         case .briefs:        BriefsIconShape().aspectRatio(contentMode: .fit)
+        case .models:        ModelsIconShape().aspectRatio(contentMode: .fit)
         case .settingsPage:  SettingsPageIconShape().aspectRatio(contentMode: .fit)
+        case .about:         AboutIconShape().aspectRatio(contentMode: .fit)
+        case .search:        SearchIconShape().aspectRatio(contentMode: .fit)
+        case .warning:       WarningIconShape().aspectRatio(contentMode: .fit)
+        case .lock:          LockIconShape().aspectRatio(contentMode: .fit)
         }
     }
 }
@@ -418,7 +429,12 @@ struct SidebarIntactIcon: View {
             case .home:         shape = HomeIconShape()
             case .voice:        shape = VoiceIconShape()
             case .briefs:       shape = BriefsIconShape()
+            case .models:       shape = ModelsIconShape()
             case .settingsPage: shape = SettingsPageIconShape()
+            case .about:        shape = AboutIconShape()
+            case .search:       shape = SearchIconShape()
+            case .warning:      shape = WarningIconShape()
+            case .lock:         shape = LockIconShape()
             }
             let path = shape.path(in: rect)
             ctx.stroke(path,
@@ -529,3 +545,101 @@ struct SettingsPageIconShape: Shape {
         return p
     }
 }
+
+// MARK: - Models (стек из 3 изометрических слоёв)
+struct ModelsIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        let cx = w * 0.50
+        // Верхний ромб
+        p.move(to: CGPoint(x: cx, y: h * 0.10))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.28))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.46))
+        p.addLine(to: CGPoint(x: w * 0.12, y: h * 0.28))
+        p.closeSubpath()
+
+        // Средний слой
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.48))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.66))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.48))
+
+        // Нижний слой
+        p.move(to: CGPoint(x: w * 0.12, y: h * 0.68))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.86))
+        p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.68))
+        return p
+    }
+}
+
+// MARK: - About (круг с точкой и палочкой i)
+struct AboutIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        let cx = w * 0.50, cy = h * 0.50, r = min(w, h) * 0.44
+        var p = Path()
+        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+        // Точка буквы i
+        p.addEllipse(in: CGRect(x: cx - w * 0.05, y: cy - h * 0.24, width: w * 0.10, height: h * 0.10))
+        // Палочка буквы i
+        p.move(to: CGPoint(x: cx, y: cy - h * 0.06))
+        p.addLine(to: CGPoint(x: cx, y: cy + h * 0.22))
+        return p
+    }
+}
+
+// MARK: - Search (лупа)
+struct SearchIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        let r = w * 0.28
+        let cx = w * 0.40, cy = h * 0.40
+        p.addEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+        // Ручка
+        let angle: Double = 45 * .pi / 180
+        let sx = cx + cos(angle) * r
+        let sy = cy + sin(angle) * r
+        p.move(to: CGPoint(x: sx, y: sy))
+        p.addLine(to: CGPoint(x: w * 0.86, y: h * 0.86))
+        return p
+    }
+}
+
+// MARK: - Warning (треугольник)
+struct WarningIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        p.move(to: CGPoint(x: w * 0.50, y: h * 0.08))
+        p.addLine(to: CGPoint(x: w * 0.92, y: h * 0.88))
+        p.addLine(to: CGPoint(x: w * 0.08, y: h * 0.88))
+        p.closeSubpath()
+        // Восклицательный знак
+        p.move(to: CGPoint(x: w * 0.50, y: h * 0.36))
+        p.addLine(to: CGPoint(x: w * 0.50, y: h * 0.62))
+        p.addEllipse(in: CGRect(x: w * 0.46, y: h * 0.72, width: w * 0.08, height: h * 0.08))
+        return p
+    }
+}
+
+// MARK: - Lock (замок)
+struct LockIconShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        let cx = w * 0.50
+        // Дужка замка
+        p.addArc(center: CGPoint(x: cx, y: h * 0.40), radius: w * 0.20,
+                 startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        p.addLine(to: CGPoint(x: cx + w * 0.20, y: h * 0.48))
+        // Корпус замка
+        p.addRoundedRect(in: CGRect(x: w * 0.18, y: h * 0.48, width: w * 0.64, height: h * 0.44),
+                         cornerSize: CGSize(width: w * 0.08, height: w * 0.08))
+        // Скважина
+        p.move(to: CGPoint(x: cx, y: h * 0.62))
+        p.addLine(to: CGPoint(x: cx, y: h * 0.74))
+        return p
+    }
+}
+

@@ -469,8 +469,7 @@ struct SearchableLanguageDropdown: View {
             VStack(spacing: 0) {
                 // Поле поиска с иконкой
                 HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 13, weight: .medium))
+                    IntactIcon(kind: .search, size: 13)
                         .foregroundStyle(Palette.textSecondary)
 
                     TextField("Поиск: русский, english, de, fr...", text: $search)

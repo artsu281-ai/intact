@@ -32,16 +32,17 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Кастомная иконка из IntactIcons для сайдбара (nil → использовать SF Symbol).
-    var customIcon: IntactIconKind? {
+    /// Кастомная иконка из IntactIcons для каждого раздела.
+    var customIcon: IntactIconKind {
         switch self {
         case .home:     return .home
         case .voice:    return .voice
         case .history:  return .history
         case .chat:     return .chat
         case .briefs:   return .briefs
+        case .models:   return .models
         case .settings: return .settingsPage
-        default:        return nil
+        case .about:    return .about
         }
     }
 
@@ -85,8 +86,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 3) {
             // Поле поиска
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12, weight: .medium))
+                IntactIcon(kind: .search, size: 13)
                     .foregroundStyle(Palette.textTertiary)
 
                 TextField(L10n.isRu ? "Поиск настроек…" : "Search settings…", text: $searchText)
@@ -209,8 +209,7 @@ struct SettingsView: View {
         return Group {
             if results.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 22))
+                    IntactIcon(kind: .search, size: 24)
                         .foregroundStyle(Palette.textTertiary)
                     Text(L10n.isRu ? "Ничего не найдено" : "No results")
                         .font(.system(size: 13))
@@ -259,8 +258,7 @@ struct SettingsView: View {
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(Palette.textTertiary)
                 Spacer()
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11))
+                IntactIcon(kind: .aiStar, size: 11)
                     .foregroundStyle(Palette.textTertiary)
             }
         }
@@ -416,9 +414,7 @@ struct SearchResultRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: entry.section.icon)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundStyle(Palette.textTertiary)
+                SidebarIntactIcon(kind: entry.section.customIcon, selected: isActive, size: 15)
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(entry.title)
@@ -454,20 +450,10 @@ struct SidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 11) {
-                // Используем кастомную иконку, если задана — иначе SF Symbol
-                if let customKind = item.customIcon {
-                    SidebarIntactIcon(kind: customKind, selected: selected, size: 18)
-                        .frame(width: 20)
-                        .scaleEffect(selected ? 1.06 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
-                } else {
-                    Image(systemName: item.icon)
-                        .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
-                        .foregroundStyle(selected ? Palette.accent : Palette.textSecondary)
-                        .frame(width: 20)
-                        .scaleEffect(selected ? 1.08 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
-                }
+                SidebarIntactIcon(kind: item.customIcon, selected: selected, size: 18)
+                    .frame(width: 20)
+                    .scaleEffect(selected ? 1.06 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: selected)
                 Text(item.title)
                     .font(.system(size: 13.5, weight: selected ? .semibold : .regular))
                     .foregroundStyle(selected ? Palette.textPrimary : Palette.textSecondary)
@@ -1425,8 +1411,7 @@ struct HistoryTab: View {
         SettingsPage(title: L10n.tabHistory) {
             if history.entries.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 36, weight: .light))
+                    IntactIcon(kind: .history, size: 36)
                         .foregroundStyle(Palette.textTertiary)
                     Text(L10n.historyEmptyTitle)
                         .font(.system(size: 15, weight: .medium))
@@ -1441,8 +1426,7 @@ struct HistoryTab: View {
                 // Поле поиска по истории и кнопка вызова поповера очистки
                 HStack(spacing: 10) {
                     HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 13, weight: .medium))
+                        IntactIcon(kind: .search, size: 13)
                             .foregroundStyle(Palette.textTertiary)
 
                         TextField(L10n.historySearchPlaceholder, text: $query)
@@ -1486,8 +1470,7 @@ struct HistoryTab: View {
                         showClearPopover = true
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11, weight: .medium))
+                            IntactIcon(kind: .clearChat, size: 12)
                             Text(L10n.historyClearBtn)
                                 .font(.system(size: 13, weight: .medium))
                             Image(systemName: "chevron.down")
@@ -1514,8 +1497,7 @@ struct HistoryTab: View {
 
                 if filteredEntries.isEmpty {
                     VStack(spacing: 10) {
-                        Image(systemName: "text.magnifyingglass")
-                            .font(.system(size: 32, weight: .light))
+                        IntactIcon(kind: .search, size: 32)
                             .foregroundStyle(Palette.textTertiary)
                         Text(L10n.historyNoSearchResults)
                             .font(.system(size: 14, weight: .medium))
@@ -1681,8 +1663,7 @@ struct HistoryRow: View {
                 Spacer(minLength: 12)
                 HStack(spacing: 8) {
                     Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
+                        IntactIcon(kind: .clearChat, size: 12)
                             .foregroundStyle(Palette.textTertiary)
                             .frame(width: 26, height: 26)
                             .background(
@@ -1757,8 +1738,7 @@ struct AboutTab: View {
             Card(header: "Приватность и безопасность") {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Image(systemName: "lock.shield.fill")
-                            .font(.system(size: 14))
+                        IntactIcon(kind: .lock, size: 15)
                             .foregroundStyle(Palette.textPrimary)
                         Text("100% локальная обработка на устройстве")
                             .font(.system(size: 13.5, weight: .semibold))

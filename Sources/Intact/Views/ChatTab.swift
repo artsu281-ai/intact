@@ -48,9 +48,8 @@ struct ChatTab: View {
                         // Ошибка
                         if let err = chat.errorMessage {
                             HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
+                                IntactIcon(kind: .warning, size: 13)
                                     .foregroundStyle(.orange)
-                                    .font(.system(size: 12))
                                 Text(err)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.orange)
@@ -76,9 +75,8 @@ struct ChatTab: View {
                                 Button {
                                     chat.clearHistory()
                                 } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 10))
+                                    HStack(spacing: 5) {
+                                        IntactIcon(kind: .clearChat, size: 12)
                                         Text("Очистить (\(chat.messages.count))")
                                             .font(.system(size: 12))
                                     }

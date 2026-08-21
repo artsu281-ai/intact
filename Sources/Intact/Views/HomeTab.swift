@@ -259,8 +259,7 @@ struct HomeTab: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(entry.text, forType: .string)
             } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 11))
+                IntactIcon(kind: .copy, size: 12)
                     .foregroundStyle(Palette.textTertiary)
             }
             .buttonStyle(.plain)
