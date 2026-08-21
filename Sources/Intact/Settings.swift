@@ -51,7 +51,6 @@ enum AppTheme: String, CaseIterable, Identifiable {
 enum AppIconStyle: String, CaseIterable, Identifiable {
     case auto = "auto"
     case light = "light"
-    case dark = "dark"
     case black = "black"
 
     var id: String { rawValue }
@@ -60,7 +59,6 @@ enum AppIconStyle: String, CaseIterable, Identifiable {
         switch self {
         case .auto:  return L10n.iconStyleAuto
         case .light: return L10n.iconStyleLight
-        case .dark:  return L10n.iconStyleDark
         case .black: return L10n.iconStyleBlack
         }
     }
@@ -69,7 +67,6 @@ enum AppIconStyle: String, CaseIterable, Identifiable {
         switch self {
         case .auto:  return L10n.iconStyleAutoSub
         case .light: return L10n.iconStyleLightSub
-        case .dark:  return L10n.iconStyleDarkSub
         case .black: return L10n.iconStyleBlackSub
         }
     }
@@ -77,11 +74,9 @@ enum AppIconStyle: String, CaseIterable, Identifiable {
     var resourceFileName: String {
         switch self {
         case .auto:
-            return AppSettings.shared.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light"
+            return AppSettings.shared.isDarkMode ? "AppIcon-Black" : "AppIcon-Light"
         case .light:
             return "AppIcon-Light"
-        case .dark:
-            return "AppIcon-Dark"
         case .black:
             return "AppIcon-Black"
         }

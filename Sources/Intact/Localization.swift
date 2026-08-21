@@ -51,7 +51,7 @@ enum L10n {
     static var appearanceHeaderLanguage: String { isRu ? "Язык программы" : "Interface Language" }
     static var appearanceLanguageSubtitle: String { isRu ? "Язык интерфейса приложения (Русский / English)" : "Application display language (Russian / English)" }
     static var appearanceHeaderDock: String { isRu ? "Иконка приложения" : "Application Icon" }
-    static var appearanceDockSubtitle: String { isRu ? "Выберите вариант иконки для Dock и системы (Светлая, Тёмная, Чёрная или Авто)" : "Choose application icon for Dock and macOS (Light, Dark, Black or Auto)" }
+    static var appearanceDockSubtitle: String { isRu ? "Выберите вариант иконки для Dock и системы (Светлая, Чёрная или Авто)" : "Choose application icon for Dock and macOS (Light, Black or Auto)" }
     static var appearanceHeaderIndicator: String { isRu ? "Индикатор диктовки" : "Dictation Indicator" }
     static var appearanceShowIndicator: String { isRu ? "Показывать плавающий индикатор во время записи" : "Show floating indicator during recording" }
     static var appearanceIndicatorSubtitle: String { isRu ? "Компактный плавающий статус с живым спектром звука" : "Compact floating pill with live audio spectrum" }
@@ -60,13 +60,11 @@ enum L10n {
 
     // MARK: - Варианты иконок
     static var iconStyleAuto: String { isRu ? "Автоматически" : "Automatic" }
-    static var iconStyleAutoSub: String { isRu ? "Светлая или тёмная по теме" : "Follows selected theme" }
+    static var iconStyleAutoSub: String { isRu ? "Светлая днём, чёрная ночью" : "Light by day, black by night" }
     static var iconStyleLight: String { isRu ? "Светлая" : "Light" }
-    static var iconStyleLightSub: String { isRu ? "Терракотовый фон" : "Warm terracotta" }
-    static var iconStyleDark: String { isRu ? "Тёмная" : "Dark" }
-    static var iconStyleDarkSub: String { isRu ? "Тёплая мокка" : "Warm mocha" }
+    static var iconStyleLightSub: String { isRu ? "Молочный опал" : "Frosted opal glass" }
     static var iconStyleBlack: String { isRu ? "Чёрная" : "Black" }
-    static var iconStyleBlackSub: String { isRu ? "Глубокий чёрный оникс" : "Deep obsidian black" }
+    static var iconStyleBlackSub: String { isRu ? "Jet Black Minimal" : "Jet black minimal" }
 
     // MARK: - Темы
     static var themeWhite: String { isRu ? "Обычная белая" : "Clean White" }

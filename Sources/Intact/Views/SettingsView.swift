@@ -403,11 +403,10 @@ struct AppearanceTab: View {
                         .foregroundStyle(Palette.textSecondary)
 
                     LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12)
-                    ], spacing: 12) {
+                        GridItem(.flexible(), spacing: 14),
+                        GridItem(.flexible(), spacing: 14),
+                        GridItem(.flexible(), spacing: 14)
+                    ], spacing: 14) {
                         AppIconChoiceCard(
                             style: .light,
                             title: L10n.iconStyleLight,
@@ -416,16 +415,6 @@ struct AppearanceTab: View {
                             isSelected: settings.appIconStyle == .light
                         ) {
                             settings.appIconStyle = .light
-                        }
-
-                        AppIconChoiceCard(
-                            style: .dark,
-                            title: L10n.iconStyleDark,
-                            subtitle: L10n.iconStyleDarkSub,
-                            imageName: "AppIcon-Dark",
-                            isSelected: settings.appIconStyle == .dark
-                        ) {
-                            settings.appIconStyle = .dark
                         }
 
                         AppIconChoiceCard(
@@ -442,7 +431,7 @@ struct AppearanceTab: View {
                             style: .auto,
                             title: L10n.iconStyleAuto,
                             subtitle: L10n.iconStyleAutoSub,
-                            imageName: settings.isDarkMode ? "AppIcon-Dark" : "AppIcon-Light",
+                            imageName: settings.isDarkMode ? "AppIcon-Black" : "AppIcon-Light",
                             isSelected: settings.appIconStyle == .auto
                         ) {
                             settings.appIconStyle = .auto
