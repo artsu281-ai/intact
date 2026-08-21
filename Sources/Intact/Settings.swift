@@ -162,7 +162,9 @@ final class AppSettings: ObservableObject {
     var onDockIconChange: (() -> Void)?
 
     func applyTheme() {
-        NSApp.appearance = appTheme.nsAppearance
+        DispatchQueue.main.async {
+            NSApp.appearance = self.appTheme.nsAppearance
+        }
     }
 
     private init() {

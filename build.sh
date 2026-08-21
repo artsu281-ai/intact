@@ -37,10 +37,9 @@ else
 fi
 
 echo "==> установка в /Applications"
-if pgrep -x "$APP_NAME" >/dev/null; then
-  osascript -e "tell application \"$APP_NAME\" to quit" 2>/dev/null || pkill -x "$APP_NAME" || true
-  sleep 1
-fi
+pkill -x "VoiceInput" 2>/dev/null || true
+pkill -x "Intact" 2>/dev/null || true
+sleep 1
 rm -rf "$DEST"
 cp -R "$BUNDLE" "$DEST"
 
