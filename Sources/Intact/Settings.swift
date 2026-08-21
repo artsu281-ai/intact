@@ -258,6 +258,47 @@ struct Language: Identifiable, Hashable {
     ]
 }
 
+enum HistoryAutoClearSchedule: String, CaseIterable, Identifiable {
+    case disabled = "disabled"
+    case daily = "daily"
+    case weekly = "weekly"
+    case monthly = "monthly"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .disabled: return L10n.isRu ? "Вручную (отключено)" : "Manual (Disabled)"
+        case .daily:    return L10n.isRu ? "Ежедневно" : "Daily"
+        case .weekly:   return L10n.isRu ? "Еженедельно" : "Weekly"
+        case .monthly:  return L10n.isRu ? "Ежемесячно" : "Monthly"
+        }
+    }
+}
+
+enum HistoryLimitOption: Int, CaseIterable, Identifiable {
+    case unlimited = 0
+    case limit50 = 50
+    case limit100 = 100
+    case limit250 = 250
+    case limit500 = 500
+    case limit1000 = 1000
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .unlimited: return L10n.isRu ? "Без лимита" : "Unlimited"
+        case .limit50:   return L10n.isRu ? "50 записей" : "50 entries"
+        case .limit100:  return L10n.isRu ? "100 записей" : "100 entries"
+        case .limit250:  return L10n.isRu ? "250 записей" : "250 entries"
+        case .limit500:  return L10n.isRu ? "500 записей (стандарт)" : "500 entries (Default)"
+        case .limit1000: return L10n.isRu ? "1000 записей" : "1000 entries"
+        }
+    }
+}
+
+
 /// Единый источник правды для настроек. Пишется в UserDefaults, читается везде.
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
@@ -312,6 +353,9 @@ final class AppSettings: ObservableObject {
     @Published var gemmaAudioModelFilename: String { didSet { d.set(gemmaAudioModelFilename, forKey: "gemmaAudioModelFilename") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
+    @Published var historyLimitOption: HistoryLimitOption { didSet { d.set(historyLimitOption.rawValue, forKey: "historyLimitOption"); History.shared.performAutoCleanup() } }
+    @Published var historyAutoClearSchedule: HistoryAutoClearSchedule { didSet { d.set(historyAutoClearSchedule.rawValue, forKey: "historyAutoClearSchedule"); History.shared.performAutoCleanup() } }
+    @Published var lastHistoryAutoClearTimestamp: Double { didSet { d.set(lastHistoryAutoClearTimestamp, forKey: "lastHistoryAutoClearTimestamp") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
     @Published var showDockIcon: Bool { didSet { d.set(showDockIcon, forKey: "showDockIcon"); onDockIconChange?() } }
 
@@ -404,6 +448,9 @@ final class AppSettings: ObservableObject {
         gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
+        historyLimitOption = HistoryLimitOption(rawValue: d.object(forKey: "historyLimitOption") == nil ? 500 : d.integer(forKey: "historyLimitOption")) ?? .limit500
+        historyAutoClearSchedule = HistoryAutoClearSchedule(rawValue: d.string(forKey: "historyAutoClearSchedule") ?? "") ?? .disabled
+        lastHistoryAutoClearTimestamp = d.double(forKey: "lastHistoryAutoClearTimestamp")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
         showDockIcon = d.object(forKey: "showDockIcon") == nil ? true : d.bool(forKey: "showDockIcon")
         applyTheme()

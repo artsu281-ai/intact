@@ -252,6 +252,11 @@ enum L10n {
     static var historyClearAllSub: String { isRu ? "Полное удаление всех записей" : "Permanently deletes all history" }
     static var historyDeleteTooltip: String { isRu ? "Удалить запись" : "Delete record" }
     static var historyCopyBtn: String { isRu ? "Копировать" : "Copy" }
+    static var historyAutoClearHeader: String { isRu ? "АВТООЧИСТКА И ЛИМИТЫ ХРАНЕНИЯ" : "AUTO-CLEANUP & STORAGE LIMITS" }
+    static var historyLimitTitle: String { isRu ? "Лимит количества строк" : "History lines limit" }
+    static var historyLimitSub: String { isRu ? "При превышении лимита старые записи удаляются автоматически" : "Automatically trims oldest records when line limit is reached" }
+    static var historyScheduleTitle: String { isRu ? "Очистка по таймеру" : "Scheduled auto-cleanup" }
+    static var historyScheduleSub: String { isRu ? "Автоматическое удаление устаревших записей по расписанию" : "Automatically purge older entries based on timer schedule" }
 
     // MARK: - О программе (About)
     static var aboutEngineRow: String { isRu ? "Движок распознавания" : "Recognition Engine" }

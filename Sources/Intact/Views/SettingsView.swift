@@ -281,7 +281,7 @@ struct SettingsView: View {
             switch state.section {
             case .home:       HomeTab(settings: settings, onOpenSection: { state.section = $0 })
             case .voice:      VoiceTab(settings: settings)
-            case .history:    HistoryTab()
+            case .history:    HistoryTab(settings: settings)
             case .chat:       ChatTab(settings: settings, onOpenSection: { state.section = $0 })
             case .briefs:     BriefsTab(settings: settings)
             case .models:     ModelsHub(settings: settings)
@@ -365,6 +365,12 @@ final class SettingsSearchIndex {
               keywords: ["api", "ключ", "key", "anthropic", "claude", "keychain", "облако", "cloud"]),
         .init(title: "Причёсывание текста ИИ", subtitle: "Убирает слова-паразиты", section: .settings,
               keywords: ["причёсывание", "cleanup", "текст", "text", "слова-паразиты", "filler", "форматирование", "formatting"]),
+
+        // История (History)
+        .init(title: "История записей", subtitle: "Поиск и просмотр диктовок", section: .history,
+              keywords: ["история", "history", "записи", "records", "диктовки", "поиск", "копировать"]),
+        .init(title: "Автоочистка истории", subtitle: "Лимит строк и очистка по таймеру", section: .history,
+              keywords: ["автоочистка", "очистка", "лимит", "таймер", "ежедневно", "еженедельно", "ежемесячно", "строк", "записей", "хранение", "clear", "limit", "schedule"]),
 
         // Модели (Models)
         .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .models,
@@ -1393,6 +1399,7 @@ struct MicrophoneTab: View {
 // MARK: - История (History)
 
 struct HistoryTab: View {
+    @ObservedObject var settings: AppSettings
     @ObservedObject private var history = History.shared
     @State private var query = ""
     @State private var showClearPopover = false
@@ -1409,6 +1416,28 @@ struct HistoryTab: View {
 
     var body: some View {
         SettingsPage(title: L10n.tabHistory) {
+
+            // ── Автоочистка и лимиты ────────────────────────────────────
+            Card(header: L10n.historyAutoClearHeader) {
+                Row(title: L10n.historyLimitTitle,
+                    subtitle: L10n.historyLimitSub,
+                    first: true) {
+                    WisprDropdown(selection: $settings.historyLimitOption,
+                                  options: HistoryLimitOption.allCases) { opt in
+                        Text(opt.title)
+                    }
+                }
+
+                Row(title: L10n.historyScheduleTitle,
+                    subtitle: L10n.historyScheduleSub) {
+                    WisprDropdown(selection: $settings.historyAutoClearSchedule,
+                                  options: HistoryAutoClearSchedule.allCases) { sch in
+                        Text(sch.title)
+                    }
+                }
+            }
+
+            // ── Список записей ──────────────────────────────────────────
             if history.entries.isEmpty {
                 VStack(spacing: 10) {
                     IntactIcon(kind: .history, size: 36)
@@ -1421,7 +1450,7 @@ struct HistoryTab: View {
                         .foregroundStyle(Palette.textTertiary)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 100)
+                .padding(.vertical, 60)
             } else {
                 // Поле поиска по истории и кнопка вызова поповера очистки
                 HStack(spacing: 10) {
