@@ -117,6 +117,7 @@ enum L10n {
     static var aiCleanupToggle: String { isRu ? "Причёсывать текст ИИ" : "Clean up text with AI" }
     static var aiCleanupToggleSub: String { isRu ? "Убирает слова-паразиты и поправляет пунктуацию перед вставкой" : "Removes filler words and fixes punctuation before inserting" }
     static var hudProcessingAI: String { isRu ? "Улучшаю…" : "Refining…" }
+    static var hudAnsweringAI: String { isRu ? "Спрашиваю ИИ…" : "Asking AI…" }
     static var aiExperimentHeader: String { isRu ? "Эксперимент: всё-в-одном через Gemma" : "Experiment: all-in-one via Gemma" }
     static var aiExperimentSubtitle: String {
         isRu

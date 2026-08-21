@@ -111,6 +111,16 @@ struct IndicatorView: View {
                     .lineLimit(1)
                     .fixedSize()
 
+            case .answeringAI:
+                ThinkingDots(size: 14)
+                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
+
+                Text(L10n.hudAnsweringAI)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                    .lineLimit(1)
+                    .fixedSize()
+
             case .idle:
                 EmptyView()
             }

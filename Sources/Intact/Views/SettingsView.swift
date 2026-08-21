@@ -522,6 +522,26 @@ struct GeneralTab: View {
                 }
             }
 
+            Card(header: "Голосовой вопрос к ИИ") {
+                Row(title: "Отдельный хоткей для вопросов",
+                    subtitle: "Держишь клавишу, спрашиваешь — вместо диктовки вставится ответ ИИ",
+                    first: true) {
+                    Toggle("", isOn: $settings.enableAIHotkey)
+                        .toggleStyle(WisprToggleStyle())
+                }
+                if settings.enableAIHotkey {
+                    Row(title: "Клавиша",
+                        subtitle: settings.aiTriggerKey == settings.triggerKey && settings.activationMode == .modifierHold
+                            ? "⚠︎ Совпадает с клавишей обычной диктовки — выбери другую"
+                            : "Удерживай во время вопроса, как основной хоткей диктовки") {
+                        WisprDropdown(selection: $settings.aiTriggerKey,
+                                      options: TriggerKey.allCases) { key in
+                            Text(key.title)
+                        }
+                    }
+                }
+            }
+
             Card(header: "Устройства и язык") {
                 Row(title: "Микрофон",
                     subtitle: "Источник записи звука для распознавания",

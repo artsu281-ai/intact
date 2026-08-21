@@ -69,7 +69,9 @@ final class ModifierKeyMonitor {
     private var trigger: TriggerKey = .leftOption
     private var held = false
 
-    private init() {}
+    /// Не приватный: второй независимый хоткей (например, для вопроса к ИИ)
+    /// создаёт свой собственный экземпляр — не делит состояние с `.shared`.
+    init() {}
 
     var isActive: Bool { tap != nil }
 

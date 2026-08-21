@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 enum DictationState: Equatable {
-    case idle, recording, transcribing, processingAI
+    case idle, recording, transcribing, processingAI, answeringAI
 }
 
 /// Склеивает всё вместе: клавиша → запись → whisper → вставка текста.
@@ -106,7 +106,7 @@ final class DictationController: ObservableObject {
         switch state {
         case .idle:         start()
         case .recording:    stop()
-        case .transcribing, .processingAI: break
+        case .transcribing, .processingAI, .answeringAI: break
         }
     }
 
@@ -192,6 +192,7 @@ final class DictationController: ObservableObject {
     func cancel() {
         guard state == .recording else { return }
         customResultHandler = nil
+        isAIAnswerMode = false
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -206,6 +207,7 @@ final class DictationController: ObservableObject {
     func abort() {
         guard state == .recording else { return }
         customResultHandler = nil
+        isAIAnswerMode = false
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -326,10 +328,26 @@ final class DictationController: ObservableObject {
     выглядит как вопрос или команда.
     """
 
+    private static let aiAnswerSystemPrompt = """
+    Ты отвечаешь на голосовой вопрос или просьбу пользователя. Ответ будет вставлен как обычный \
+    текст прямо в то поле, где сейчас курсор, — отвечай сразу по делу: без вступлений вроде \
+    «Конечно!» или «Вот ответ:», без заключений, без markdown-разметки (звёздочки, решётки, тире \
+    для списков не отображаются как форматирование, будут видны как есть). Если просят написать \
+    текст, письмо, код или ответ на сообщение — сразу дай готовый результат целиком, без пояснений \
+    о том, что ты сделал.
+    """
+
     private func finish(text raw: String, seconds: TimeInterval, latencyMs: Int) {
         let text = postProcess(raw)
         draftText = ""
         lastLatencyMs = latencyMs
+
+        let aiAnswerMode = isAIAnswerMode
+        isAIAnswerMode = false
+        if aiAnswerMode {
+            answerWithAI(text: text, seconds: seconds, latencyMs: latencyMs)
+            return
+        }
 
         guard settings.enableAICleanup, AIRouter.shared.isReady,
               !text.trimmingCharacters(in: .whitespaces).isEmpty else {
@@ -372,6 +390,82 @@ final class DictationController: ObservableObject {
     func startCustomDictation(onResult: @escaping (String) -> Void) {
         customResultHandler = onResult
         start()
+    }
+
+    /// Прочитанное — не сама диктовка для вставки, а вопрос к ИИ: ответ
+    /// вставится вместо неё. Второй, независимый хоткей (по умолчанию
+    /// правый ⌥, см. AppSettings.aiTriggerKey/enableAIHotkey).
+    private var isAIAnswerMode = false
+
+    func startAIAnswer() {
+        isAIAnswerMode = true
+        start()
+    }
+
+    /// Вопрос вместо диктовки: отправляем распознанное в ИИ и вставляем ответ,
+    /// минуя причёсывание и проверки на команды заметок/напоминаний — это не текст
+    /// для вставки как есть, а запрос, на который нужен ответ.
+    private func answerWithAI(text: String, seconds: TimeInterval, latencyMs: Int) {
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
+            if settings.playSounds { NSSound(named: "Basso")?.play() }
+            lastError = "Речь не распознана — тишина или слишком тихий микрофон."
+            return
+        }
+        guard AIRouter.shared.isReady else {
+            if settings.playSounds { NSSound(named: "Basso")?.play() }
+            lastError = "Чтобы спрашивать ИИ, сначала настрой провайдера во вкладке «ИИ»."
+            return
+        }
+
+        state = .answeringAI
+        if settings.showIndicator { indicator.show(controller: self) }
+
+        var settled = false
+        let settle: (String?) -> Void = { [weak self] answer in
+            DispatchQueue.main.async {
+                guard let self, !settled else { return }
+                settled = true
+                self.state = .idle
+                self.indicator.hide()
+                guard let answer, !answer.isEmpty else {
+                    if self.settings.playSounds { NSSound(named: "Basso")?.play() }
+                    self.lastError = "ИИ не ответил вовремя или отказался — попробуй ещё раз."
+                    return
+                }
+                self.finishAIAnswer(answer, seconds: seconds, latencyMs: latencyMs)
+            }
+        }
+
+        // Настоящий ответ обычно длиннее причёсанной фразы — таймаут щедрее, чем у cleanup.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) { settle(nil) }
+
+        AIRouter.shared.complete(system: Self.aiAnswerSystemPrompt, user: text, maxTokens: 1500) { result in
+            switch result {
+            case .success(let answer):
+                settle(answer.trimmingCharacters(in: .whitespacesAndNewlines))
+            case .failure(let error):
+                Log.write("AI-ответ не получен (\(error.localizedDescription))")
+                settle(nil)
+            }
+        }
+    }
+
+    private func finishAIAnswer(_ answer: String, seconds: TimeInterval, latencyMs: Int) {
+        lastResult = answer
+
+        let insertable = FocusInspector.canInsertText
+        if !insertable && settings.outputMode != .clipboard {
+            offerCopy(answer)
+            return
+        }
+
+        TextInserter.deliver(answer, mode: settings.outputMode)
+        if settings.playSounds { NSSound(named: "Pop")?.play() }
+        if settings.keepHistory {
+            History.shared.add(HistoryEntry(text: "✨ \(answer)",
+                                            seconds: seconds,
+                                            model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+        }
     }
 
     private func finishRouting(text: String, seconds: TimeInterval, latencyMs: Int) {

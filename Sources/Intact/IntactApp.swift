@@ -22,6 +22,7 @@ struct IntactApp: App {
         case .recording:    return .voicePulse
         case .transcribing: return .waveform
         case .processingAI: return .aiStar
+        case .answeringAI:  return .aiStar
         }
     }
 }
@@ -204,6 +205,7 @@ struct MenuContent: View {
         case .recording:    return (settings.interfaceLanguage == .russian ? "Запись " : "Recording ") + controller.elapsedText
         case .transcribing: return L10n.hudTranscribing
         case .processingAI: return L10n.hudProcessingAI
+        case .answeringAI:  return L10n.hudAnsweringAI
         case .idle:
             let key = settings.activationMode == .modifierHold
                 ? settings.triggerKey.symbol
@@ -220,6 +222,8 @@ struct MenuContent: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var escMonitor: Any?
     private var permissionPoll: Timer?
+    /// Отдельный от основной диктовки монитор — под второй хоткей «вопрос к ИИ».
+    private let aiKeyMonitor = ModifierKeyMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = AppSettings.shared
@@ -379,6 +383,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hk.onRelease = nil
             hk.register(keyCode: s.hotKeyCode, modifiers: s.hotKeyModifiers)
         }
+
+        // Второй, независимый хоткей — вопрос к ИИ вместо обычной диктовки.
+        // Всегда через удержание модификатора, вне зависимости от того, каким
+        // способом активируется основная диктовка.
+        if s.enableAIHotkey {
+            aiKeyMonitor.onPress = { ctl.startAIAnswer() }
+            aiKeyMonitor.onRelease = { ctl.stop() }
+            aiKeyMonitor.onAbort = { ctl.abort() }
+            aiKeyMonitor.start(trigger: s.aiTriggerKey)
+        } else {
+            aiKeyMonitor.stop()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -386,6 +402,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionPoll?.invalidate()
         HotKeyManager.shared.unregister()
         ModifierKeyMonitor.shared.stop()
+        aiKeyMonitor.stop()
         WhisperServer.shared.stop()
         LocalAIProvider.shared.stop()
         GemmaAudioProvider.shared.stop()

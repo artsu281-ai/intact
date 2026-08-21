@@ -277,6 +277,7 @@ struct HomeTab: View {
         case .recording:    return "Запись…"
         case .transcribing: return "Распознаётся…"
         case .processingAI: return "ИИ обрабатывает…"
+        case .answeringAI:  return "ИИ отвечает…"
         }
     }
 
