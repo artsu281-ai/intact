@@ -422,6 +422,35 @@ struct SystemTab: View {
                 }
             }
 
+            Card(header: "Голосовые напоминания (Apple Reminders)") {
+                Row(title: "Создавать напоминания по командам",
+                    subtitle: "Команды «Напомни завтра в 15:00…», «Напоминание…», «Поставь задачу…» создают напоминание в Apple Reminders",
+                    first: true) {
+                    Toggle("", isOn: $settings.enableVoiceReminders)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                if settings.enableVoiceReminders {
+                    Row(title: "Список напоминаний",
+                        subtitle: "Список в приложении Напоминания (оставьте пустым для списка по умолчанию)") {
+                        TextField("По умолчанию", text: $settings.voiceRemindersList)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13, weight: .medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Palette.dropdownBg)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Palette.hairline, lineWidth: 1)
+                                    )
+                            )
+                            .frame(width: 140)
+                    }
+                }
+            }
+
             AdvancedBlock(expanded: $advanced) {
                 if settings.activationMode == .modifierHold {
                     Row(title: "Игнорировать нажатия короче",

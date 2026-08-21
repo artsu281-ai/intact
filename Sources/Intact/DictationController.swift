@@ -31,6 +31,8 @@ final class DictationController: ObservableObject {
     @Published var pendingText: String? = nil
     /// Текст сохраненной заметки для всплывающего статуса.
     @Published var noteSavedText: String? = nil
+    /// Текст сохраненного напоминания для всплывающего статуса.
+    @Published var reminderSavedText: String? = nil
 
     /// Было ли в фокусе редактируемое поле, когда начиналась диктовка.
     private var canInsert = true
@@ -239,10 +241,11 @@ final class DictationController: ObservableObject {
                     self.draftCoverage = coverage
                     self.lastLatencyMs = ms
                     // Живая печать: отдаём в поле устойчивую часть черновика,
-                    // не дожидаясь конца фразы (только если это не голосовая заметка).
+                    // не дожидаясь конца фразы (только если это не голосовая заметка или напоминание).
                     if self.settings.outputMode == .live, self.state == .recording, self.canInsert {
                         let isNote = self.settings.enableVoiceNotes && AppleNotesService.extractNoteText(from: text) != nil
-                        if !isNote {
+                        let isReminder = self.settings.enableVoiceReminders && AppleRemindersService.extractReminder(from: text) != nil
+                        if !isNote && !isReminder {
                             LiveTyper.shared.update(draft: text,
                                                     holdBack: self.settings.liveHoldWords)
                         }
@@ -321,6 +324,21 @@ final class DictationController: ObservableObject {
             return
         }
 
+        // Проверяем команду создания напоминания в Apple Reminders
+        if settings.enableVoiceReminders, let rem = AppleRemindersService.extractReminder(from: text) {
+            if settings.outputMode == .live { LiveTyper.shared.eraseAll() }
+            AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList)
+            if settings.playSounds { NSSound(named: "Glass")?.play() }
+            if settings.keepHistory {
+                let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
+                History.shared.add(HistoryEntry(text: "⏰ \(rem.title)\(dueInfo)",
+                                                seconds: seconds,
+                                                model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+            }
+            showReminderSavedToast(title: rem.title, dueDate: rem.dueDate)
+            return
+        }
+
         // Проверяем, доступно ли активное окно/поле для вставки
         let insertable = canInsert || FocusInspector.canInsertText
         if !insertable && settings.outputMode != .clipboard {
@@ -348,6 +366,24 @@ final class DictationController: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self, self.state == .idle else { return }
             self.noteSavedText = nil
+            self.indicator.hide()
+        }
+    }
+
+    /// Показывает короткое всплывающее подтверждение сохранения напоминания
+    private func showReminderSavedToast(title: String, dueDate: Date?) {
+        if let dueDate {
+            let fmt = DateFormatter()
+            fmt.locale = Locale(identifier: "ru_RU")
+            fmt.dateFormat = "d MMM в HH:mm"
+            reminderSavedText = "\(title) (\(fmt.string(from: dueDate)))"
+        } else {
+            reminderSavedText = title
+        }
+        indicator.show(controller: self, interactive: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
+            guard let self, self.state == .idle else { return }
+            self.reminderSavedText = nil
             self.indicator.hide()
         }
     }

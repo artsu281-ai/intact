@@ -16,6 +16,10 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Записывает вашу речь, чтобы распознать её локально на этом Mac и вставить текстом.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Нужно для вставки распознанного текста в активное приложение.</string>
+    <string>Нужно для вставки распознанного текста в активное приложение и создания заметок.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Нужно для создания задач и напоминаний по голосовым командам.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Нужно для создания задач и напоминаний по голосовым командам в Apple Reminders.</string>
 </dict>
 </plist>

@@ -160,6 +160,8 @@ final class AppSettings: ObservableObject {
     @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var enableVoiceNotes: Bool { didSet { d.set(enableVoiceNotes, forKey: "enableVoiceNotes") } }
     @Published var voiceNotesFolder: String { didSet { d.set(voiceNotesFolder, forKey: "voiceNotesFolder") } }
+    @Published var enableVoiceReminders: Bool { didSet { d.set(enableVoiceReminders, forKey: "enableVoiceReminders") } }
+    @Published var voiceRemindersList: String { didSet { d.set(voiceRemindersList, forKey: "voiceRemindersList") } }
     @Published var maxSeconds: Int { didSet { d.set(maxSeconds, forKey: "maxSeconds") } }
     @Published var keepHistory: Bool { didSet { d.set(keepHistory, forKey: "keepHistory") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
@@ -212,6 +214,8 @@ final class AppSettings: ObservableObject {
         copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         enableVoiceNotes = d.object(forKey: "enableVoiceNotes") == nil ? true : d.bool(forKey: "enableVoiceNotes")
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"
+        enableVoiceReminders = d.object(forKey: "enableVoiceReminders") == nil ? true : d.bool(forKey: "enableVoiceReminders")
+        voiceRemindersList = d.string(forKey: "voiceRemindersList") ?? ""
         maxSeconds = d.object(forKey: "maxSeconds") == nil ? 300 : d.integer(forKey: "maxSeconds")
         keepHistory = d.object(forKey: "keepHistory") == nil ? true : d.bool(forKey: "keepHistory")
         launchAtLogin = d.bool(forKey: "launchAtLogin")

@@ -8,6 +8,7 @@ struct IndicatorView: View {
     static let width: CGFloat = 380
     static let listeningSize = NSSize(width: 112, height: 32)
     static let noteSavedSize = NSSize(width: 154, height: 32)
+    static let reminderSavedSize = NSSize(width: 196, height: 32)
     private static let copyPad: CGFloat = 16
     private static let bodyFont = NSFont.systemFont(ofSize: 13.5)
 
@@ -44,6 +45,18 @@ struct IndicatorView: View {
             } else if controller.noteSavedText != nil {
                 noteSavedToast
                     .frame(width: Self.noteSavedSize.width, height: Self.noteSavedSize.height)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.88))
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+                            )
+                            .shadow(color: Color.black.opacity(0.20), radius: 10, y: 3)
+                    )
+            } else if let remText = controller.reminderSavedText {
+                reminderSavedToast(text: remText)
+                    .frame(width: Self.reminderSavedSize.width, height: Self.reminderSavedSize.height)
                     .background(
                         Capsule()
                             .fill(Color.black.opacity(0.88))
@@ -118,6 +131,27 @@ struct IndicatorView: View {
             Text("Заметка сохранена")
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.white.opacity(0.95))
+        }
+        .padding(.horizontal, 12)
+    }
+
+    // MARK: - Подтверждение сохранения напоминания
+
+    private func reminderSavedToast(text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color(red: 0.98, green: 0.75, blue: 0.25))
+
+            Text("Напоминание:")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.95))
+
+            Text(text)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.80))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.horizontal, 12)
     }
@@ -268,9 +302,16 @@ final class IndicatorPanel {
         hide()
 
         let hosting = NSHostingView(rootView: IndicatorView(controller: controller))
-        let size = interactive
-            ? IndicatorView.copySize(for: controller.pendingText ?? "")
-            : (controller.noteSavedText != nil ? IndicatorView.noteSavedSize : IndicatorView.listeningSize)
+        let size: NSSize
+        if interactive {
+            size = IndicatorView.copySize(for: controller.pendingText ?? "")
+        } else if controller.noteSavedText != nil {
+            size = IndicatorView.noteSavedSize
+        } else if controller.reminderSavedText != nil {
+            size = IndicatorView.reminderSavedSize
+        } else {
+            size = IndicatorView.listeningSize
+        }
         hosting.frame = NSRect(origin: .zero, size: size)
 
         let p = KeyablePanel(contentRect: hosting.frame,
