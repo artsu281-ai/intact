@@ -8,6 +8,8 @@ enum AIError: Error {
     case providerUnavailable
     /// Модель отказалась отвечать: приходит с кодом 200, без текста.
     case refused(String?)
+    /// Сервер ответил ошибкой и объяснил, чем именно недоволен.
+    case server(Int, String)
 
     var localizedDescription: String {
         switch self {
@@ -18,6 +20,8 @@ enum AIError: Error {
         case .providerUnavailable: return "AI-провайдер недоступен"
         case .refused(let explanation):
             return explanation.map { "Модель отклонила запрос: \($0)" } ?? "Модель отклонила запрос"
+        case .server(let code, let message):
+            return "Ошибка \(code): \(message)"
         }
     }
 }
@@ -51,6 +55,24 @@ struct AIMessage {
         self.toolCalls = toolCalls
         self.toolCallId = toolCallId
     }
+}
+
+/// Один запрос к модели со всем, что зависит от выбора пользователя.
+///
+/// До этого провайдеры сами лезли в `AppSettings` за именем модели, поэтому
+/// «модель» была ровно одна на всё приложение. Здесь она — параметр запроса,
+/// и именно это позволяет разным разделам работать с разными моделями.
+struct AIRequest {
+    var messages: [AIMessage]
+    var maxTokens: Int
+    /// Идентификатор облачной модели либо путь к локальному GGUF-файлу.
+    var model: String
+    /// Глубина рассуждения (`output_config.effort`), только для облака.
+    var effort: String? = nil
+    /// Разрешить модели искать в интернете.
+    var webSearch: Bool = false
+    /// Потолок ожидания на уровне HTTP.
+    var timeout: TimeInterval = 120
 }
 
 /// Хэндл на уже запущенный запрос к ИИ — единственное, что вызывающий код
@@ -88,18 +110,19 @@ final class CancelToken {
 /// Всегда вызывается с фонового потока; completion может прийти на любой очереди.
 protocol AIProvider {
     var isReady: Bool { get }
+
     @discardableResult
-    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) -> AITask
+    func complete(_ request: AIRequest, completion: @escaping (Result<String, AIError>) -> Void) -> AITask
 
     /// Потоковая генерация: `onDelta` вызывается по мере поступления кусочков
     /// текста, `completion` — с полным ответом.
     ///
     /// Для локальной модели это не украшение, а необходимость: на 9B ответ
     /// в две тысячи токенов идёт полторы минуты, и без потока запрос просто
-    /// упирается в таймаут, ничего не показав.
+    /// упирается в таймаут, ничего не показав. Для облака то же самое верно
+    /// для крупных рассуждающих моделей.
     @discardableResult
-    func stream(messages: [AIMessage],
-                maxTokens: Int,
+    func stream(_ request: AIRequest,
                 onDelta: @escaping (String) -> Void,
                 completion: @escaping (Result<String, AIError>) -> Void) -> AITask
 }
@@ -107,74 +130,135 @@ protocol AIProvider {
 extension AIProvider {
     /// Провайдеры без потока отдают ответ целиком одним куском.
     @discardableResult
-    func stream(messages: [AIMessage],
-                maxTokens: Int,
+    func stream(_ request: AIRequest,
                 onDelta: @escaping (String) -> Void,
                 completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
-        complete(messages: messages, maxTokens: maxTokens) { result in
+        complete(request) { result in
             if case .success(let text) = result { onDelta(text) }
             completion(result)
         }
     }
 }
 
-/// Выбирает активного AI-провайдера по настройке пользователя и делегирует ему вызовы.
-/// DictationController и сервисы Reminders/Notes обращаются только сюда, не зная,
-/// работает ли сейчас локальная модель или облачный API.
+/// Куда и с какими параметрами уходит запрос конкретной роли.
+struct AIRouting {
+    let choice: AIModelChoice
+    let isCloud: Bool
+    /// Идентификатор облачной модели либо путь к локальному файлу.
+    let model: String
+    let maxTokens: Int
+    let effort: String?
+    let timeout: TimeInterval
+    let webSearchTool: String?
+}
+
+/// Выбирает провайдера и модель под конкретную роль и делегирует ей вызовы.
+/// DictationController, чат и сервисы Reminders/Notes обращаются только сюда
+/// и не знают, работает ли сейчас локальная модель или облачный API.
 final class AIRouter {
     static let shared = AIRouter()
 
     private init() {}
 
-    var isReady: Bool {
-        switch AppSettings.shared.aiProviderKind {
-        case .none:   return false
-        case .local:  return LocalAIProvider.shared.isReady
-        case .cloud:  return CloudAIProvider.shared.isReady
+    /// Готовность общего выбора по умолчанию.
+    var isReady: Bool { isReady(for: .chat) }
+
+    func isReady(for role: AIRole) -> Bool {
+        switch AIModelCatalog.resolved(for: role) {
+        case .disabled: return false
+        case .local(let filename):
+            guard let match = LLMModel.matching(path: filename) else { return false }
+            return LocalAIProvider.shared.isAvailable && match.model.isInstalled(match.quant)
+        case .cloud:
+            return CloudAIProvider.shared.isReady
         }
     }
 
-    /// Потоковый вариант для чата.
+    /// Разбирает выбор роли в конкретные параметры запроса.
+    /// `nil` — ИИ для этой роли выключен или недонастроен.
+    func routing(for role: AIRole, webSearch: Bool = false) -> AIRouting? {
+        let choice = AIModelCatalog.resolved(for: role)
+        switch choice {
+        case .disabled:
+            return nil
+
+        case .cloud(let id):
+            guard let model = AIModelCatalog.cloudModel(id: id) else { return nil }
+            return AIRouting(
+                choice: choice,
+                isCloud: true,
+                model: id,
+                maxTokens: role.maxTokens(cloud: true),
+                effort: model.supportsEffort ? role.cloudEffort : nil,
+                timeout: role.timeout(cloud: true, thinking: model.isThinkingModel),
+                webSearchTool: webSearch ? model.webSearchTool : nil)
+
+        case .local:
+            guard let path = AIModelCatalog.localPath(for: choice),
+                  FileManager.default.fileExists(atPath: path) else { return nil }
+            return AIRouting(
+                choice: choice,
+                isCloud: false,
+                model: path,
+                maxTokens: role.maxTokens(cloud: false),
+                effort: nil,
+                timeout: role.timeout(cloud: false, thinking: false),
+                webSearchTool: nil)
+        }
+    }
+
+    private func request(_ routing: AIRouting, messages: [AIMessage]) -> AIRequest {
+        AIRequest(messages: messages,
+                  maxTokens: routing.maxTokens,
+                  model: routing.model,
+                  effort: routing.effort,
+                  webSearch: routing.webSearchTool != nil,
+                  timeout: routing.timeout)
+    }
+
+    // MARK: - Потоковая генерация
+
     @discardableResult
-    func stream(messages: [AIMessage],
-                maxTokens: Int = 800,
+    func stream(role: AIRole,
+                messages: [AIMessage],
+                webSearch: Bool = false,
                 onDelta: @escaping (String) -> Void,
                 completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
-        switch AppSettings.shared.aiProviderKind {
-        case .none:
+        guard let routing = routing(for: role, webSearch: webSearch) else {
             completion(.failure(.notConfigured))
             return AITask()
-        case .local:
-            return LocalAIProvider.shared.stream(messages: messages, maxTokens: maxTokens,
-                                          onDelta: onDelta, completion: completion)
-        case .cloud:
-            return CloudAIProvider.shared.stream(messages: messages, maxTokens: maxTokens,
-                                          onDelta: onDelta, completion: completion)
         }
+        let req = request(routing, messages: messages)
+        return routing.isCloud
+            ? CloudAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
+            : LocalAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
     }
 
-    /// Универсальный метод для многооборотных диалогов (чат и т.д.)
+    // MARK: - Обычный запрос
+
     @discardableResult
-    func complete(messages: [AIMessage], maxTokens: Int = 800, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
-        switch AppSettings.shared.aiProviderKind {
-        case .none:
+    func complete(role: AIRole,
+                  messages: [AIMessage],
+                  completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
+        guard let routing = routing(for: role) else {
             completion(.failure(.notConfigured))
             return AITask()
-        case .local:
-            return LocalAIProvider.shared.complete(messages: messages, maxTokens: maxTokens, completion: completion)
-        case .cloud:
-            return CloudAIProvider.shared.complete(messages: messages, maxTokens: maxTokens, completion: completion)
         }
+        let req = request(routing, messages: messages)
+        return routing.isCloud
+            ? CloudAIProvider.shared.complete(req, completion: completion)
+            : LocalAIProvider.shared.complete(req, completion: completion)
     }
 
-    /// Convenience-перегрузка для однооборотных задач (причёсывание текста в диктовке),
-    /// чтобы существующий вызывающий код не менялся.
+    /// Convenience для однооборотных задач — причёсывания и быстрого ответа.
     @discardableResult
-    func complete(system: String, user: String, maxTokens: Int = 800, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
-        let messages = [
-            AIMessage(role: .system, content: system),
-            AIMessage(role: .user, content: user)
-        ]
-        return complete(messages: messages, maxTokens: maxTokens, completion: completion)
+    func complete(role: AIRole,
+                  system: String,
+                  user: String,
+                  completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
+        complete(role: role,
+                 messages: [AIMessage(role: .system, content: system),
+                            AIMessage(role: .user, content: user)],
+                 completion: completion)
     }
 }

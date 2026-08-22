@@ -5,6 +5,7 @@ import AppKit
 /// Заменяет три отдельные вкладки: GeneralTab + MicrophoneTab + LanguageTab.
 struct VoiceTab: View {
     @ObservedObject var settings: AppSettings
+    var onOpenSection: ((SettingsSection) -> Void)? = nil
     @ObservedObject private var controller = DictationController.shared
     @ObservedObject private var models = ModelManager.shared
 
@@ -50,6 +51,24 @@ struct VoiceTab: View {
                                   options: OutputMode.allCases) { mode in
                         Text(mode.title)
                     }
+                }
+            }
+
+            // ── Причёсывание диктовки ───────────────────────────────────
+            // Модель выбирается здесь же, где включается сама функция: раньше
+            // тумблер жил в «Диктовке», а модель — в общих настройках, и связь
+            // между ними приходилось держать в голове.
+            Card(header: "УМНОЕ ПРИЧЁСЫВАНИЕ") {
+                Row(title: "Причёсывать текст перед вставкой",
+                    subtitle: "Убирает «э-э» и «короче», расставляет знаки препинания. Если модель не успела — вставляется исходный текст.",
+                    first: true) {
+                    Toggle("", isOn: $settings.enableAICleanup)
+                        .toggleStyle(WisprToggleStyle())
+                }
+                if settings.enableAICleanup {
+                    AIRoleRow(role: .cleanup,
+                              onOpenSettings: { onOpenSection?(.settings) },
+                              onOpenModels: { onOpenSection?(.models) })
                 }
             }
 

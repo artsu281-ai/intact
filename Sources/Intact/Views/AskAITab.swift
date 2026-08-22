@@ -7,13 +7,7 @@ struct AskAITab: View {
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
 
-    private var aiReady: Bool {
-        switch settings.aiProviderKind {
-        case .none:  return false
-        case .local: return LocalAIProvider.shared.isReady
-        case .cloud: return CloudAIProvider.shared.isReady
-        }
-    }
+    private var aiReady: Bool { AIRouter.shared.isReady(for: .quickAnswer) }
 
     /// Сравнение через `==` пропустило бы «Любой ⌥ Option» (по умолчанию у основной
     /// диктовки) против «Правый ⌥ Option» (по умолчанию у вопроса к ИИ) — разные
@@ -39,13 +33,22 @@ struct AskAITab: View {
             if !aiReady {
                 Card(header: nil) {
                     Row(title: "ИИ ещё не настроен",
-                        subtitle: "Хоткей сработает только после выбора провайдера — локально или облако",
+                        subtitle: "Хоткей сработает только после выбора модели — локальной или облачной",
                         first: true) {
                         PillButton(title: "Настроить ИИ", icon: .settingsPage) {
                             onOpenSection?(.settings)
                         }
                     }
                 }
+            }
+
+            // Выбор модели прямо здесь: у быстрого ответа свои требования —
+            // он должен успеть, пока человек ждёт текст под курсором, — и они
+            // не совпадают с тем, что нужно чату.
+            Card(header: "МОДЕЛЬ") {
+                AIRoleRow(role: .quickAnswer, first: true,
+                          onOpenSettings: { onOpenSection?(.settings) },
+                          onOpenModels: { onOpenSection?(.models) })
             }
 
             Card(header: "ХОТКЕЙ") {

@@ -168,6 +168,9 @@ struct ModelsHub: View {
 
             diskUsageSummaryRow
 
+            // 0. Кто чем занят прямо сейчас
+            rolesCard
+
             // 1. Каталог Whisper (распознавание речи)
             whisperCard
 
@@ -272,25 +275,65 @@ struct ModelsHub: View {
         }
     }
 
+    // MARK: - Кто чем занят
+
+    /// Раньше понять, какая модель отвечает за причёсывание, а какая за чат,
+    /// можно было только перебирая разделы. Это же и главный вход в выбор:
+    /// сюда приходят за моделями, здесь их и назначают.
+    private var rolesCard: some View {
+        Card(header: "КАКАЯ МОДЕЛЬ ЗА ЧТО ОТВЕЧАЕТ") {
+            ForEach(Array(AIRole.allCases.enumerated()), id: \.element.id) { index, role in
+                AIRoleRow(role: role, first: index == 0,
+                          onOpenSettings: { MainWindowState.shared.section = .settings },
+                          onOpenModels: {})
+            }
+        }
+    }
+
     // MARK: - Карточка LLM
 
     private var llmCard: some View {
         VStack(alignment: .leading, spacing: 22) {
-            llmGroup(.light, header: "Причёсывание текста (LLM)")
+            ForEach(Array(LLMTier.allCases.enumerated()), id: \.offset) { _, tier in
+                VStack(alignment: .leading, spacing: 10) {
+                    llmGroup(tier, header: header(for: tier))
 
-            VStack(alignment: .leading, spacing: 10) {
-                llmGroup(.large, header: "Крупные модели · аналитика, код, рассуждения")
-
-                Text("Требуют 16 ГБ памяти и больше. В этом Mac — \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Palette.textTertiary)
-                    .padding(.leading, 4)
+                    if let note = memoryNote(for: tier) {
+                        Text(note)
+                            .font(.system(size: 12))
+                            .foregroundStyle(fits(tier) ? Palette.textTertiary : Palette.iconWarning)
+                            .padding(.leading, 4)
+                    }
+                }
             }
 
             if let err = llmModels.lastError {
                 Text(err).font(.system(size: 12)).foregroundStyle(Palette.iconDanger).padding(.leading, 4)
             }
         }
+    }
+
+    private func header(for tier: LLMTier) -> String {
+        switch tier {
+        case .light:  return "Лёгкие · причёсывание текста и короткие брифы"
+        case .large:  return "Крупные · аналитика, код, рассуждения"
+        case .xlarge: return "Очень крупные · настольный предел, спорят с облаком"
+        }
+    }
+
+    private func fits(_ tier: LLMTier) -> Bool {
+        Hardware.physicalMemoryGB >= tier.recommendedRAMGB
+    }
+
+    /// Не «нужно 16 ГБ» в вакууме, а сравнение с этой конкретной машиной:
+    /// от него зависит, стоит ли вообще начинать качать двадцать гигабайт.
+    private func memoryNote(for tier: LLMTier) -> String? {
+        guard tier != .light else { return nil }
+        let mine = String(format: "%.0f", Hardware.physicalMemoryGB)
+        let need = String(format: "%.0f", tier.recommendedRAMGB)
+        return fits(tier)
+            ? "Рекомендуется от \(need) ГБ памяти. В этом Mac — \(mine) ГБ, запас есть."
+            : "Рекомендуется от \(need) ГБ памяти, в этом Mac — \(mine) ГБ. Скачать можно, но работать будет через своп."
     }
 
     private func llmGroup(_ tier: LLMTier, header: String) -> some View {
@@ -325,6 +368,10 @@ struct ModelsHub: View {
                         onDownload: { audioModels.download(model) },
                         onDelete: { audioModels.delete(model) }
                     )
+                }
+                // Проверить модель имеет смысл там же, где её скачали.
+                if !audioModels.installed.isEmpty {
+                    GemmaAudioTestRow(settings: settings)
                 }
             }
 
@@ -523,5 +570,72 @@ struct LLMQuantRow: View {
             }
         }
         .onHover { hovering = $0 }
+    }
+}
+
+
+/// Пробная запись для экспериментальной аудио-модели: голос уходит в модель
+/// целиком, минуя Whisper, и возвращается уже причёсанным текстом.
+/// Живёт рядом с каталогом, потому что проверять модель идут сразу после того,
+/// как её скачали.
+struct GemmaAudioTestRow: View {
+    @ObservedObject var settings: AppSettings
+
+    @State private var recorder = AudioRecorder()
+    @State private var isRecording = false
+    @State private var isProcessing = false
+    @State private var result: String = ""
+    @State private var error: String?
+
+    var body: some View {
+        Row(title: L10n.aiExperimentRecordBtn, subtitle: subtitle) {
+            if isProcessing {
+                ProgressView().controlSize(.small)
+            } else {
+                PillButton(title: isRecording ? L10n.aiExperimentStopBtn : L10n.aiExperimentRecordBtn,
+                           icon: isRecording ? .stop : .voice) {
+                    isRecording ? stop() : start()
+                }
+            }
+        }
+    }
+
+    private var subtitle: String {
+        if isProcessing { return L10n.aiExperimentProcessing }
+        if let error { return error }
+        return result.isEmpty ? "Записать фразу и посмотреть, что вернёт модель" : result
+    }
+
+    private func start() {
+        error = nil
+        result = ""
+        do {
+            try recorder.start(preferredDeviceUID: settings.inputDeviceUID)
+            isRecording = true
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func stop() {
+        isRecording = false
+        _ = recorder.stop()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("intact-gemma-test.wav")
+        guard recorder.snapshot(to: url, trimTrailingSilence: false) != nil else {
+            error = "Слишком короткая запись."
+            return
+        }
+        isProcessing = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            GemmaAudioProvider.shared.transcribeAndRefine(wav: url) { outcome in
+                DispatchQueue.main.async {
+                    isProcessing = false
+                    switch outcome {
+                    case .success(let text): result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    case .failure(let err):  error = err.localizedDescription
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,15 +1,46 @@
 import Foundation
 
 /// Держит llama-server живым с загруженной локальной моделью — по образцу WhisperServer.
-/// В отличие от WhisperServer, вызовы неблокирующие: задержка LLM менее предсказуема,
-/// и в будущем сюда добавится диалоговый режим, которому блокирующий вызов не подходит.
+///
+/// Серверов может быть несколько: с тех пор как каждый раздел приложения
+/// выбирает модель сам, «одна модель на приложение» означала бы перезагрузку
+/// весов на каждое переключение между причёсыванием и чатом — а это десятки
+/// секунд и чтение гигабайтов с диска. Поэтому здесь пул: маленькая модель
+/// причёсывания и крупная модель чата живут одновременно, пока хватает памяти,
+/// и самый давно не используемый сервер выгружается, когда её перестаёт хватать.
 final class LocalAIProvider: AIProvider {
     static let shared = LocalAIProvider()
 
-    private var process: Process?
-    private(set) var port: Int = 0
-    private var bootedWith: String = ""
+    /// Один запущенный llama-server с конкретным файлом весов.
+    private final class ServerInstance {
+        let path: String
+        let process: Process
+        let port: Int
+        /// Вес файла в гигабайтах — по нему считается, сколько он занимает памяти.
+        let weightsGB: Double
+        var lastUsed: Date
+
+        init(path: String, process: Process, port: Int, weightsGB: Double) {
+            self.path = path
+            self.process = process
+            self.port = port
+            self.weightsGB = weightsGB
+            self.lastUsed = Date()
+        }
+
+        /// Веса плюс примерно 30 % под KV-кэш контекста и служебные буферы.
+        var footprintGB: Double { weightsGB * 1.3 }
+    }
+
     private let lock = NSLock()
+    private var servers: [String: ServerInstance] = [:]
+    /// Кто ждёт, пока поднимется сервер по этому пути. Без этого два
+    /// одновременных запроса к одной модели запустили бы два процесса.
+    private var waiters: [String: [(Bool) -> Void]] = [:]
+
+    /// Сколько гигабайтов оставляем macOS. Без этого запаса машина уходит
+    /// в своп и отвечает минутами вместо секунд.
+    private static let systemReserveGB: Double = 4
 
     private var binary: String? {
         ["/opt/homebrew/bin/llama-server", "/usr/local/bin/llama-server"]
@@ -17,70 +48,135 @@ final class LocalAIProvider: AIProvider {
     }
 
     var isAvailable: Bool { binary != nil }
-    var isRunning: Bool { process?.isRunning == true && port != 0 }
 
-    /// Достаточно ли всё готово, чтобы стоило пытаться — сам сервер поднимется лениво в complete().
+    var isRunning: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return servers.values.contains { $0.process.isRunning }
+    }
+
+    /// Достаточно ли всё готово, чтобы стоило пытаться — сам сервер поднимется лениво.
     var isReady: Bool {
         isAvailable && FileManager.default.fileExists(atPath: AppSettings.shared.aiLocalModelPath)
     }
 
+    /// Какие модели прямо сейчас загружены в память — для показа в интерфейсе.
+    var loadedModelPaths: [String] {
+        lock.lock(); defer { lock.unlock() }
+        return servers.values.filter { $0.process.isRunning }.map(\.path)
+    }
+
     private init() {}
 
-    /// Поднимает сервер, если он ещё не поднят или сменилась модель.
-    func ensureRunning(completion: @escaping (Bool) -> Void) {
-        let modelPath = AppSettings.shared.aiLocalModelPath
-        let bootKey = "\(modelPath)#\(Self.contextSize(forModelAt: modelPath))"
-        lock.lock()
-        if isRunning && bootKey == bootedWith {
-            lock.unlock()
-            completion(true)
-            return
-        }
-        lock.unlock()
+    // MARK: - Жизненный цикл серверов
 
-        stop()
-        Self.killAllOrphanedServers()
-
+    /// Поднимает сервер для конкретного файла модели, если он ещё не поднят.
+    func ensureRunning(modelPath: String, completion: @escaping (Bool) -> Void) {
         guard let bin = binary, FileManager.default.fileExists(atPath: modelPath) else {
             completion(false)
             return
         }
 
-        let chosenPort = Self.freePort()
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: bin)
-        let contextSize = Self.contextSize(forModelAt: modelPath)
-        p.arguments = ["-m", modelPath, "--port", String(chosenPort), "--host", "127.0.0.1",
-                       "-c", String(contextSize)]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
+        lock.lock()
 
-        do { try p.run() } catch {
-            NSLog("Intact: llama-server не запустился — \(error.localizedDescription)")
-            completion(false)
+        if let existing = servers[modelPath] {
+            if existing.process.isRunning {
+                existing.lastUsed = Date()
+                lock.unlock()
+                completion(true)
+                return
+            }
+            servers.removeValue(forKey: modelPath)
+        }
+
+        if waiters[modelPath] != nil {
+            waiters[modelPath]?.append(completion)
+            lock.unlock()
+            return
+        }
+        waiters[modelPath] = [completion]
+
+        let weightsGB = Self.weightsGB(of: modelPath)
+        evictUntilRoom(for: weightsGB * 1.3, excluding: modelPath)
+
+        let port = Self.freePort()
+        let contextSize = contextSizeLocked(weightsGB: weightsGB)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: bin)
+        process.arguments = ["-m", modelPath, "--port", String(port), "--host", "127.0.0.1",
+                             "-c", String(contextSize)]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            let pending = waiters.removeValue(forKey: modelPath) ?? []
+            lock.unlock()
+            Log.write("llama-server не запустился — \(error.localizedDescription)")
+            pending.forEach { $0(false) }
             return
         }
 
-        process = p
-        port = chosenPort
-        bootedWith = bootKey
+        servers[modelPath] = ServerInstance(path: modelPath, process: process,
+                                            port: port, weightsGB: weightsGB)
+        lock.unlock()
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let deadline = Date().addingTimeInterval(60)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let deadline = Date().addingTimeInterval(120)
+            var ok = false
             while Date() < deadline {
-                if !p.isRunning { break }
-                if self.ping() { completion(true); return }
+                if !process.isRunning { break }
+                if Self.ping(port: port) { ok = true; break }
                 Thread.sleep(forTimeInterval: 0.25)
             }
-            completion(false)
+
+            self.lock.lock()
+            if !ok { self.servers.removeValue(forKey: modelPath) }
+            let pending = self.waiters.removeValue(forKey: modelPath) ?? []
+            self.lock.unlock()
+
+            if !ok { process.terminate() }
+            pending.forEach { $0(ok) }
         }
     }
 
+    /// Совместимость с прежним вызовом: поднимает модель по умолчанию.
+    func ensureRunning(completion: @escaping (Bool) -> Void) {
+        ensureRunning(modelPath: AppSettings.shared.aiLocalModelPath, completion: completion)
+    }
+
+    /// Останавливает все серверы — при выходе и при смене набора моделей.
     func stop() {
-        process?.terminate()
-        process = nil
-        port = 0
-        bootedWith = ""
+        lock.lock()
+        let running = Array(servers.values)
+        servers.removeAll()
+        lock.unlock()
+        running.forEach { $0.process.terminate() }
+    }
+
+    func stop(modelPath: String) {
+        lock.lock()
+        let instance = servers.removeValue(forKey: modelPath)
+        lock.unlock()
+        instance?.process.terminate()
+    }
+
+    /// Выгружает давно не использованные серверы, пока не освободится место.
+    /// Вызывается с уже захваченным `lock`.
+    private func evictUntilRoom(for neededGB: Double, excluding path: String) {
+        let budget = Hardware.physicalMemoryGB - Self.systemReserveGB
+        var alive = servers.values.filter { $0.process.isRunning && $0.path != path }
+        var used = alive.reduce(0) { $0 + $1.footprintGB }
+
+        while used + neededGB > budget, !alive.isEmpty {
+            guard let victim = alive.min(by: { $0.lastUsed < $1.lastUsed }) else { break }
+            Log.write("выгружаю локальную модель \(URL(fileURLWithPath: victim.path).lastPathComponent) — не хватает памяти")
+            victim.process.terminate()
+            servers.removeValue(forKey: victim.path)
+            alive.removeAll { $0.path == victim.path }
+            used -= victim.footprintGB
+        }
     }
 
     /// Убивает осиротевшие llama-server из прошлых запусков приложения — если предыдущий
@@ -94,27 +190,34 @@ final class LocalAIProvider: AIProvider {
         task.waitUntilExit()
     }
 
+    private static func weightsGB(of path: String) -> Double {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        return Double((attributes?[.size] as? NSNumber)?.int64Value ?? 0) / 1_000_000_000
+    }
+
     /// Сколько токенов контекста поднимать.
     ///
     /// KV-кэш живёт в той же памяти, что и веса модели, поэтому окно считаем
-    /// от запаса, который остаётся после весов. Фиксированные 4096 не вмещали
-    /// ни контекст из диктовок, ни развёрнутый ответ.
-    private static func contextSize(forModelAt path: String) -> Int {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
-        let weightsGB = Double((attributes?[.size] as? NSNumber)?.int64Value ?? 0) / 1_000_000_000
-        let headroom = Hardware.physicalMemoryGB - weightsGB - 4  // 4 ГБ оставляем системе
+    /// от запаса, который остаётся после весов — и после уже поднятых соседей.
+    /// Вызывается с уже захваченным `lock`.
+    private func contextSizeLocked(weightsGB: Double) -> Int {
+        let others = servers.values
+            .filter { $0.process.isRunning }
+            .reduce(0) { $0 + $1.footprintGB }
+        let headroom = Hardware.physicalMemoryGB - weightsGB - others - Self.systemReserveGB
 
-        // Потолок 16k осознанный: приложению нужно около 8–12 тысяч токенов
-        // (системный промпт, диктовки, заметки, история диалога и 4096 на ответ).
-        // Больше — только лишний KV-кэш в памяти.
+        // Потолок 32k осознанный: приложению нужно около 8–12 тысяч токенов
+        // (системный промпт, диктовки, заметки, история диалога и ответ),
+        // а крупные модели тянут длинные брифы с прикреплёнными файлами.
         switch headroom {
         case ..<2:  return 4096
         case ..<5:  return 8192
-        default:    return 16384
+        case ..<12: return 16384
+        default:    return 32768
         }
     }
 
-    private func ping() -> Bool {
+    private static func ping(port: Int) -> Bool {
         guard port != 0, let url = URL(string: "http://127.0.0.1:\(port)/health") else { return false }
         var req = URLRequest(url: url)
         req.timeoutInterval = 1
@@ -128,28 +231,42 @@ final class LocalAIProvider: AIProvider {
         return ok
     }
 
+    private func port(for path: String) -> Int? {
+        lock.lock(); defer { lock.unlock() }
+        guard let server = servers[path], server.process.isRunning else { return nil }
+        server.lastUsed = Date()
+        return server.port
+    }
+
+    /// Путь к весам: из запроса, а если он пуст — модель по умолчанию.
+    private func resolvePath(_ request: AIRequest) -> String {
+        request.model.isEmpty ? AppSettings.shared.aiLocalModelPath : request.model
+    }
+
     // MARK: - Запрос
 
     @discardableResult
-    func complete(messages: [AIMessage], maxTokens: Int, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
+    func complete(_ request: AIRequest, completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
         let cancelToken = CancelToken()
         guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
-        ensureRunning { [weak self] ok in
+        let path = resolvePath(request)
+
+        ensureRunning(modelPath: path) { [weak self] ok in
             guard !cancelToken.isCancelled else { return }
-            guard let self, ok, self.port != 0,
-                  let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
+            guard let self, ok, let port = self.port(for: path),
+                  let url = URL(string: "http://127.0.0.1:\(port)/v1/chat/completions") else {
                 completion(.failure(.providerUnavailable))
                 return
             }
 
-            let body = Self.requestBody(messages: messages, maxTokens: maxTokens)
-
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-            // 30 секунд хватало примерно на 700 токенов — всё длиннее обрывалось.
-            req.timeoutInterval = 300
+            req.httpBody = try? JSONSerialization.data(withJSONObject:
+                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens))
+            // Щедро: локальная модель на длинном ответе идёт минутами,
+            // а сам вызывающий код держит собственный, более короткий таймер.
+            req.timeoutInterval = 600
 
             let task = URLSession.shared.dataTask(with: req) { data, response, error in
                 if let error {
@@ -181,28 +298,29 @@ final class LocalAIProvider: AIProvider {
 
     /// Как `complete`, но с полем `tools` — модель может либо ответить текстом,
     /// либо попросить вызвать один из инструментов (веб-поиск, чтение страницы).
-    /// Только для локального провайдера: облачный доступ в интернет — отдельный
-    /// вопрос, здесь речь конкретно про «дать локальной модели интернет».
+    /// Только для локального провайдера: облачные модели ищут сами, серверным
+    /// инструментом, и клиентский цикл им не нужен.
     @discardableResult
-    func completeWithTools(messages: [AIMessage], tools: [[String: Any]], maxTokens: Int,
-                            completion: @escaping (Result<ToolCompletionResult, AIError>) -> Void) -> AITask {
+    func completeWithTools(_ request: AIRequest, tools: [[String: Any]],
+                           completion: @escaping (Result<ToolCompletionResult, AIError>) -> Void) -> AITask {
         let cancelToken = CancelToken()
         guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
-        ensureRunning { [weak self] ok in
+        let path = resolvePath(request)
+
+        ensureRunning(modelPath: path) { [weak self] ok in
             guard !cancelToken.isCancelled else { return }
-            guard let self, ok, self.port != 0,
-                  let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
+            guard let self, ok, let port = self.port(for: path),
+                  let url = URL(string: "http://127.0.0.1:\(port)/v1/chat/completions") else {
                 completion(.failure(.providerUnavailable))
                 return
             }
 
-            let body = Self.requestBody(messages: messages, maxTokens: maxTokens, tools: tools)
-
             var req = URLRequest(url: url)
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-            req.timeoutInterval = 120
+            req.httpBody = try? JSONSerialization.data(withJSONObject:
+                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens, tools: tools))
+            req.timeoutInterval = 300
 
             let task = URLSession.shared.dataTask(with: req) { data, response, error in
                 if let error {
@@ -279,24 +397,24 @@ final class LocalAIProvider: AIProvider {
     /// развёрнутый ответ идёт полторы минуты. Одним куском такой запрос
     /// упирался в таймаут и пропадал целиком, ничего не показав.
     @discardableResult
-    func stream(messages: [AIMessage],
-                maxTokens: Int,
+    func stream(_ request: AIRequest,
                 onDelta: @escaping (String) -> Void,
                 completion: @escaping (Result<String, AIError>) -> Void) -> AITask {
         guard isAvailable else { completion(.failure(.providerUnavailable)); return AITask() }
 
         let cancelToken = CancelToken()
         var collectorBox: SSECollector?
+        let path = resolvePath(request)
 
-        ensureRunning { [weak self] ok in
+        ensureRunning(modelPath: path) { [weak self] ok in
             guard !cancelToken.isCancelled else { return }
-            guard let self, ok, self.port != 0,
-                  let url = URL(string: "http://127.0.0.1:\(self.port)/v1/chat/completions") else {
+            guard let self, ok, let port = self.port(for: path),
+                  let url = URL(string: "http://127.0.0.1:\(port)/v1/chat/completions") else {
                 completion(.failure(.providerUnavailable))
                 return
             }
 
-            var body = Self.requestBody(messages: messages, maxTokens: maxTokens)
+            var body = Self.requestBody(messages: request.messages, maxTokens: request.maxTokens)
             body["stream"] = true
 
             var req = URLRequest(url: url)

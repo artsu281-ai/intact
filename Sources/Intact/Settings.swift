@@ -350,6 +350,9 @@ final class AppSettings: ObservableObject {
     @Published var aiCloudModel: String { didSet { d.set(aiCloudModel, forKey: "aiCloudModel") } }
     @Published var aiLocalModelPath: String { didSet { d.set(aiLocalModelPath, forKey: "aiLocalModelPath"); onAIProviderChange?() } }
     @Published var enableAICleanup: Bool { didSet { d.set(enableAICleanup, forKey: "enableAICleanup") } }
+    /// Выбор модели по разделам: роль → идентификатор `AIModelChoice`.
+    /// Пусто для роли — значит «как в основных настройках».
+    @Published var aiRoleOverrides: [String: String] { didSet { d.set(aiRoleOverrides, forKey: "aiRoleOverrides"); onAIProviderChange?() } }
     @Published var gemmaAudioModelFilename: String { didSet { d.set(gemmaAudioModelFilename, forKey: "gemmaAudioModelFilename") } }
     /// Доступ в интернет для локальной модели через собственный SearXNG (см. WebTools).
     @Published var enableLocalWebSearch: Bool { didSet { d.set(enableLocalWebSearch, forKey: "enableLocalWebSearch") } }
@@ -455,6 +458,7 @@ final class AppSettings: ObservableObject {
             : "claude-haiku-4-5"
         aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
+        aiRoleOverrides = (d.dictionary(forKey: "aiRoleOverrides") as? [String: String]) ?? [:]
         gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""
         enableLocalWebSearch = d.object(forKey: "enableLocalWebSearch") == nil ? false : d.bool(forKey: "enableLocalWebSearch")
         enableAIHotkey = d.object(forKey: "enableAIHotkey") == nil ? false : d.bool(forKey: "enableAIHotkey")

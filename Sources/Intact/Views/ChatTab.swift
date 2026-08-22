@@ -216,6 +216,7 @@ struct ChatTab: View {
             .help(railVisible ? "Скрыть список чатов" : "Показать список чатов")
 
             AIModelPicker(
+                role: .chat,
                 onOpenSettings: { onOpenSection?(.settings) },
                 onOpenModels:   { onOpenSection?(.models) }
             )

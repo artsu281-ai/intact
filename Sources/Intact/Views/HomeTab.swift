@@ -286,20 +286,15 @@ struct HomeTab: View {
         return controller.state == .idle ? Palette.iconSuccess : Palette.accent
     }
 
+    /// Статус берётся у роли чата — именно её открывает кнопка карточки.
     private var aiStatus: String {
-        switch settings.aiProviderKind {
-        case .none: return "ИИ не настроен"
-        case .local: return LocalAIProvider.shared.isReady ? "Локальная модель" : "Загружается…"
-        case .cloud: return "Облако · \(settings.aiCloudModel)"
-        }
+        let choice = AIModelCatalog.resolved(for: .chat)
+        guard let placement = AIModelCatalog.placement(for: choice) else { return "ИИ не настроен" }
+        return "\(placement) · \(AIModelCatalog.title(for: choice))"
     }
 
     private var aiStatusColor: Color {
-        switch settings.aiProviderKind {
-        case .none: return Palette.iconWarning
-        case .local: return LocalAIProvider.shared.isReady ? Palette.iconSuccess : Palette.iconWarning
-        case .cloud: return Palette.iconSuccess
-        }
+        AIRouter.shared.isReady(for: .chat) ? Palette.iconSuccess : Palette.iconWarning
     }
 
     private var briefsStatus: String {

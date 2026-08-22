@@ -112,7 +112,7 @@ struct SettingsTab: View {
                     }
 
                     Row(title: "Модель Claude",
-                        subtitle: "Рекомендуется Claude 3.5 Haiku для быстрого ответа") {
+                        subtitle: cloudModelSubtitle) {
                         WisprDropdown(selection: $settings.aiCloudModel,
                                       options: AIModelCatalog.cloud.map(\.id)) { id in
                             Text(AIModelCatalog.cloudModel(id: id)?.title ?? id)
@@ -136,10 +136,31 @@ struct SettingsTab: View {
                         .disabled(settings.aiProviderKind == .none)
                 }
             }
+
+            // ── Модель по разделам ───────────────────────────────────────
+            // Одна модель на всё приложение — это выбор между «умно, но
+            // диктовка тормозит» и «быстро, но в чате слабая модель».
+            // Здесь каждый раздел получает свою.
+            Card(header: "МОДЕЛЬ ПО РАЗДЕЛАМ") {
+                ForEach(Array(AIRole.allCases.enumerated()), id: \.element.id) { index, role in
+                    AIRoleRow(role: role, first: index == 0,
+                              onOpenSettings: {},
+                              onOpenModels: { onOpenModels?() })
+                }
+            }
         }
         .onAppear {
             apiKeyText = KeychainHelper.get(service: CloudAIProvider.keychainService) ?? ""
         }
+    }
+
+    /// Подпись под выбором облачной модели: не «рекомендуем такую-то»,
+    /// а честная цена и окно контекста того, что выбрано прямо сейчас.
+    private var cloudModelSubtitle: String {
+        guard let model = AIModelCatalog.cloudModel(id: settings.aiCloudModel) else {
+            return "Модель по умолчанию для всех разделов"
+        }
+        return "\(model.contextText) · \(model.priceText)"
     }
 
     // MARK: - Карточка выбора темы
