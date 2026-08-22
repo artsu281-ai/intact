@@ -59,12 +59,16 @@ enum AIRole: String, CaseIterable, Identifiable {
     ///
     /// У облака и локальной модели он разный не из-за качества, а из-за скорости:
     /// 16k токенов облако отдаёт за полминуты, локальная 27B — за десять минут.
-    func maxTokens(cloud: Bool) -> Int {
+    func maxTokens(cloud: Bool, thinking: Bool = false) -> Int {
+        let base: Int
         switch self {
-        case .cleanup:     return 2_000
-        case .quickAnswer: return cloud ? 4_000 : 1_500
-        case .chat:        return cloud ? 16_000 : 4_096
+        case .cleanup:     base = 2_000
+        case .quickAnswer: base = cloud ? 4_000 : 1_500
+        case .chat:        base = cloud ? 16_000 : 4_096
         }
+        // Рассуждение тратит лимит до того, как начнётся ответ: на прежнем
+        // потолке модель успевала подумать и обрывалась на первой фразе.
+        return thinking ? base * 2 : base
     }
 
     /// Сколько ждать ответа, прежде чем сдаться.

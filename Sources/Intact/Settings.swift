@@ -356,6 +356,10 @@ final class AppSettings: ObservableObject {
     /// Пользователь подтвердил, что понимает: с облачной моделью текст
     /// покидает устройство. Спрашивается один раз, перед первым включением.
     @Published var cloudConsentGiven: Bool { didSet { d.set(cloudConsentGiven, forKey: "cloudConsentGiven") } }
+    /// Разрешить локальной модели рассуждать перед ответом в чате и брифах.
+    /// В причёсывании и быстром ответе рассуждение выключено всегда — там
+    /// важнее секунды, чем глубина.
+    @Published var localThinkingInChat: Bool { didSet { d.set(localThinkingInChat, forKey: "localThinkingInChat") } }
 
     /// Автоматический бриф: что собирать, во сколько и когда собирали в последний раз.
     @Published var briefScheduleEnabled: Bool { didSet { d.set(briefScheduleEnabled, forKey: "briefScheduleEnabled") } }
@@ -470,6 +474,7 @@ final class AppSettings: ObservableObject {
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         aiRoleOverrides = (d.dictionary(forKey: "aiRoleOverrides") as? [String: String]) ?? [:]
         cloudConsentGiven = d.bool(forKey: "cloudConsentGiven")
+        localThinkingInChat = d.object(forKey: "localThinkingInChat") == nil ? true : d.bool(forKey: "localThinkingInChat")
         briefScheduleEnabled = d.bool(forKey: "briefScheduleEnabled")
         briefScheduleHour = d.object(forKey: "briefScheduleHour") == nil ? 21 : d.integer(forKey: "briefScheduleHour")
         briefScheduleMinute = d.object(forKey: "briefScheduleMinute") == nil ? 0 : d.integer(forKey: "briefScheduleMinute")

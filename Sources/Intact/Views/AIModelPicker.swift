@@ -146,7 +146,8 @@ struct AIModelPicker: View {
             ForEach(installed, id: \.quant.filename) { pair in
                 row(choice: .local(pair.quant.filename),
                     title: pair.model.title,
-                    subtitle: "\(pair.quant.quant) · \(sizeText(pair.quant.sizeMB)) · \(tierText(pair.model.tier))",
+                    subtitle: "\(pair.quant.quant) · \(sizeText(pair.quant.sizeMB)) · \(tierText(pair.model.tier))"
+                        + (pair.model.reasons ? " · рассуждает" : ""),
                     enabled: LocalAIProvider.shared.isAvailable)
             }
             if !LocalAIProvider.shared.isAvailable {

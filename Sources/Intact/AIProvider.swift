@@ -140,6 +140,8 @@ struct AIRequest {
     var effort: String? = nil
     /// Разрешить модели искать в интернете.
     var webSearch: Bool = false
+    /// Разрешить локальной модели рассуждать перед ответом.
+    var allowThinking: Bool = false
     /// Потолок ожидания на уровне HTTP.
     var timeout: TimeInterval = 120
 }
@@ -214,6 +216,9 @@ struct AIRouting {
     let choice: AIModelChoice
     let role: AIRole
     let isCloud: Bool
+    /// Модель будет рассуждать перед ответом — значит, ждать её дольше.
+    var thinks: Bool = false
+    var allowThinking: Bool = false
     /// Идентификатор облачной модели либо путь к локальному файлу.
     let model: String
     let maxTokens: Int
@@ -258,23 +263,36 @@ final class AIRouter {
                 choice: choice,
                 role: role,
                 isCloud: true,
+                thinks: model.isThinkingModel,
                 model: id,
-                maxTokens: role.maxTokens(cloud: true),
+                maxTokens: role.maxTokens(cloud: true, thinking: model.isThinkingModel),
                 effort: model.supportsEffort ? role.cloudEffort : nil,
                 timeout: role.timeout(cloud: true, thinking: model.isThinkingModel),
                 webSearchTool: webSearch ? model.webSearchTool : nil)
 
-        case .local:
+        case .local(let filename):
             guard let path = AIModelCatalog.localPath(for: choice),
                   FileManager.default.fileExists(atPath: path) else { return nil }
+
+            // Рассуждение включаем только там, где время не критично, и только
+            // если модель это умеет. Дистиллятам R1 его не выключить в принципе —
+            // значит, ждать их надо дольше в любой роли.
+            let thinking = LLMModel.matching(path: filename)?.model.thinking ?? LLMThinking.none
+            let allowThinking = role == .chat
+                && AppSettings.shared.localThinkingInChat
+                && thinking != .none
+            let thinks = thinking == .always || allowThinking
+
             return AIRouting(
                 choice: choice,
                 role: role,
                 isCloud: false,
+                thinks: thinks,
+                allowThinking: allowThinking,
                 model: path,
-                maxTokens: role.maxTokens(cloud: false),
+                maxTokens: role.maxTokens(cloud: false, thinking: thinks),
                 effort: nil,
-                timeout: role.timeout(cloud: false, thinking: false),
+                timeout: role.timeout(cloud: false, thinking: thinks),
                 webSearchTool: nil)
         }
     }
@@ -286,6 +304,7 @@ final class AIRouter {
                   role: routing.role,
                   effort: routing.effort,
                   webSearch: routing.webSearchTool != nil,
+                  allowThinking: routing.allowThinking,
                   timeout: routing.timeout)
     }
 

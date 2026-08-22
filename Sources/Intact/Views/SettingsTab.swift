@@ -146,6 +146,12 @@ struct SettingsTab: View {
                               onOpenSettings: {},
                               onOpenModels: { onOpenModels?() })
                 }
+
+                Row(title: "Рассуждение локальной модели",
+                    subtitle: "В чате и брифах модель сначала обдумывает ответ. Медленнее, но заметно точнее на разборах. В причёсывании диктовки выключено всегда — там важнее секунды.") {
+                    Toggle("", isOn: $settings.localThinkingInChat)
+                        .toggleStyle(WisprToggleStyle())
+                }
             }
 
             cloudSpendCard

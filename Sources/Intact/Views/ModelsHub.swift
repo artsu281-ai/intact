@@ -568,6 +568,15 @@ struct LLMQuantRow: View {
                         WisprDropdown(selection: $selectedQuant, options: model.quantOptions) { q in
                             Text(q.quant)
                         }
+                        if model.reasons {
+                            Text(model.thinking == .always ? "рассуждает всегда" : "умеет рассуждать")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(Palette.iconProcess)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Palette.iconProcess.opacity(0.13)))
+                                .help("В чате и брифах модель сначала обдумывает ответ. Дольше, но точнее — в причёсывании диктовки рассуждение всегда выключено.")
+                        }
                         if isLoadedInMemory {
                             HStack(spacing: 4) {
                                 Circle().fill(Palette.iconSuccess).frame(width: 5, height: 5)

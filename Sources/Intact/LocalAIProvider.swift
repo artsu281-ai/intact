@@ -263,7 +263,8 @@ final class LocalAIProvider: AIProvider {
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject:
-                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens))
+                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens,
+                                 allowThinking: request.allowThinking))
             // Щедро: локальная модель на длинном ответе идёт минутами,
             // а сам вызывающий код держит собственный, более короткий таймер.
             req.timeoutInterval = 600
@@ -283,7 +284,9 @@ final class LocalAIProvider: AIProvider {
                     completion(.failure(.badResponse))
                     return
                 }
-                completion(.success(text))
+                // Хорошо настроенный шаблон кладёт мысли в reasoning_content,
+                // но многие сборки пишут их прямо в content тегами <think>.
+                completion(.success(ReasoningFilter.strip(text)))
             }
             cancelToken.task = task
             task.resume()
@@ -319,7 +322,8 @@ final class LocalAIProvider: AIProvider {
             req.httpMethod = "POST"
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
             req.httpBody = try? JSONSerialization.data(withJSONObject:
-                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens, tools: tools))
+                Self.requestBody(messages: request.messages, maxTokens: request.maxTokens,
+                                 allowThinking: request.allowThinking, tools: tools))
             req.timeoutInterval = 300
 
             let task = URLSession.shared.dataTask(with: req) { data, response, error in
@@ -374,16 +378,21 @@ final class LocalAIProvider: AIProvider {
         return dict
     }
 
-    private static func requestBody(messages: [AIMessage], maxTokens: Int, tools: [[String: Any]]? = nil) -> [String: Any] {
+    private static func requestBody(messages: [AIMessage], maxTokens: Int,
+                                    allowThinking: Bool = false,
+                                    tools: [[String: Any]]? = nil) -> [String: Any] {
         var body: [String: Any] = [
             "messages": messages.map { messageJSON($0) },
             "max_tokens": maxTokens,
-            "temperature": 0.3,
-            // Некоторые модели (Qwen3.5 и т.п.) по умолчанию «думают» перед ответом и уходят
-            // в reasoning_content, оставляя content пустым — весь лимит токенов сгорает
-            // на рассуждения. Явно отключаем thinking-режим, если модель его поддерживает;
-            // модели без такого шаблона это поле просто игнорируют.
-            "chat_template_kwargs": ["enable_thinking": false]
+            // Рассуждающая модель на низкой температуре зацикливается на разборе
+            // самой себя; для обычного ответа 0.3 остаётся правильным.
+            "temperature": allowThinking ? 0.6 : 0.3,
+            // Раньше здесь стояло жёсткое `false` для всех моделей сразу. Оно
+            // спасало от того, что Qwen3.5 сжигала весь лимит на размышления
+            // и оставляла пустой content, но заодно лишало смысла DeepSeek-R1,
+            // которую ради рассуждения и берут. Теперь решает роль и модель:
+            // в чате рассуждение разрешено, в причёсывании — нет.
+            "chat_template_kwargs": ["enable_thinking": allowThinking]
         ]
         if let tools, !tools.isEmpty { body["tools"] = tools }
         return body
@@ -414,7 +423,8 @@ final class LocalAIProvider: AIProvider {
                 return
             }
 
-            var body = Self.requestBody(messages: request.messages, maxTokens: request.maxTokens)
+            var body = Self.requestBody(messages: request.messages, maxTokens: request.maxTokens,
+                                        allowThinking: request.allowThinking)
             body["stream"] = true
 
             var req = URLRequest(url: url)
@@ -515,6 +525,9 @@ private final class SSECollector: NSObject, URLSessionDataDelegate {
     private var buffer = Data()
     private var text = ""
     private var finished = false
+    /// Рассуждение вырезается на лету: теги свободно разрезаются между
+    /// пакетами, поэтому фильтр держит состояние между кусками.
+    private var reasoning = ReasoningFilter()
     var session: URLSession?
 
     init(onDelta: @escaping (String) -> Void,
@@ -552,14 +565,23 @@ private final class SSECollector: NSObject, URLSessionDataDelegate {
               let piece = delta["content"] as? String,
               !piece.isEmpty else { return }
 
-        text += piece
-        onDelta(piece)
+        let visible = reasoning.feed(piece)
+        guard !visible.isEmpty else { return }
+        text += visible
+        onDelta(visible)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard !finished else { return }
         finished = true
         defer { self.session?.finishTasksAndInvalidate() }
+
+        // Хвост, придержанный на случай разрезанного тега.
+        let tail = reasoning.flush()
+        if !tail.isEmpty {
+            text += tail
+            onDelta(tail)
+        }
 
         if let error {
             // Успели набрать текст до обрыва — отдаём его, это лучше пустоты.

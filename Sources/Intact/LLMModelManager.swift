@@ -38,6 +38,20 @@ enum LLMTier: CaseIterable {
     }
 }
 
+/// Умеет ли модель рассуждать перед ответом.
+///
+/// Это не украшение: у DeepSeek-R1 рассуждение — единственное, ради чего
+/// её берут, а раньше приложение выключало его всем подряд одной строкой
+/// в теле запроса, и модель отвечала вполсилы.
+enum LLMThinking {
+    /// Не умеет — поле в запросе просто игнорируется.
+    case none
+    /// Понимает `enable_thinking` в шаблоне: можно включить и выключить.
+    case toggleable
+    /// Рассуждает всегда, отключить нельзя (дистилляты R1).
+    case always
+}
+
 /// Один конкретный файл конкретного кванта — то, что реально скачивается.
 struct LLMQuantOption: Identifiable, Hashable {
     let quant: String
@@ -54,8 +68,12 @@ struct LLMModel: Identifiable, Hashable {
     let note: String
     let repo: String
     let tier: LLMTier
+    var thinking: LLMThinking = .none
     /// От меньшего к большему — так их и показываем в выпадающем списке.
     let quantOptions: [LLMQuantOption]
+
+    /// Стоит ли ждать эту модель дольше обычного.
+    var reasons: Bool { thinking != .none }
 
     var id: String { title }
 
@@ -131,7 +149,7 @@ struct LLMModel: Identifiable, Hashable {
         // ── Лёгкие: причёсывание текста и короткие брифы ──────────────────
         .init(title: "Qwen3.5 2B",
               note: "Самая быстрая и лёгкая. Для причёсывания текста хватает с запасом — рекомендуемый выбор по умолчанию.",
-              repo: "unsloth/Qwen3.5-2B-GGUF", tier: .light, quantOptions: [
+              repo: "unsloth/Qwen3.5-2B-GGUF", tier: .light, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-2B-Q3_K_M.gguf", sizeMB: 1107),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-2B-Q4_K_M.gguf", sizeMB: 1281),
                 .init(quant: "Q5_K_M", filename: "Qwen3.5-2B-Q5_K_M.gguf", sizeMB: 1435),
@@ -158,7 +176,7 @@ struct LLMModel: Identifiable, Hashable {
               ]),
         .init(title: "Qwen3.5 4B",
               note: "Крупнее и заметно умнее 2B на сложных смешанных фразах — но и медленнее, и тяжелее в памяти.",
-              repo: "unsloth/Qwen3.5-4B-GGUF", tier: .light, quantOptions: [
+              repo: "unsloth/Qwen3.5-4B-GGUF", tier: .light, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-4B-Q3_K_M.gguf", sizeMB: 2293),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-4B-Q4_K_M.gguf", sizeMB: 2741),
                 .init(quant: "Q5_K_M", filename: "Qwen3.5-4B-Q5_K_M.gguf", sizeMB: 3144),
@@ -187,7 +205,7 @@ struct LLMModel: Identifiable, Hashable {
         // ── Крупные: аналитика, код, длинные рассуждения ───────────────────
         .init(title: "Qwen3 14B",
               note: "Топ-универсал: сложная аналитика, живой русский язык, ролевые диалоги. При 16 ГБ памяти остаётся запас примерно на 32k токенов контекста.",
-              repo: "unsloth/Qwen3-14B-GGUF", tier: .large, quantOptions: [
+              repo: "unsloth/Qwen3-14B-GGUF", tier: .large, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3-14B-Q3_K_M.gguf", sizeMB: 7321),
                 .init(quant: "Q4_K_M", filename: "Qwen3-14B-Q4_K_M.gguf", sizeMB: 9002),
                 .init(quant: "Q5_K_M", filename: "Qwen3-14B-Q5_K_M.gguf", sizeMB: 10515),
@@ -205,7 +223,7 @@ struct LLMModel: Identifiable, Hashable {
               ]),
         .init(title: "Qwen3.5 9B",
               note: "Максимальная скорость без потерь от сжатия: Q8_0 почти неотличим от оригинала, а контекст тянет до 64k токенов и больше.",
-              repo: "unsloth/Qwen3.5-9B-GGUF", tier: .large, quantOptions: [
+              repo: "unsloth/Qwen3.5-9B-GGUF", tier: .large, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-9B-Q3_K_M.gguf", sizeMB: 4674),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-9B-Q4_K_M.gguf", sizeMB: 5681),
                 .init(quant: "Q5_K_M", filename: "Qwen3.5-9B-Q5_K_M.gguf", sizeMB: 6578),
@@ -214,7 +232,7 @@ struct LLMModel: Identifiable, Hashable {
               ]),
         .init(title: "DeepSeek-R1 Distill 14B",
               note: "Сложная логика и алгоритмы: расписывает ход рассуждения по шагам и меньше выдумывает. Лёгкое квантование оставляет память под длинные размышления.",
-              repo: "unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF", tier: .large, quantOptions: [
+              repo: "unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF", tier: .large, thinking: .always, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "DeepSeek-R1-Distill-Qwen-14B-Q3_K_M.gguf", sizeMB: 7339),
                 .init(quant: "Q4_K_M", filename: "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf", sizeMB: 8988),
                 .init(quant: "Q5_K_M", filename: "DeepSeek-R1-Distill-Qwen-14B-Q5_K_M.gguf", sizeMB: 10509),
@@ -247,7 +265,7 @@ struct LLMModel: Identifiable, Hashable {
         // по-разному — при том же размере они заметно точнее обычных.
         .init(title: "Qwen3.8 27B",
               note: "Флагман плотной архитектуры: лучшая в каталоге на разборе смыслов, живом русском и длинных документах.",
-              repo: "unsloth/Qwen3.8-27B-GGUF", tier: .xlarge, quantOptions: [
+              repo: "unsloth/Qwen3.8-27B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "UD-Q3_K_XL", filename: "Qwen3.8-27B-UD-Q3_K_XL.gguf", sizeMB: 13146),
                 .init(quant: "UD-Q4_K_M",  filename: "Qwen3.8-27B-UD-Q4_K_M.gguf",  sizeMB: 16464),
                 .init(quant: "UD-Q5_K_M",  filename: "Qwen3.8-27B-UD-Q5_K_M.gguf",  sizeMB: 19772),
@@ -256,7 +274,7 @@ struct LLMModel: Identifiable, Hashable {
               ]),
         .init(title: "Qwen3.6 35B-A3B",
               note: "Смесь экспертов: 35B знаний при 3B активных параметров. Отвечает почти как 4B-модель, а рассуждает как крупная — лучший компромисс скорости и ума на Mac.",
-              repo: "unsloth/Qwen3.6-35B-A3B-GGUF", tier: .xlarge, quantOptions: [
+              repo: "unsloth/Qwen3.6-35B-A3B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "UD-Q3_K_M", filename: "Qwen3.6-35B-A3B-UD-Q3_K_M.gguf", sizeMB: 16601),
                 .init(quant: "UD-Q4_K_M", filename: "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf", sizeMB: 22135),
                 .init(quant: "UD-Q5_K_M", filename: "Qwen3.6-35B-A3B-UD-Q5_K_M.gguf", sizeMB: 26456),
@@ -265,7 +283,7 @@ struct LLMModel: Identifiable, Hashable {
               ]),
         .init(title: "Qwen3.5 27B",
               note: "Старший брат лёгких моделей из этого же каталога: та же манера речи и те же промпты, только заметно умнее.",
-              repo: "unsloth/Qwen3.5-27B-GGUF", tier: .xlarge, quantOptions: [
+              repo: "unsloth/Qwen3.5-27B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-27B-Q3_K_M.gguf", sizeMB: 13505),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-27B-Q4_K_M.gguf", sizeMB: 16741),
                 .init(quant: "Q5_K_M", filename: "Qwen3.5-27B-Q5_K_M.gguf", sizeMB: 19609),
