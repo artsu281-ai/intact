@@ -10,6 +10,9 @@ struct SettingsTab: View {
     @ObservedObject private var usage = UsageTracker.shared
     @State private var apiKeyText: String = ""
     @State private var apiKeySaved = false
+    @State private var isSelfTesting = false
+    @State private var selfTestStage = ""
+    @State private var selfTestResults: [CloudCheck] = []
 
     var body: some View {
         SettingsPage(title: "Настройки") {
@@ -117,6 +120,25 @@ struct SettingsTab: View {
                             Text(AIModelCatalog.cloudModel(id: id)?.title ?? id)
                         }
                     }
+
+                    // Ключ есть только у владельца машины, поэтому облачный
+                    // путь нельзя проверить заранее. Одна кнопка проверяет
+                    // всё сразу: ключ, поток, расширенные поля, поиск и учёт.
+                    Row(title: "Проверить облако",
+                        subtitle: selfTestStatus) {
+                        if isSelfTesting {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            PillButton(title: "Запустить проверку", icon: .refresh) { runSelfTest() }
+                        }
+                    }
+
+                    ForEach(selfTestResults) { check in
+                        Row(title: check.name, subtitle: check.detail) {
+                            IntactIcon(kind: check.ok ? .success : .error, size: 16)
+                                .foregroundStyle(check.ok ? Palette.iconSuccess : Palette.iconDanger)
+                        }
+                    }
                 }
 
                 if settings.aiProviderKind == .local {
@@ -160,6 +182,30 @@ struct SettingsTab: View {
         .onAppear {
             apiKeyText = KeychainHelper.get(service: CloudAIProvider.keychainService) ?? ""
         }
+    }
+
+    private var selfTestStatus: String {
+        if isSelfTesting { return selfTestStage }
+        if selfTestResults.isEmpty {
+            return "Пять коротких запросов: ключ, поток, расширенные параметры, поиск, учёт расхода. Стоит доли цента."
+        }
+        let failed = selfTestResults.filter { !$0.ok }.count
+        return failed == 0
+            ? "Всё работает — \(selfTestResults.count) из \(selfTestResults.count)"
+            : "Не прошло проверок: \(failed) из \(selfTestResults.count)"
+    }
+
+    private func runSelfTest() {
+        isSelfTesting = true
+        selfTestResults = []
+        selfTestStage = "Начинаю…"
+        CloudAIProvider.shared.runSelfTest(
+            webSearch: settings.enableLocalWebSearch,
+            onProgress: { stage in selfTestStage = stage },
+            completion: { results in
+                selfTestResults = results
+                isSelfTesting = false
+            })
     }
 
     // MARK: - Интеграции

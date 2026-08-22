@@ -32,7 +32,10 @@ struct WhisperModel: Identifiable, Hashable {
 }
 
 /// Скачивание, проверка и обновление моделей Whisper с HuggingFace.
-final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
+///
+/// Качает с докачкой, как и каталог LLM: Три гигабайта large-v3 по
+/// домашнему каналу — это те же десятки минут и тот же риск моргнувшей сети.
+final class ModelManager: NSObject, ObservableObject, URLSessionDataDelegate {
     static let shared = ModelManager()
 
     static var directory: URL {
@@ -45,7 +48,20 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     @Published var downloading: String? = nil
     @Published var isUpdating: Bool = false
     @Published var progress: Double = 0
+    @Published var downloadedBytes: Int64 = 0
+    @Published var totalBytes: Int64 = 0
+    @Published var resumed = false
     @Published var lastError: String? = nil
+
+    /// Сколько уже лежит в недокачанном файле.
+    func partialBytes(_ model: WhisperModel) -> Int64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: Self.partURL(for: model).path)
+        return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    private static func partURL(for model: WhisperModel) -> URL {
+        directory.appendingPathComponent(model.filename + ".part")
+    }
 
     /// Есть ли хотя бы одна скачанная модель для работы
     var hasAnyModelInstalled: Bool {
@@ -71,10 +87,20 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
     private var session: URLSession!
     private var target: WhisperModel?
     private var isCurrentDownloadUpdate = false
+    private var handle: FileHandle?
+    private var receivedBytes: Int64 = 0
+    private var expectedTotal: Int64 = 0
+    private var currentTask: URLSessionDataTask?
+    /// ETag ответа сохраняем при завершении, чтобы проверка обновлений
+    /// сравнивала с тем, что реально лежит на диске.
+    private var pendingETag: String = ""
 
     override init() {
         super.init()
-        session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 24 * 3600
+        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         refresh()
     }
 
@@ -107,17 +133,60 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
         guard downloading == nil else { return }
         target = model
         isCurrentDownloadUpdate = isUpdate
+
+        // Обновление начинаем с нуля: файл на сервере изменился, и дописывать
+        // новые байты к старому хвосту — верный способ получить битую модель.
+        let partURL = Self.partURL(for: model)
+        if isUpdate { try? FileManager.default.removeItem(at: partURL) }
+
+        let already = isUpdate ? 0 : partialBytes(model)
+        receivedBytes = already
+        expectedTotal = Int64(model.sizeMB) * 1_000_000
+
+        var request = URLRequest(url: model.remoteURL)
+        if already > 0 { request.setValue("bytes=\(already)-", forHTTPHeaderField: "Range") }
+
         DispatchQueue.main.async {
             self.downloading = model.filename
             self.isUpdating = isUpdate
-            self.progress = 0
+            self.progress = self.expectedTotal > 0 ? Double(already) / Double(self.expectedTotal) : 0
+            self.downloadedBytes = already
+            self.totalBytes = self.expectedTotal
+            self.resumed = already > 0
             self.lastError = nil
         }
-        session.downloadTask(with: model.remoteURL).resume()
+
+        if !FileManager.default.fileExists(atPath: partURL.path) {
+            FileManager.default.createFile(atPath: partURL.path, contents: nil)
+        }
+        handle = try? FileHandle(forWritingTo: partURL)
+        try? handle?.seekToEnd()
+
+        currentTask = session.dataTask(with: request)
+        currentTask?.resume()
+    }
+
+    /// Пауза без потери скачанного.
+    func pauseDownload() {
+        currentTask?.cancel()
+        currentTask = nil
+        try? handle?.close()
+        handle = nil
+        DispatchQueue.main.async {
+            self.downloading = nil
+            self.isUpdating = false
+            self.progress = 0
+        }
+    }
+
+    func discardPartial(_ model: WhisperModel) {
+        try? FileManager.default.removeItem(at: Self.partURL(for: model))
+        objectWillChange.send()
     }
 
     func delete(_ model: WhisperModel) {
         try? FileManager.default.removeItem(at: model.localURL)
+        try? FileManager.default.removeItem(at: Self.partURL(for: model))
         UserDefaults.standard.removeObject(forKey: "etag_\(model.filename)")
         updatesAvailable.remove(model.filename)
         refresh()
@@ -188,38 +257,108 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
 
     // MARK: - URLSession Delegate
 
-    func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask,
-                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
-                    totalBytesExpectedToWrite total: Int64) {
-        guard total > 0 else { return }
-        let p = Double(totalBytesWritten) / Double(total)
-        DispatchQueue.main.async { self.progress = p }
+    func urlSession(_ s: URLSession, dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let http = response as? HTTPURLResponse else {
+            completionHandler(.cancel)
+            return
+        }
+
+        pendingETag = (http.value(forHTTPHeaderField: "ETag") ?? http.value(forHTTPHeaderField: "etag") ?? "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+        switch http.statusCode {
+        case 206:
+            if let range = http.value(forHTTPHeaderField: "Content-Range"),
+               let totalPart = range.split(separator: "/").last,
+               let total = Int64(totalPart) {
+                expectedTotal = total
+            }
+        case 200:
+            // Диапазон не поддержан или файл изменился — начинаем заново.
+            if receivedBytes > 0, let model = target {
+                try? handle?.close()
+                let partURL = Self.partURL(for: model)
+                try? FileManager.default.removeItem(at: partURL)
+                FileManager.default.createFile(atPath: partURL.path, contents: nil)
+                handle = try? FileHandle(forWritingTo: partURL)
+                receivedBytes = 0
+            }
+            if http.expectedContentLength > 0 { expectedTotal = http.expectedContentLength }
+        default:
+            fail("Сервер ответил \(http.statusCode). Попробуйте позже.")
+            completionHandler(.cancel)
+            return
+        }
+
+        let total = expectedTotal
+        let received = receivedBytes
+        DispatchQueue.main.async {
+            self.totalBytes = total
+            self.downloadedBytes = received
+            self.resumed = received > 0
+        }
+        completionHandler(.allow)
     }
 
-    func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+    func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        handle?.write(data)
+        receivedBytes += Int64(data.count)
+        let received = receivedBytes
+        let total = expectedTotal
+        guard total > 0 else { return }
+        let p = min(1, Double(received) / Double(total))
+        DispatchQueue.main.async {
+            self.progress = p
+            self.downloadedBytes = received
+        }
+    }
+
+    func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        try? handle?.close()
+        handle = nil
+        currentTask = nil
+
+        if let error {
+            // Отмена — это пауза: `.part` остаётся, следующий запуск продолжит.
+            if (error as NSError).code == NSURLErrorCancelled { return }
+            fail(error.localizedDescription)
+            return
+        }
         guard let model = target else { return }
         let isUpdate = isCurrentDownloadUpdate
+        let partURL = Self.partURL(for: model)
 
-        // Сохраняем ETag из ответа
-        if let http = downloadTask.response as? HTTPURLResponse {
-            let etag = (http.value(forHTTPHeaderField: "ETag") ?? http.value(forHTTPHeaderField: "etag") ?? "")
-                .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-            if !etag.isEmpty {
-                UserDefaults.standard.set(etag, forKey: "etag_\(model.filename)")
-            }
+        let onDisk = (try? FileManager.default.attributesOfItem(atPath: partURL.path))
+            .flatMap { ($0[.size] as? NSNumber)?.int64Value } ?? 0
+
+        // Оборванная загрузка внешне неотличима от полной, а whisper-server
+        // на обрезанном файле падает уже потом, при первой же диктовке.
+        if expectedTotal > 0, onDisk < expectedTotal {
+            fail("Файл докачан не полностью (\(onDisk / 1_000_000) из \(expectedTotal / 1_000_000) МБ). Нажмите «Продолжить».")
+            return
+        }
+
+        if !pendingETag.isEmpty {
+            UserDefaults.standard.set(pendingETag, forKey: "etag_\(model.filename)")
         }
 
         do {
             try? FileManager.default.removeItem(at: model.localURL)
-            try FileManager.default.moveItem(at: location, to: model.localURL)
+            try FileManager.default.moveItem(at: partURL, to: model.localURL)
         } catch {
-            DispatchQueue.main.async { self.lastError = error.localizedDescription }
+            fail(error.localizedDescription)
+            return
         }
 
         DispatchQueue.main.async {
             self.downloading = nil
             self.isUpdating = false
             self.progress = 0
+            self.downloadedBytes = 0
+            self.totalBytes = 0
+            self.resumed = false
             self.updatesAvailable.remove(model.filename)
             self.refresh()
 
@@ -231,12 +370,12 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate
         }
     }
 
-    func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error else { return }
+    private func fail(_ message: String) {
         DispatchQueue.main.async {
-            self.lastError = error.localizedDescription
+            self.lastError = message
             self.downloading = nil
             self.isUpdating = false
+            self.progress = 0
         }
     }
 }

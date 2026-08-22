@@ -18,6 +18,11 @@ struct ModelCatalogRow: View {
     var badge: String? = nil
     /// Предупреждение под описанием: модель не поместится в память этой машины.
     var warning: String? = nil
+    /// Сколько байт уже лежит в недокачанном файле — тогда вместо «Скачать»
+    /// предлагается «Продолжить».
+    var partialBytes: Int64 = 0
+    var onPause: (() -> Void)? = nil
+    var onDiscardPartial: (() -> Void)? = nil
     var first: Bool = false
     let onSelect: () -> Void
     let onDownload: () -> Void
@@ -98,18 +103,34 @@ struct ModelCatalogRow: View {
                             .progressViewStyle(.linear)
                             .frame(maxWidth: 280)
                             .padding(.top, 4)
+                    } else if partialBytes > 0, !isInstalled {
+                        Text(String(format: "Скачано %.1f ГБ из %@ — можно продолжить",
+                                    Double(partialBytes) / 1_000_000_000, sizeText))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.accent)
+                            .padding(.top, 2)
                     }
                 }
 
                 Spacer(minLength: 12)
 
                 if isDownloading {
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(Palette.textSecondary)
+                    HStack(spacing: 8) {
+                        Text("\(Int(progress * 100))%")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(Palette.textSecondary)
+                        if let onPause {
+                            PillButton(title: "Пауза", icon: .stop) { onPause() }
+                        }
+                    }
                 } else if !isInstalled {
-                    PillButton(title: downloadLabel, icon: .download) {
-                        onDownload()
+                    HStack(spacing: 8) {
+                        PillButton(title: partialBytes > 0 ? "Продолжить" : downloadLabel, icon: .download) {
+                            onDownload()
+                        }
+                        if partialBytes > 0, let onDiscardPartial {
+                            PillButton(title: "Сбросить", icon: .clearAll, tone: .danger) { onDiscardPartial() }
+                        }
                     }
                 } else if updateBadge, let updateLabel {
                     PillButton(title: updateLabel, icon: .update) {
@@ -270,6 +291,9 @@ struct ModelsHub: View {
                         downloadLabel: "Скачать",
                         updateBadge: whisperModels.hasUpdate(model),
                         updateLabel: "Обновить",
+                        partialBytes: whisperModels.partialBytes(model),
+                        onPause: { whisperModels.pauseDownload() },
+                        onDiscardPartial: { whisperModels.discardPartial(model) },
                         first: index == 0,
                         onSelect: { settings.modelPath = model.localURL.path },
                         onDownload: { whisperModels.download(model) },

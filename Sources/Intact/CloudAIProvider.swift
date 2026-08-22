@@ -23,7 +23,7 @@ final class CloudAIProvider: AIProvider {
     private var extrasRejected = Set<String>()
     private let extrasLock = NSLock()
 
-    private func extrasAllowed(for model: String) -> Bool {
+    func extrasAllowed(for model: String) -> Bool {
         extrasLock.lock(); defer { extrasLock.unlock() }
         return !extrasRejected.contains(model)
     }
@@ -313,6 +313,116 @@ final class CloudAIProvider: AIProvider {
         }
 
         return result.map { ["role": $0.role, "content": $0.content] }
+    }
+}
+
+/// Результат одной проверки облачного пути.
+struct CloudCheck: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let ok: Bool
+    let detail: String
+}
+
+extension CloudAIProvider {
+
+    /// Прогоняет облачный путь целиком и рассказывает, что из него работает.
+    ///
+    /// Ключ есть только у владельца машины, поэтому проверить облако при
+    /// разработке нельзя в принципе. Вместо «поверьте, написано по
+    /// спецификации» — кнопка, которая проверяет за одно нажатие: принят ли
+    /// ключ, идёт ли поток, переварила ли модель расширенные параметры,
+    /// отвечает ли веб-поиск и попал ли расход в счётчик.
+    func runSelfTest(webSearch: Bool,
+                     onProgress: @escaping (String) -> Void,
+                     completion: @escaping ([CloudCheck]) -> Void) {
+        guard isReady else {
+            completion([CloudCheck(name: "Ключ Anthropic", ok: false,
+                                   detail: "Ключ не сохранён — заполните поле выше")])
+            return
+        }
+
+        let model = AppSettings.shared.aiCloudModel
+        let title = AIModelCatalog.cloudModel(id: model)?.title ?? model
+        var results: [CloudCheck] = []
+        let tokensBefore = UsageTracker.shared.todayTokens
+
+        func base(_ text: String) -> AIRequest {
+            AIRequest(messages: [AIMessage(role: .system, content: "Отвечай ровно одним словом."),
+                                 AIMessage(role: .user, content: text)],
+                      maxTokens: 64, model: model, role: nil,
+                      effort: "low", timeout: 60)
+        }
+
+        // 1. Обычный запрос: ключ, модель, разбор ответа.
+        onProgress("Проверяю ключ и ответ модели…")
+        complete(base("Скажи слово «работает».")) { result in
+            switch result {
+            case .success(let text):
+                results.append(CloudCheck(name: "Ключ и ответ", ok: true,
+                                          detail: "\(title) ответила: «\(text.prefix(40))»"))
+            case .failure(let error):
+                results.append(CloudCheck(name: "Ключ и ответ", ok: false, detail: error.info.message))
+                DispatchQueue.main.async { completion(results) }
+                return
+            }
+
+            // 2. Поток: без него крупная модель теряет длинный ответ по таймауту.
+            DispatchQueue.main.async { onProgress("Проверяю потоковую генерацию…") }
+            var pieces = 0
+            self.stream(base("Назови три цвета через запятую."), onDelta: { _ in pieces += 1 }) { streamResult in
+                switch streamResult {
+                case .success(let text) where !text.isEmpty:
+                    results.append(CloudCheck(name: "Потоковая генерация", ok: true,
+                                              detail: "\(pieces) кусочков, \(text.count) символов"))
+                case .success:
+                    results.append(CloudCheck(name: "Потоковая генерация", ok: false,
+                                              detail: "Поток завершился без текста"))
+                case .failure(let error):
+                    results.append(CloudCheck(name: "Потоковая генерация", ok: false,
+                                              detail: error.info.message))
+                }
+
+                // 3. Расширенные параметры: рассуждение, глубина, fallback.
+                // Если сработал повтор без них — модель их не приняла.
+                let extrasKept = self.extrasAllowed(for: model)
+                results.append(CloudCheck(
+                    name: "Рассуждение и глубина",
+                    ok: extrasKept,
+                    detail: extrasKept
+                        ? "Модель приняла thinking, effort и fallback"
+                        : "Модель отклонила их — запросы идут без расширенных полей"))
+
+                // 4. Веб-поиск — только если он включён.
+                let finish = {
+                    // 5. Расход должен был вырасти на этих запросах.
+                    DispatchQueue.main.async {
+                        let spent = UsageTracker.shared.todayTokens - tokensBefore
+                        results.append(CloudCheck(
+                            name: "Учёт расхода",
+                            ok: spent > 0,
+                            detail: spent > 0 ? "Записано \(spent) токенов" : "Счётчик не получил данных об использовании"))
+                        completion(results)
+                    }
+                }
+
+                guard webSearch else { finish(); return }
+                DispatchQueue.main.async { onProgress("Проверяю веб-поиск…") }
+                var searchRequest = base("Что сегодня за день недели? Ответь одним словом.")
+                searchRequest.webSearch = true
+                searchRequest.maxTokens = 512
+                self.complete(searchRequest) { searchResult in
+                    switch searchResult {
+                    case .success(let text):
+                        results.append(CloudCheck(name: "Веб-поиск", ok: true,
+                                                  detail: "Инструмент принят, ответ: «\(text.prefix(40))»"))
+                    case .failure(let error):
+                        results.append(CloudCheck(name: "Веб-поиск", ok: false, detail: error.info.message))
+                    }
+                    finish()
+                }
+            }
+        }
     }
 }
 
