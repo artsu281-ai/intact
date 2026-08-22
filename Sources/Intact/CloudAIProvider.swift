@@ -217,7 +217,19 @@ final class CloudAIProvider: AIProvider {
             .filter { $0.role == .system }
             .map(\.content)
             .joined(separator: "\n\n")
-        if !system.isEmpty { body["system"] = system }
+        if !system.isEmpty {
+            // Контекст ветки теперь собирается один раз, поэтому системный блок
+            // от реплики к реплике байт-в-байт одинаков — как раз то, что можно
+            // кэшировать на стороне API. Минимальный кэшируемый префикс — около
+            // 1024 токенов; для кириллицы это примерно 3000 символов, и на
+            // коротких промптах пометка всё равно не сработала бы.
+            if system.count > 4000 {
+                body["system"] = [["type": "text", "text": system,
+                                   "cache_control": ["type": "ephemeral"]]]
+            } else {
+                body["system"] = system
+            }
+        }
         if streaming { body["stream"] = true }
 
         guard extras, let model else { return body }

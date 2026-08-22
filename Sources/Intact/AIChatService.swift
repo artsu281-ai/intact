@@ -66,10 +66,78 @@ final class AIChatService: ObservableObject {
     /// nil, когда либо не генерируем, либо ждём обычный текстовый ответ.
     @Published var toolStatus: String? = nil
     @Published var errorMessage: String? = nil
-    @Published var selectedContextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]
-    /// Файлы/папки, прикреплённые пользователем через диалог выбора — живут,
-    /// пока открыт чат, на диск не пишутся.
-    @Published var attachedFiles: [AttachedFile] = []
+    /// Идёт пересборка контекста — на время неё кнопка обновления крутится.
+    @Published var isGatheringContext = false
+
+    /// Файлы/папки, прикреплённые пользователем через диалог выбора.
+    /// Хранятся по веткам и только в памяти: содержимое файла может быть
+    /// большим, а его место — в снимке контекста, а не в списке диалогов.
+    @Published private var filesByThread: [UUID: [AttachedFile]] = [:]
+
+    /// Источники контекста активной ветки. Раньше набор был один на всё
+    /// приложение, и включённые для одного разговора заметки уезжали во все.
+    var selectedContextSources: Set<AIContextSource> {
+        get { activeThread?.sources ?? [] }
+        set {
+            guard let index = threads.firstIndex(where: { $0.id == activeThreadID }) else { return }
+            threads[index].sources = newValue
+            invalidateContext(in: activeThreadID)
+            persist()
+        }
+    }
+
+    var attachedFiles: [AttachedFile] {
+        get { filesByThread[activeThreadID] ?? [] }
+        set {
+            filesByThread[activeThreadID] = newValue.isEmpty ? nil : newValue
+            invalidateContext(in: activeThreadID)
+        }
+    }
+
+    /// Когда контекст активной ветки был собран. nil — ещё ни разу.
+    var contextGatheredAt: Date? { activeThread?.contextGatheredAt }
+    var contextBadges: [String] { activeThread?.contextBadges ?? [] }
+    var estimatedContextTokens: Int { activeThread?.estimatedContextTokens ?? 0 }
+
+    /// Снимок контекста больше не отражает настройки — собрать заново.
+    private func invalidateContext(in threadID: UUID) {
+        guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
+        threads[index].contextSnapshot = nil
+        threads[index].contextBadges = []
+        threads[index].contextGatheredAt = nil
+    }
+
+    /// Пересобрать контекст ветки по кнопке — данные с утра успевают устареть
+    /// к вечеру, а сам по себе снимок не обновляется.
+    func refreshContext() {
+        let threadID = activeThreadID
+        invalidateContext(in: threadID)
+        isGatheringContext = true
+        ensureContext(for: threadID) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.isGatheringContext = false }
+        }
+    }
+
+    /// Отдаёт готовый контекст ветки, собирая его при первом обращении.
+    private func ensureContext(for threadID: UUID, completion: @escaping (String, [String]) -> Void) {
+        if let thread = threads.first(where: { $0.id == threadID }),
+           let snapshot = thread.contextSnapshot {
+            completion(snapshot, thread.contextBadges)
+            return
+        }
+        let sources = threads.first(where: { $0.id == threadID })?.sources ?? []
+        let files = filesByThread[threadID] ?? []
+        gatherContext(sources: sources, files: files) { [weak self] text, badges in
+            guard let self else { return }
+            if let index = self.threads.firstIndex(where: { $0.id == threadID }) {
+                self.threads[index].contextSnapshot = text
+                self.threads[index].contextBadges = badges
+                self.threads[index].contextGatheredAt = Date()
+                self.persist()
+            }
+            completion(text, badges)
+        }
+    }
 
     /// Переписка активной ветки.
     ///
@@ -167,6 +235,7 @@ final class AIChatService: ObservableObject {
 
     func delete(_ id: UUID) {
         threads.removeAll { $0.id == id }
+        filesByThread.removeValue(forKey: id)
         if threads.isEmpty {
             let fresh = ChatThread()
             threads = [fresh]
@@ -184,6 +253,7 @@ final class AIChatService: ObservableObject {
             threads[index].title = ChatThread.untitled
             threads[index].modelLabel = nil
         }
+        invalidateContext(in: activeThreadID)
         errorMessage = nil
         persist()
     }
@@ -253,21 +323,31 @@ final class AIChatService: ObservableObject {
         guard !trimmed.isEmpty, !isGenerating else { return }
 
         errorMessage = nil
-        let contextToUse = forceContext ?? selectedContextSources
 
-        // Асинхронно собираем контекст
-        gatherContext(sources: contextToUse) { [weak self] contextText, badges in
+        // Быстрые действия задают свои источники — это свойство ветки,
+        // а не разовый параметр запроса: следующая реплика в том же
+        // разговоре должна видеть то же самое.
+        if let forceContext, let index = threads.firstIndex(where: { $0.id == activeThreadID }) {
+            threads[index].sources = forceContext
+            invalidateContext(in: activeThreadID)
+        }
+
+        let threadID = activeThreadID
+        ensureContext(for: threadID) { [weak self] contextText, badges in
             guard let self else { return }
 
             let isFirstInThread = self.messages.isEmpty
-            let userMsg = ChatMessage(role: .user, content: trimmed, contextBadges: badges)
+            // Бейджи вешаем только на первую реплику: контекст один на ветку,
+            // и повторять его в каждом пузыре — шум.
+            let userMsg = ChatMessage(role: .user, content: trimmed,
+                                      contextBadges: isFirstInThread ? badges : [])
             self.messages.append(userMsg)
             self.touchActiveThread(firstPrompt: isFirstInThread ? trimmed : nil)
             self.isGenerating = true
 
             // Ветка, в которой задан вопрос: ответ вернётся именно сюда,
             // даже если пользователь тем временем откроет другой диалог.
-            let targetThreadID = self.activeThreadID
+            let targetThreadID = threadID
 
             // Собираем историю сообщений для AIRouter
             var aiMessages: [AIMessage] = []
@@ -591,16 +671,17 @@ final class AIChatService: ObservableObject {
 
     // MARK: - Сборщик контекста
 
-    private func gatherContext(sources: Set<AIContextSource>, completion: @escaping (String, [String]) -> Void) {
+    private func gatherContext(sources: Set<AIContextSource>, files: [AttachedFile],
+                               completion: @escaping (String, [String]) -> Void) {
         var contextBlocks: [String] = []
         var badges: [String] = []
         let group = DispatchGroup()
 
         // 0. Прикреплённые файлы — не завязаны на toggle-источники, добавляются всегда.
-        if !attachedFiles.isEmpty {
-            badges.append("Файлы (\(attachedFiles.count))")
+        if !files.isEmpty {
+            badges.append("Файлы (\(files.count))")
             var text = "### Прикреплённые файлы:\n"
-            for f in attachedFiles {
+            for f in files {
                 text += "--- \(f.displayName) ---\n\(f.content)\n\n"
             }
             contextBlocks.append(text)

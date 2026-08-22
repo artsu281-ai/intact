@@ -13,13 +13,64 @@ struct ChatThread: Identifiable, Codable, Hashable {
     /// Чем отвечали в этой ветке в последний раз — видно прямо в списке.
     var modelLabel: String?
 
-    init(title: String = ChatThread.untitled) {
+    /// Источники контекста этой ветки. Раньше выбор был общий на всё
+    /// приложение: включил заметки для одного разговора — они уехали
+    /// во все остальные.
+    var contextSources: Set<String>
+    /// Собранный контекст. Собирается один раз на ветку и переиспользуется:
+    /// пересборка на каждую реплику означала бы, что 25 диктовок, 12 заметок
+    /// и все прикреплённые файлы заново уходят в промпт с каждым сообщением.
+    /// Побочная выгода — префикс запроса перестаёт меняться и становится
+    /// пригодным для кэширования на стороне облака.
+    var contextSnapshot: String?
+    var contextBadges: [String]
+    var contextGatheredAt: Date?
+
+    init(title: String = ChatThread.untitled,
+         contextSources: Set<AIContextSource> = [.dictationToday, .appleNotes]) {
         self.id = UUID()
         self.title = title
         self.messages = []
         self.createdAt = Date()
         self.updatedAt = Date()
         self.modelLabel = nil
+        self.contextSources = Set(contextSources.map(\.rawValue))
+        self.contextSnapshot = nil
+        self.contextBadges = []
+        self.contextGatheredAt = nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, messages, createdAt, updatedAt, modelLabel
+        case contextSources, contextSnapshot, contextBadges, contextGatheredAt
+    }
+
+    /// Ветки, сохранённые до появления полей контекста, читаются с умолчаниями.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        messages = try c.decode([ChatMessage].self, forKey: .messages)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        modelLabel = try c.decodeIfPresent(String.self, forKey: .modelLabel)
+        contextSources = try c.decodeIfPresent(Set<String>.self, forKey: .contextSources)
+            ?? Set([AIContextSource.dictationToday, .appleNotes].map(\.rawValue))
+        contextSnapshot = try c.decodeIfPresent(String.self, forKey: .contextSnapshot)
+        contextBadges = try c.decodeIfPresent([String].self, forKey: .contextBadges) ?? []
+        contextGatheredAt = try c.decodeIfPresent(Date.self, forKey: .contextGatheredAt)
+    }
+
+    var sources: Set<AIContextSource> {
+        get { Set(contextSources.compactMap(AIContextSource.init(rawValue:))) }
+        set { contextSources = Set(newValue.map(\.rawValue)) }
+    }
+
+    /// Грубая оценка объёма контекста в токенах. Для кириллицы примерно три
+    /// символа на токен — точность здесь не нужна, нужен порядок величины,
+    /// чтобы было видно, когда контекст разросся до тысяч токенов на реплику.
+    var estimatedContextTokens: Int {
+        (contextSnapshot?.count ?? 0) / 3
     }
 
     static let untitled = "Новый чат"

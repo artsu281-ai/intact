@@ -229,7 +229,7 @@ struct ChatTab: View {
             } label: {
                 HStack(spacing: 5) {
                     IntactIcon(kind: .context, size: 12)
-                    Text("Контекст: \(chat.selectedContextSources.count)")
+                    Text(contextLabel)
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundStyle(Palette.textSecondary)
@@ -265,6 +265,18 @@ struct ChatTab: View {
 
     // MARK: - Поповер выбора источников контекста
 
+    /// Объём контекста виден прямо на кнопке: он уходит в каждый запрос
+    /// и оплачивается, а раньше о его размере нельзя было узнать вообще.
+    private var contextLabel: String {
+        let count = chat.selectedContextSources.count
+        let tokens = chat.estimatedContextTokens
+        guard tokens > 0 else { return "Контекст: \(count)" }
+        let short = tokens >= 1000
+            ? String(format: "%.1fk", Double(tokens) / 1000)
+            : "\(tokens)"
+        return "Контекст: \(count) · ≈\(short) ток."
+    }
+
     private var contextSelectionPopover: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("ИСТОЧНИКИ ДАННЫХ ДЛЯ ИИ")
@@ -298,9 +310,49 @@ struct ChatTab: View {
                 title: "Напоминания",
                 subtitle: "Задачи из Apple Reminders"
             )
+
+            Divider().overlay(Palette.hairline).padding(.vertical, 4)
+
+            contextFreshnessRow
         }
         .padding(14)
-        .frame(width: 280)
+        .frame(width: 300)
+    }
+
+    /// Контекст собирается один раз на разговор — значит, нужно видеть,
+    /// когда именно, и уметь пересобрать: данные с утра к вечеру устаревают.
+    private var contextFreshnessRow: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(chat.contextGatheredAt == nil
+                     ? "Контекст ещё не собран"
+                     : "Собран в \(timeString(from: chat.contextGatheredAt!))")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Palette.textSecondary)
+                Text("Один набор на весь разговор — не пересобирается на каждую реплику")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 6)
+            if chat.isGatheringContext {
+                ProgressView().controlSize(.small)
+            } else {
+                Button { chat.refreshContext() } label: {
+                    HStack(spacing: 4) {
+                        IntactIcon(kind: .refresh, size: 11)
+                        Text("Обновить").font(.system(size: 11.5, weight: .medium))
+                    }
+                    .foregroundStyle(Palette.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Palette.accent.opacity(0.10)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
     }
 
     private func contextToggleRow(source: AIContextSource, icon: IntactIconKind, title: String, subtitle: String) -> some View {
