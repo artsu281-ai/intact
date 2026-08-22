@@ -81,13 +81,13 @@ struct CloudModel: Identifiable, Hashable {
     /// «$5 / $25 за 1M токенов» — цена вслух, чтобы выбор самой крупной модели
     /// был осознанным, а не сюрпризом в счёте.
     var priceText: String {
-        String(format: "$%.0f / $%.0f за 1M токенов", priceIn, priceOut)
+        String(format: T("$%.0f / $%.0f за 1M токенов", "$%.0f / $%.0f per 1M tokens"), priceIn, priceOut)
     }
 
     var contextText: String {
         contextTokens >= 1_000_000
-            ? "1M контекста"
-            : "\(contextTokens / 1000)K контекста"
+            ? T("1M контекста", "1M context")
+            : T("\(contextTokens / 1000)K контекста", "\(contextTokens / 1000)K context")
     }
 }
 
@@ -100,25 +100,25 @@ enum AIModelCatalog {
     static let cloud: [CloudModel] = [
         .init(id: "claude-fable-5",
               title: "Claude Fable 5",
-              note: "Предел возможного: самая сильная модель Anthropic. Для разбора недельных заметок и длинных рассуждений — и самая дорогая.",
+              note: T("Предел возможного: самая сильная модель Anthropic. Для разбора недельных заметок и длинных рассуждений — и самая дорогая.", "The upper limit: Anthropic's strongest model. For working through a week of notes and long reasoning — and the most expensive."),
               contextTokens: 1_000_000, priceIn: 10, priceOut: 50,
               thinking: .always, webSearchTool: "web_search_20260209",
               supportsRefusalFallback: true),
         .init(id: "claude-opus-5",
               title: "Claude Opus 5",
-              note: "Глубокий анализ диктовок и длинные брифы. Рассуждает по умолчанию, вдвое дешевле Fable — разумный максимум на каждый день.",
+              note: T("Глубокий анализ диктовок и длинные брифы. Рассуждает по умолчанию, вдвое дешевле Fable — разумный максимум на каждый день.", "Deep analysis of dictations and long briefs. Reasons by default, half the price of Fable — a sensible everyday maximum."),
               contextTokens: 1_000_000, priceIn: 5, priceOut: 25,
               thinking: .adaptive, webSearchTool: "web_search_20260209",
               supportsRefusalFallback: true),
         .init(id: "claude-sonnet-5",
               title: "Claude Sonnet 5",
-              note: "Баланс качества и скорости — хороший выбор по умолчанию для чата.",
+              note: T("Баланс качества и скорости — хороший выбор по умолчанию для чата.", "A balance of quality and speed — a good default for chat."),
               contextTokens: 1_000_000, priceIn: 3, priceOut: 15,
               thinking: .adaptive, webSearchTool: "web_search_20260209",
               supportsRefusalFallback: false),
         .init(id: "claude-haiku-4-5",
               title: "Claude Haiku 4.5",
-              note: "Самая быстрая и дешёвая. Отвечает без рассуждения — то, что нужно причёсыванию диктовки.",
+              note: T("Самая быстрая и дешёвая. Отвечает без рассуждения — то, что нужно причёсыванию диктовки.", "The fastest and cheapest. Answers without reasoning — exactly what dictation cleanup needs."),
               contextTokens: 200_000, priceIn: 1, priceOut: 5,
               thinking: .legacy, webSearchTool: "web_search_20250305",
               supportsRefusalFallback: false)
@@ -223,7 +223,7 @@ enum AIModelCatalog {
     static func title(for choice: AIModelChoice) -> String {
         switch choice {
         case .disabled:
-            return "ИИ выключен"
+            return T("ИИ выключен", "AI is off")
         case .cloud(let id):
             return cloudModel(id: id)?.title ?? id
         case .local(let filename):
@@ -239,8 +239,8 @@ enum AIModelCatalog {
     static func placement(for choice: AIModelChoice) -> String? {
         switch choice {
         case .disabled: return nil
-        case .cloud:    return "Облако"
-        case .local:    return "Локально"
+        case .cloud:    return T("Облако", "Cloud")
+        case .local:    return T("Локально", "Local")
         }
     }
 }

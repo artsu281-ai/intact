@@ -17,11 +17,11 @@ enum HistoryKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .dictation: return "Диктовка"
-        case .note:      return "Заметка"
-        case .reminder:  return "Напоминание"
-        case .aiAnswer:  return "Ответ ИИ"
-        case .chat:      return "В чат"
+        case .dictation: return T("Диктовка", "Dictation")
+        case .note:      return T("Заметка", "Note")
+        case .reminder:  return T("Напоминание", "Reminder")
+        case .aiAnswer:  return T("Ответ ИИ", "AI answer")
+        case .chat:      return T("В чат", "To chat")
         }
     }
 

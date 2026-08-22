@@ -78,13 +78,13 @@ struct AIModelPicker: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help(role.map { "Модель для раздела «\($0.title)»" } ?? "Сменить версию ИИ")
+        .help(role.map { T("Модель для раздела «\($0.title)»", "Model for “\($0.title)”") } ?? T("Сменить версию ИИ", "Change AI model"))
         .popover(isPresented: $isOpen, arrowEdge: .bottom) { picker }
-        .alert("Текст будет уходить в облако",
+        .alert(T("Текст будет уходить в облако", "Text will be sent to the cloud"),
                isPresented: Binding(get: { pendingCloudChoice != nil },
                                     set: { if !$0 { pendingCloudChoice = nil } })) {
-            Button("Отмена", role: .cancel) { pendingCloudChoice = nil }
-            Button("Понимаю, включить") {
+            Button(T("Отмена", "Cancel"), role: .cancel) { pendingCloudChoice = nil }
+            Button(T("Понимаю, включить", "I understand, enable")) {
                 if let choice = pendingCloudChoice {
                     settings.cloudConsentGiven = true
                     commit(choice)
@@ -92,11 +92,11 @@ struct AIModelPicker: View {
                 pendingCloudChoice = nil
             }
         } message: {
-            Text("С локальной моделью звук и текст не покидают этот Mac. "
-                 + "Облачная модель работает иначе: распознанный текст, а в чате — ещё "
-                 + "и заметки, напоминания и содержимое прикреплённых файлов "
-                 + "отправляются на серверы Anthropic.\n\n"
-                 + "Спрашиваем один раз. Вернуться к локальной модели можно в любой момент.")
+            Text(T("С локальной моделью звук и текст не покидают этот Mac. ", "With a local model, audio and text never leave this Mac. ")
+                 + T("Облачная модель работает иначе: распознанный текст, а в чате — ещё ", "A cloud model works differently: the recognised text — and in chat also ")
+                 + T("и заметки, напоминания и содержимое прикреплённых файлов ", "your notes, reminders and the contents of attached files — ")
+                 + T("отправляются на серверы Anthropic.\n\n", "are sent to Anthropic's servers.\n\n")
+                 + T("Спрашиваем один раз. Вернуться к локальной модели можно в любой момент.", "Asked once. You can switch back to a local model at any time."))
         }
     }
 
@@ -115,7 +115,7 @@ struct AIModelPicker: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 if let role {
-                    sectionHeader("Модель для: \(role.title)")
+                    sectionHeader(T("Модель для: \(role.title)", "Model for: \(role.title)"))
                     inheritRow(role)
                     Divider().overlay(Palette.hairline).padding(.vertical, 3)
                 }
@@ -125,8 +125,8 @@ struct AIModelPicker: View {
 
                 Divider().overlay(Palette.hairline).padding(.vertical, 3)
 
-                row(choice: .disabled, title: "Выключить ИИ",
-                    subtitle: "Диктовка продолжит работать", enabled: true)
+                row(choice: .disabled, title: T("Выключить ИИ", "Turn AI off"),
+                    subtitle: T("Диктовка продолжит работать", "Dictation keeps working"), enabled: true)
             }
             .padding(7)
         }
@@ -139,26 +139,26 @@ struct AIModelPicker: View {
     private var localSection: some View {
         let installed = llmModels.installedPairs
 
-        sectionHeader("Локально · не покидает Mac")
+        sectionHeader(T("Локально · не покидает Mac", "Local · never leaves this Mac"))
         if installed.isEmpty {
-            hint("Ни одна локальная модель не установлена") { onOpenModels() }
+            hint(T("Ни одна локальная модель не установлена", "No local model installed")) { onOpenModels() }
         } else {
             ForEach(installed, id: \.quant.filename) { pair in
                 row(choice: .local(pair.quant.filename),
                     title: pair.model.title,
                     subtitle: "\(pair.quant.quant) · \(sizeText(pair.quant.sizeMB)) · \(tierText(pair.model.tier))"
-                        + (pair.model.reasons ? " · рассуждает" : ""),
+                        + (pair.model.reasons ? T(" · рассуждает", " · reasons") : ""),
                     enabled: LocalAIProvider.shared.isAvailable)
             }
             if !LocalAIProvider.shared.isAvailable {
-                hint("Нужен llama-server: brew install llama.cpp") { onOpenSettings() }
+                hint(T("Нужен llama-server: brew install llama.cpp", "Needs llama-server: brew install llama.cpp")) { onOpenSettings() }
             }
         }
     }
 
     @ViewBuilder
     private var cloudSection: some View {
-        sectionHeader("Облако Anthropic")
+        sectionHeader(T("Облако Anthropic", "Anthropic cloud"))
         ForEach(AIModelCatalog.cloud) { model in
             row(choice: .cloud(model.id),
                 title: model.title,
@@ -167,7 +167,7 @@ struct AIModelPicker: View {
                 enabled: cloudReady)
         }
         if !cloudReady {
-            hint("Нужен ключ Anthropic API") { onOpenSettings() }
+            hint(T("Нужен ключ Anthropic API", "Needs an Anthropic API key")) { onOpenSettings() }
         }
     }
 
@@ -182,10 +182,10 @@ struct AIModelPicker: View {
             }
         ) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Как в основных настройках")
+                Text(T("Как в основных настройках", "Same as main settings"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
-                Text("Сейчас это \(AIModelCatalog.title(for: AIModelCatalog.current))")
+                Text(T("Сейчас это \(AIModelCatalog.title(for: AIModelCatalog.current))", "Currently \(AIModelCatalog.title(for: AIModelCatalog.current))"))
                     .font(.system(size: 11))
                     .foregroundStyle(Palette.textTertiary)
             }
@@ -255,14 +255,14 @@ struct AIModelPicker: View {
     }
 
     private func sizeText(_ mb: Int) -> String {
-        mb >= 1000 ? String(format: "%.1f ГБ", Double(mb) / 1000.0) : "\(mb) МБ"
+        mb >= 1000 ? String(format: T("%.1f ГБ", "%.1f GB"), Double(mb) / 1000.0) : T("\(mb) МБ", "\(mb) MB")
     }
 
     private func tierText(_ tier: LLMTier) -> String {
         switch tier {
-        case .light:  return "лёгкая"
-        case .large:  return "крупная"
-        case .xlarge: return "очень крупная"
+        case .light:  return T("лёгкая", "light")
+        case .large:  return T("крупная", "large")
+        case .xlarge: return T("очень крупная", "very large")
         }
     }
 }
@@ -284,11 +284,11 @@ struct AIRoleRow: View {
     private var problem: String? {
         switch choice {
         case .disabled:
-            return "ИИ выключен — задача выполняться не будет"
+            return T("ИИ выключен — задача выполняться не будет", "AI is off — this task will not run")
         case .cloud:
-            return CloudAIProvider.shared.isReady ? nil : "Нужен ключ Anthropic API в настройках"
+            return CloudAIProvider.shared.isReady ? nil : T("Нужен ключ Anthropic API в настройках", "Needs an Anthropic API key in Settings")
         case .local:
-            return LocalAIProvider.shared.isAvailable ? nil : "Не найден llama-server: brew install llama.cpp"
+            return LocalAIProvider.shared.isAvailable ? nil : T("Не найден llama-server: brew install llama.cpp", "llama-server not found: brew install llama.cpp")
         }
     }
 
@@ -298,8 +298,8 @@ struct AIRoleRow: View {
     private var privacy: (text: String, cloud: Bool)? {
         switch choice {
         case .disabled: return nil
-        case .local:    return ("Не покидает этот Mac", false)
-        case .cloud:    return ("Текст этой задачи отправляется в облако Anthropic", true)
+        case .local:    return (T("Не покидает этот Mac", "Never leaves this Mac"), false)
+        case .cloud:    return (T("Текст этой задачи отправляется в облако Anthropic", "Text from this task is sent to the Anthropic cloud"), true)
         }
     }
 

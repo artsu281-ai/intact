@@ -17,14 +17,14 @@ struct BriefsTab: View {
     @State private var exportError: String? = nil
 
     var body: some View {
-        SettingsPage(title: "Брифы") {
+        SettingsPage(title: T("Брифы", "Briefs")) {
 
             collectCard
             scheduleCard
 
             if let err = service.errorInfo {
                 Card(header: nil) {
-                    Row(title: "Не удалось собрать", subtitle: err.message, first: true) {
+                    Row(title: T("Не удалось собрать", "Could not build it"), subtitle: err.message, first: true) {
                         if let label = err.actionLabel, let section = err.section {
                             PillButton(title: label, icon: .settingsPage) { onOpenSection?(section) }
                         }
@@ -47,16 +47,16 @@ struct BriefsTab: View {
     // MARK: - Собрать
 
     private var collectCard: some View {
-        Card(header: "СОБРАТЬ") {
+        Card(header: T("СОБРАТЬ", "BUILD")) {
             ForEach(Array(BriefKind.allCases.enumerated()), id: \.element.id) { index, kind in
                 Row(title: kind.title, subtitle: kind.subtitle, first: index == 0) {
                     if service.generating == kind {
                         HStack(spacing: 8) {
                             ThinkingDots(size: 14, tone: .process)
-                            PillButton(title: "Стоп", icon: .stop) { service.cancel() }
+                            PillButton(title: T("Стоп", "Stop"), icon: .stop) { service.cancel() }
                         }
                     } else {
-                        PillButton(title: "Собрать", icon: kind.icon) {
+                        PillButton(title: T("Собрать", "Build"), icon: kind.icon) {
                             service.generate(kind)
                         }
                         .opacity(service.generating == nil ? 1 : 0.4)
@@ -64,7 +64,7 @@ struct BriefsTab: View {
                     }
                 }
             }
-            Row(title: "Модель", subtitle: "Брифы собираются той же моделью, что и чат") {
+            Row(title: T("Модель", "Model"), subtitle: T("Брифы собираются той же моделью, что и чат", "Briefs are built with the same model as chat")) {
                 AIModelPicker(role: .chat,
                               onOpenSettings: { onOpenSection?(.settings) },
                               onOpenModels: { onOpenSection?(.models) })
@@ -75,24 +75,24 @@ struct BriefsTab: View {
     // MARK: - Расписание
 
     private var scheduleCard: some View {
-        Card(header: "РАСПИСАНИЕ") {
-            Row(title: "Собирать автоматически",
+        Card(header: T("РАСПИСАНИЕ", "SCHEDULE")) {
+            Row(title: T("Собирать автоматически", "Build automatically"),
                 subtitle: settings.briefScheduleEnabled
-                    ? "Каждый день в \(timeText), если приложение запущено"
-                    : "Раз в день, без напоминаний вручную",
+                    ? T("Каждый день в \(timeText), если приложение запущено", "Every day at \(timeText), if the app is running")
+                    : T("Раз в день, без напоминаний вручную", "Once a day, without asking every time"),
                 first: true) {
                 Toggle("", isOn: $settings.briefScheduleEnabled)
                     .toggleStyle(WisprToggleStyle())
             }
             if settings.briefScheduleEnabled {
-                Row(title: "Что собирать") {
+                Row(title: T("Что собирать", "What to build")) {
                     WisprDropdown(selection: $settings.briefScheduleKind,
                                   options: BriefKind.allCases) { kind in
                         Text(kind.title)
                     }
                 }
-                Row(title: "Во сколько",
-                    subtitle: "Если в это время Mac спал, бриф соберётся при первом пробуждении") {
+                Row(title: T("Во сколько", "At what time"),
+                    subtitle: T("Если в это время Mac спал, бриф соберётся при первом пробуждении", "If the Mac was asleep then, the brief is built when it next wakes")) {
                     HStack(spacing: 6) {
                         WisprDropdown(selection: $settings.briefScheduleHour,
                                       options: Array(0...23)) { hour in
@@ -119,7 +119,7 @@ struct BriefsTab: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 ThinkingDots(size: 16, tone: .process)
-                Text("Собираю \(service.generating?.title.lowercased() ?? "бриф")…")
+                Text(T("Собираю \(service.generating?.title.lowercased() ?? "бриф")…", "Building \(service.generating?.title.lowercased() ?? "brief")…"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textSecondary)
                 Spacer()
@@ -145,10 +145,10 @@ struct BriefsTab: View {
     private var emptyState: some View {
         VStack(spacing: 12) {
             IconTile(kind: .briefs, tone: .muted, side: 52)
-            Text("Брифов пока нет")
+            Text(T("Брифов пока нет", "No briefs yet"))
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Palette.textSecondary)
-            Text("Соберите первый — он останется здесь и переживёт перезапуск")
+            Text(T("Соберите первый — он останется здесь и переживёт перезапуск", "Build the first one — it stays here and survives a restart"))
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.textTertiary)
         }
@@ -161,7 +161,7 @@ struct BriefsTab: View {
     private var briefsList: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("СОБРАННЫЕ")
+                Text(T("СОБРАННЫЕ", "BUILT"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
@@ -177,7 +177,7 @@ struct BriefsTab: View {
                 } label: {
                     HStack(spacing: 5) {
                         IntactIcon(kind: .clearAll, size: 12)
-                        Text("Удалить все").font(.system(size: 12))
+                        Text(T("Удалить все", "Delete all")).font(.system(size: 12))
                     }
                     .foregroundStyle(Palette.textTertiary)
                 }
@@ -211,7 +211,7 @@ struct BriefsTab: View {
 
     private func export(_ brief: Brief) {
         let text = "# \(brief.title)\n\n_\(brief.modelLabel) · \(brief.badges.joined(separator: ", "))_\n\n\(brief.text)\n"
-        switch Exporter.save(text: text, suggestedName: "Intact-бриф-\(Exporter.fileStamp(brief.createdAt))") {
+        switch Exporter.save(text: text, suggestedName: T("Intact-бриф-\(Exporter.fileStamp(brief.createdAt))", "Intact-brief-\(Exporter.fileStamp(brief.createdAt))")) {
         case .saved(let url):  Exporter.reveal(url); exportError = nil
         case .cancelled:       break
         case .failed(let msg): exportError = msg
@@ -257,7 +257,7 @@ private struct BriefRow: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Palette.textPrimary)
                             if brief.automatic {
-                                Text("по расписанию")
+                                Text(T("по расписанию", "scheduled"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundStyle(Palette.textTertiary)
                                     .padding(.horizontal, 6)
@@ -280,7 +280,7 @@ private struct BriefRow: View {
 
                     HStack(spacing: 8) {
                         if hovering || isExpanded {
-                            PillButton(title: copied ? "Скопировано" : "Копировать",
+                            PillButton(title: copied ? T("Скопировано", "Copied") : T("Копировать", "Copy"),
                                        icon: copied ? .copied : .copy,
                                        tone: copied ? .success : nil) {
                                 NSPasteboard.general.clearContents()
@@ -288,9 +288,9 @@ private struct BriefRow: View {
                                 copied = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                             }
-                            PillButton(title: "В заметки", icon: .briefs) { onSaveToNotes() }
-                            PillButton(title: "Файл", icon: .export) { onExport() }
-                            PillButton(title: "Удалить", icon: .clearAll, tone: .danger) { onDelete() }
+                            PillButton(title: T("В заметки", "To Notes"), icon: .briefs) { onSaveToNotes() }
+                            PillButton(title: T("Файл", "File"), icon: .export) { onExport() }
+                            PillButton(title: T("Удалить", "Delete"), icon: .clearAll, tone: .danger) { onDelete() }
                         }
                         Button(action: onToggle) {
                             IntactIcon(kind: isExpanded ? .chevronUp : .chevronDown, size: 11)

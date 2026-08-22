@@ -34,7 +34,7 @@ struct ChatThreadRail: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("ЧАТЫ")
+            Text(T("ЧАТЫ", "CHATS"))
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -44,7 +44,7 @@ struct ChatThreadRail: View {
             } label: {
                 HStack(spacing: 7) {
                     IntactIcon(kind: .plus, size: 13, weight: .medium)
-                    Text("Новый чат")
+                    Text(T("Новый чат", "New chat"))
                         .font(.system(size: 13, weight: .medium))
                     Spacer(minLength: 0)
                 }
@@ -157,7 +157,7 @@ private struct ChatThreadRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Удалить чат")
+                    .help(T("Удалить чат", "Delete chat"))
                 }
             }
             .padding(.horizontal, 10)
@@ -172,8 +172,8 @@ private struct ChatThreadRow: View {
         .onHover { hovering = $0 }
         .simultaneousGesture(TapGesture(count: 2).onEnded { onRename() })
         .contextMenu {
-            Button("Переименовать", action: onRename)
-            Button("Удалить", role: .destructive, action: onDelete)
+            Button(T("Переименовать", "Rename"), action: onRename)
+            Button(T("Удалить", "Delete"), role: .destructive, action: onDelete)
         }
     }
 
@@ -184,7 +184,7 @@ private struct ChatThreadRow: View {
         if calendar.isDateInToday(date) {
             formatter.dateFormat = "HH:mm"
         } else if calendar.isDateInYesterday(date) {
-            return "вчера"
+            return T("вчера", "yesterday")
         } else {
             formatter.dateFormat = "d MMM"
         }

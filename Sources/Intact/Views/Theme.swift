@@ -545,7 +545,7 @@ struct SearchableLanguageDropdown: View {
                     IntactIcon(kind: .search, size: 13)
                         .foregroundStyle(Palette.textSecondary)
 
-                    TextField("Поиск: русский, english, de, fr...", text: $search)
+                    TextField(T("Поиск: русский, english, de, fr...", "Search: english, русский, de, fr..."), text: $search)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13))
                         .focused($isSearchFocused)
@@ -572,14 +572,14 @@ struct SearchableLanguageDropdown: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         if filteredLanguages.isEmpty {
-                            Text("Язык не найден")
+                            Text(T("Язык не найден", "Language not found"))
                                 .font(.system(size: 12))
                                 .foregroundStyle(Palette.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 24)
                         } else {
                             if search.isEmpty {
-                                Text("Часто используемые")
+                                Text(T("Часто используемые", "Frequently used"))
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(Palette.textTertiary)
                                     .padding(.horizontal, 12)
@@ -590,7 +590,7 @@ struct SearchableLanguageDropdown: View {
                                     languageRow(lang)
                                 }
 
-                                Text("Все языки (\(Language.all.count))")
+                                Text(T("Все языки (\(Language.all.count))", "All languages (\(Language.all.count))"))
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(Palette.textTertiary)
                                     .padding(.horizontal, 12)
@@ -680,7 +680,7 @@ struct FlowTags: View {
                             .foregroundStyle(Palette.textTertiary)
                     }
                     .buttonStyle(.plain)
-                    .help("Убрать «\(item)» из словаря")
+                    .help(T("Убрать «\(item)» из словаря", "Remove “\(item)” from the dictionary"))
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)

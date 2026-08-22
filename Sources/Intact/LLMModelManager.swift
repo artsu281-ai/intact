@@ -148,7 +148,7 @@ struct LLMModel: Identifiable, Hashable {
     static let catalog: [LLMModel] = [
         // ── Лёгкие: причёсывание текста и короткие брифы ──────────────────
         .init(title: "Qwen3.5 2B",
-              note: "Самая быстрая и лёгкая. Для причёсывания текста хватает с запасом — рекомендуемый выбор по умолчанию.",
+              note: T("Самая быстрая и лёгкая. Для причёсывания текста хватает с запасом — рекомендуемый выбор по умолчанию.", "The fastest and lightest. More than enough for text cleanup — the recommended default."),
               repo: "unsloth/Qwen3.5-2B-GGUF", tier: .light, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-2B-Q3_K_M.gguf", sizeMB: 1107),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-2B-Q4_K_M.gguf", sizeMB: 1281),
@@ -157,7 +157,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen3.5-2B-Q8_0.gguf",   sizeMB: 2012)
               ]),
         .init(title: "Gemma 4 E2B Instruct",
-              note: "Альтернатива от Google: сильный мультиязык, архитектура изначально заточена под работу с голосом.",
+              note: T("Альтернатива от Google: сильный мультиязык, архитектура изначально заточена под работу с голосом.", "Google's alternative: strong multilingual support, an architecture built for voice from the start."),
               repo: "unsloth/gemma-4-E2B-it-GGUF", tier: .light, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "gemma-4-E2B-it-Q3_K_M.gguf", sizeMB: 2537),
                 .init(quant: "Q4_K_M", filename: "gemma-4-E2B-it-Q4_K_M.gguf", sizeMB: 3107),
@@ -166,7 +166,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "gemma-4-E2B-it-Q8_0.gguf",   sizeMB: 5048)
               ]),
         .init(title: "Nanbeige4.2 3B",
-              note: "Заточена под логику, извлечение задач и вызов функций — задел на будущее, если понадобится больше, чем просто причёсывание.",
+              note: T("Заточена под логику, извлечение задач и вызов функций — задел на будущее, если понадобится больше, чем просто причёсывание.", "Built for logic, task extraction and function calling — groundwork for when cleanup alone is no longer enough."),
               repo: "owao/Nanbeige4.2-3B-GGUF", tier: .light, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Nanbeige4.2-3B-Q3_K_M.gguf", sizeMB: 2165),
                 .init(quant: "Q4_K_M", filename: "Nanbeige4.2-3B-Q4_K_M.gguf", sizeMB: 2575),
@@ -175,7 +175,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Nanbeige4.2-3B-Q8_0.gguf",   sizeMB: 4435)
               ]),
         .init(title: "Qwen3.5 4B",
-              note: "Крупнее и заметно умнее 2B на сложных смешанных фразах — но и медленнее, и тяжелее в памяти.",
+              note: T("Крупнее и заметно умнее 2B на сложных смешанных фразах — но и медленнее, и тяжелее в памяти.", "Larger and noticeably smarter than 2B on complex mixed phrases — but slower and heavier in memory."),
               repo: "unsloth/Qwen3.5-4B-GGUF", tier: .light, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-4B-Q3_K_M.gguf", sizeMB: 2293),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-4B-Q4_K_M.gguf", sizeMB: 2741),
@@ -184,7 +184,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen3.5-4B-Q8_0.gguf",   sizeMB: 4482)
               ]),
         .init(title: "Gemma 4 E4B Instruct",
-              note: "Крупный вариант от Google с поддержкой аудио — на будущее, если одна модель должна закрыть и голос, и текст.",
+              note: T("Крупный вариант от Google с поддержкой аудио — на будущее, если одна модель должна закрыть и голос, и текст.", "Google's larger variant with audio support — for when a single model should cover both voice and text."),
               repo: "unsloth/gemma-4-E4B-it-GGUF", tier: .light, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "gemma-4-E4B-it-Q3_K_M.gguf", sizeMB: 4058),
                 .init(quant: "Q4_K_M", filename: "gemma-4-E4B-it-Q4_K_M.gguf", sizeMB: 4977),
@@ -193,7 +193,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "gemma-4-E4B-it-Q8_0.gguf",   sizeMB: 8193)
               ]),
         .init(title: "Ministral 3 3B",
-              note: "Универсальная модель от Mistral — золотая середина между скоростью и качеством, если не хочется выбирать между крайностями.",
+              note: T("Универсальная модель от Mistral — золотая середина между скоростью и качеством, если не хочется выбирать между крайностями.", "Mistral's all-rounder — the middle ground between speed and quality, when you would rather not choose an extreme."),
               repo: "unsloth/Ministral-3-3B-Instruct-2512-GGUF", tier: .light, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Ministral-3-3B-Instruct-2512-Q3_K_M.gguf", sizeMB: 1796),
                 .init(quant: "Q4_K_M", filename: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf", sizeMB: 2146),
@@ -204,7 +204,7 @@ struct LLMModel: Identifiable, Hashable {
 
         // ── Крупные: аналитика, код, длинные рассуждения ───────────────────
         .init(title: "Qwen3 14B",
-              note: "Топ-универсал: сложная аналитика, живой русский язык, ролевые диалоги. При 16 ГБ памяти остаётся запас примерно на 32k токенов контекста.",
+              note: T("Топ-универсал: сложная аналитика, живой русский язык, ролевые диалоги. При 16 ГБ памяти остаётся запас примерно на 32k токенов контекста.", "The top all-rounder: complex analysis, natural Russian, role-play. With 16 GB of memory there is room for roughly 32k tokens of context."),
               repo: "unsloth/Qwen3-14B-GGUF", tier: .large, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3-14B-Q3_K_M.gguf", sizeMB: 7321),
                 .init(quant: "Q4_K_M", filename: "Qwen3-14B-Q4_K_M.gguf", sizeMB: 9002),
@@ -213,7 +213,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen3-14B-Q8_0.gguf",   sizeMB: 15699)
               ]),
         .init(title: "Qwen2.5 Coder 14B",
-              note: "Лучшая в каталоге для кода: рефакторинг, поиск багов, генерация скриптов на любых языках.",
+              note: T("Лучшая в каталоге для кода: рефакторинг, поиск багов, генерация скриптов на любых языках.", "The best in the catalogue for code: refactoring, bug hunting, generating scripts in any language."),
               repo: "unsloth/Qwen2.5-Coder-14B-Instruct-GGUF", tier: .large, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen2.5-Coder-14B-Instruct-Q3_K_M.gguf", sizeMB: 7339),
                 .init(quant: "Q4_K_M", filename: "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf", sizeMB: 8988),
@@ -222,7 +222,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen2.5-Coder-14B-Instruct-Q8_0.gguf",   sizeMB: 15702)
               ]),
         .init(title: "Qwen3.5 9B",
-              note: "Максимальная скорость без потерь от сжатия: Q8_0 почти неотличим от оригинала, а контекст тянет до 64k токенов и больше.",
+              note: T("Максимальная скорость без потерь от сжатия: Q8_0 почти неотличим от оригинала, а контекст тянет до 64k токенов и больше.", "Maximum speed with no compression loss: Q8_0 is near-indistinguishable from the original, and context stretches to 64k tokens and beyond."),
               repo: "unsloth/Qwen3.5-9B-GGUF", tier: .large, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-9B-Q3_K_M.gguf", sizeMB: 4674),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-9B-Q4_K_M.gguf", sizeMB: 5681),
@@ -231,7 +231,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen3.5-9B-Q8_0.gguf",   sizeMB: 9528)
               ]),
         .init(title: "DeepSeek-R1 Distill 14B",
-              note: "Сложная логика и алгоритмы: расписывает ход рассуждения по шагам и меньше выдумывает. Лёгкое квантование оставляет память под длинные размышления.",
+              note: T("Сложная логика и алгоритмы: расписывает ход рассуждения по шагам и меньше выдумывает. Лёгкое квантование оставляет память под длинные размышления.", "Complex logic and algorithms: it writes out its reasoning step by step and invents less. Lighter quantisation leaves memory for long deliberation."),
               repo: "unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF", tier: .large, thinking: .always, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "DeepSeek-R1-Distill-Qwen-14B-Q3_K_M.gguf", sizeMB: 7339),
                 .init(quant: "Q4_K_M", filename: "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf", sizeMB: 8988),
@@ -240,7 +240,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf",   sizeMB: 15702)
               ]),
         .init(title: "Phi-4 14B",
-              note: "Точные науки и математика, выжимка плотных технических текстов.",
+              note: T("Точные науки и математика, выжимка плотных технических текстов.", "Exact sciences and mathematics, condensing dense technical texts."),
               repo: "unsloth/phi-4-GGUF", tier: .large, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "phi-4-Q3_K_M.gguf", sizeMB: 7191),
                 .init(quant: "Q4_K_M", filename: "phi-4-Q4_K_M.gguf", sizeMB: 8890),
@@ -249,7 +249,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "phi-4-Q8_0.gguf",   sizeMB: 15581)
               ]),
         .init(title: "Gemma 3 12B Instruct",
-              note: "Мультимодальность и быстрая генерация, устойчива к очень длинным промптам. Самая нетребовательная в этой группе.",
+              note: T("Мультимодальность и быстрая генерация, устойчива к очень длинным промптам. Самая нетребовательная в этой группе.", "Multimodal and fast, holds up on very long prompts. The least demanding in this group."),
               repo: "unsloth/gemma-3-12b-it-GGUF", tier: .large, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "gemma-3-12b-it-Q3_K_M.gguf", sizeMB: 6009),
                 .init(quant: "Q4_K_M", filename: "gemma-3-12b-it-Q4_K_M.gguf", sizeMB: 7301),
@@ -264,7 +264,7 @@ struct LLMModel: Identifiable, Hashable {
         // unsloth публикует «динамические» кванты (UD-*), где разные слои сжаты
         // по-разному — при том же размере они заметно точнее обычных.
         .init(title: "Qwen3.8 27B",
-              note: "Флагман плотной архитектуры: лучшая в каталоге на разборе смыслов, живом русском и длинных документах.",
+              note: T("Флагман плотной архитектуры: лучшая в каталоге на разборе смыслов, живом русском и длинных документах.", "The flagship dense architecture: the best in the catalogue at working through meaning, natural Russian and long documents."),
               repo: "unsloth/Qwen3.8-27B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "UD-Q3_K_XL", filename: "Qwen3.8-27B-UD-Q3_K_XL.gguf", sizeMB: 13146),
                 .init(quant: "UD-Q4_K_M",  filename: "Qwen3.8-27B-UD-Q4_K_M.gguf",  sizeMB: 16464),
@@ -273,7 +273,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",       filename: "Qwen3.8-27B-Q8_0.gguf",       sizeMB: 29047)
               ]),
         .init(title: "Qwen3.6 35B-A3B",
-              note: "Смесь экспертов: 35B знаний при 3B активных параметров. Отвечает почти как 4B-модель, а рассуждает как крупная — лучший компромисс скорости и ума на Mac.",
+              note: T("Смесь экспертов: 35B знаний при 3B активных параметров. Отвечает почти как 4B-модель, а рассуждает как крупная — лучший компромисс скорости и ума на Mac.", "A mixture of experts: 35B of knowledge with 3B active parameters. Answers almost like a 4B model and reasons like a large one — the best speed-to-intelligence trade-off on a Mac."),
               repo: "unsloth/Qwen3.6-35B-A3B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "UD-Q3_K_M", filename: "Qwen3.6-35B-A3B-UD-Q3_K_M.gguf", sizeMB: 16601),
                 .init(quant: "UD-Q4_K_M", filename: "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf", sizeMB: 22135),
@@ -282,7 +282,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",      filename: "Qwen3.6-35B-A3B-Q8_0.gguf",      sizeMB: 36903)
               ]),
         .init(title: "Qwen3.5 27B",
-              note: "Старший брат лёгких моделей из этого же каталога: та же манера речи и те же промпты, только заметно умнее.",
+              note: T("Старший брат лёгких моделей из этого же каталога: та же манера речи и те же промпты, только заметно умнее.", "The big sibling of the light models in this same catalogue: the same manner of speech and the same prompts, only noticeably smarter."),
               repo: "unsloth/Qwen3.5-27B-GGUF", tier: .xlarge, thinking: .toggleable, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3.5-27B-Q3_K_M.gguf", sizeMB: 13505),
                 .init(quant: "Q4_K_M", filename: "Qwen3.5-27B-Q4_K_M.gguf", sizeMB: 16741),
@@ -291,7 +291,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "Qwen3.5-27B-Q8_0.gguf",   sizeMB: 28596)
               ]),
         .init(title: "Gemma 4 31B Instruct",
-              note: "Самая сильная мультиязычная в каталоге: русский, кыргызский и смеси языков даются ей лучше остальных.",
+              note: T("Самая сильная мультиязычная в каталоге: русский, кыргызский и смеси языков даются ей лучше остальных.", "The strongest multilingual model in the catalogue: Russian, Kyrgyz and language mixes come easier to it than to the rest."),
               repo: "unsloth/gemma-4-31B-it-GGUF", tier: .xlarge, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "gemma-4-31B-it-Q3_K_M.gguf", sizeMB: 14737),
                 .init(quant: "Q4_K_M", filename: "gemma-4-31B-it-Q4_K_M.gguf", sizeMB: 18324),
@@ -300,7 +300,7 @@ struct LLMModel: Identifiable, Hashable {
                 .init(quant: "Q8_0",   filename: "gemma-4-31B-it-Q8_0.gguf",   sizeMB: 32636)
               ]),
         .init(title: "Qwen3 Coder 30B-A3B",
-              note: "Код и скрипты: смесь экспертов, поэтому быстрая. Рефакторинг, разбор стектрейсов, генерация на любом языке.",
+              note: T("Код и скрипты: смесь экспертов, поэтому быстрая. Рефакторинг, разбор стектрейсов, генерация на любом языке.", "Code and scripts: a mixture of experts, so it is fast. Refactoring, reading stack traces, generating in any language."),
               repo: "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", tier: .xlarge, quantOptions: [
                 .init(quant: "Q3_K_M", filename: "Qwen3-Coder-30B-A3B-Instruct-Q3_K_M.gguf", sizeMB: 14712),
                 .init(quant: "Q4_K_M", filename: "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf", sizeMB: 18557),
@@ -488,7 +488,7 @@ final class LLMModelManager: NSObject, ObservableObject, URLSessionDataDelegate 
             }
             if http.expectedContentLength > 0 { expectedTotal = http.expectedContentLength }
         default:
-            fail("Сервер ответил \(http.statusCode). Попробуйте позже.")
+            fail(T("Сервер ответил \(http.statusCode). Попробуйте позже.", "The server replied \(http.statusCode). Try again later."))
             completionHandler(.cancel)
             return
         }
@@ -537,7 +537,7 @@ final class LLMModelManager: NSObject, ObservableObject, URLSessionDataDelegate 
         // как успешная, а llama-server на битом файле падает с невнятной
         // ошибкой уже сильно позже, при первой попытке что-то спросить.
         if expectedTotal > 0, onDisk < expectedTotal {
-            fail("Файл докачан не полностью (\(onDisk / 1_000_000) из \(expectedTotal / 1_000_000) МБ). Нажмите «Продолжить».")
+            fail(T("Файл докачан не полностью (\(onDisk / 1_000_000) из \(expectedTotal / 1_000_000) МБ). Нажмите «Продолжить».", "The file is not fully downloaded (\(onDisk / 1_000_000) of \(expectedTotal / 1_000_000) MB). Press “Resume”."))
             return
         }
 

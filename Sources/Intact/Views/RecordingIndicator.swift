@@ -114,7 +114,7 @@ struct IndicatorView: View {
                     .lineLimit(1)
                     .fixedSize()
 
-                Text("⎋ как есть")
+                Text(T("⎋ как есть", "⎋ as is"))
                     .font(.system(size: 10))
                     .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
                     .lineLimit(1)
@@ -246,9 +246,9 @@ struct IndicatorView: View {
         }
         let rem10 = count % 10
         let rem100 = count % 100
-        if rem10 == 1 && rem100 != 11 { return "слово" }
-        if (2...4).contains(rem10) && !(12...14).contains(rem100) { return "слова" }
-        return "слов"
+        if rem10 == 1 && rem100 != 11 { return T("слово", "word") }
+        if (2...4).contains(rem10) && !(12...14).contains(rem100) { return T("слова", "words") }
+        return T("слов", "words")
     }
 }
 
@@ -336,7 +336,7 @@ struct DismissCountdownButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if seconds > 0 {
-                    Text("\(seconds)с")
+                    Text(T("\(seconds)с", "\(seconds)s"))
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
                 }

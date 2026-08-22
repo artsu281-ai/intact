@@ -21,20 +21,20 @@ enum AIRole: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .cleanup:     return "Причёсывание диктовки"
-        case .quickAnswer: return "Спросите ИИ"
-        case .chat:        return "Чат, анализ и брифы"
+        case .cleanup:     return T("Причёсывание диктовки", "Dictation cleanup")
+        case .quickAnswer: return T("Спросите ИИ", "Ask AI")
+        case .chat:        return T("Чат, анализ и брифы", "Chat, analysis and briefs")
         }
     }
 
     var subtitle: String {
         switch self {
         case .cleanup:
-            return "Убирает слова-паразиты и расставляет знаки. Должно успевать за диктовкой — здесь важнее скорость, чем ум."
+            return T("Убирает слова-паразиты и расставляет знаки. Должно успевать за диктовкой — здесь важнее скорость, чем ум.", "Removes filler words and adds punctuation. Has to keep up with dictation — speed matters more than depth here.")
         case .quickAnswer:
-            return "Отвечает на голосовой вопрос и вставляет ответ под курсор. Нужен короткий точный ответ за несколько секунд."
+            return T("Отвечает на голосовой вопрос и вставляет ответ под курсор. Нужен короткий точный ответ за несколько секунд.", "Answers a spoken question and inserts the answer at the cursor. Needs a short, exact answer within seconds.")
         case .chat:
-            return "Разбирает диктовки, заметки и файлы. Здесь имеет смысл самая сильная модель — время ответа не критично."
+            return T("Разбирает диктовки, заметки и файлы. Здесь имеет смысл самая сильная модель — время ответа не критично.", "Works through dictations, notes and files. The strongest model makes sense here — response time is not critical.")
         }
     }
 

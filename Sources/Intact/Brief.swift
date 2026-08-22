@@ -11,17 +11,17 @@ enum BriefKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .day:   return "Сводка за день"
-        case .tasks: return "Задачи и договорённости"
-        case .notes: return "Обзор заметок"
+        case .day:   return T("Сводка за день", "Daily summary")
+        case .tasks: return T("Задачи и договорённости", "Tasks and commitments")
+        case .notes: return T("Обзор заметок", "Notes overview")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .day:   return "Ключевые темы, мысли и решения из сегодняшних диктовок"
-        case .tasks: return "Прямые и неявные задачи из диктовок, заметок и напоминаний"
-        case .notes: return "Главные темы и проекты из папки Apple Notes"
+        case .day:   return T("Ключевые темы, мысли и решения из сегодняшних диктовок", "Key topics, thoughts and decisions from today's dictations")
+        case .tasks: return T("Прямые и неявные задачи из диктовок, заметок и напоминаний", "Explicit and implied tasks from dictations, notes and reminders")
+        case .notes: return T("Главные темы и проекты из папки Apple Notes", "Main topics and projects from the Apple Notes folder")
         }
     }
 
@@ -82,7 +82,7 @@ struct Brief: Identifiable, Codable, Hashable {
 
     var title: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: L10n.isRu ? "ru_RU" : "en_US")
         formatter.dateFormat = Calendar.current.isDateInToday(createdAt) ? "HH:mm" : "d MMMM, HH:mm"
         return "\(kind.title) · \(formatter.string(from: createdAt))"
     }
@@ -161,8 +161,8 @@ final class BriefService: ObservableObject {
             guard !context.isEmpty else {
                 self.generating = nil
                 self.errorInfo = AIErrorInfo(
-                    message: "Нечего разбирать: за выбранный период нет ни диктовок, ни заметок.",
-                    actionLabel: "Открыть историю", section: .history)
+                    message: T("Нечего разбирать: за выбранный период нет ни диктовок, ни заметок.", "Nothing to work through: there are no dictations or notes for this period."),
+                    actionLabel: T("Открыть историю", "Open history"), section: .history)
                 return
             }
 
@@ -289,7 +289,7 @@ final class BriefService: ObservableObject {
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = "Intact"
-            content.body = "\(kind.title) готова"
+            content.body = T("\(kind.title) готова", "\(kind.title) is ready")
             let request = UNNotificationRequest(identifier: UUID().uuidString,
                                                 content: content, trigger: nil)
             center.add(request, withCompletionHandler: nil)

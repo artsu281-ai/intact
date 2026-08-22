@@ -35,8 +35,8 @@ struct ModelCatalogRow: View {
     /// иначе цифра в приложении не сойдётся с цифрой на диске.
     private var sizeText: String {
         sizeMB >= 1000
-            ? String(format: "%.1f ГБ", Double(sizeMB) / 1000.0)
-            : "\(sizeMB) МБ"
+            ? String(format: T("%.1f ГБ", "%.1f GB"), Double(sizeMB) / 1000.0)
+            : T("\(sizeMB) МБ", "\(sizeMB) MB")
     }
 
     var body: some View {
@@ -69,7 +69,7 @@ struct ModelCatalogRow: View {
                         if updateBadge {
                             HStack(spacing: 4) {
                                 Circle().fill(Palette.iconWarning).frame(width: 6, height: 6)
-                                Text("Доступно обновление")
+                                Text(T("Доступно обновление", "Update available"))
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(Palette.iconWarning)
                             }
@@ -104,7 +104,7 @@ struct ModelCatalogRow: View {
                             .frame(maxWidth: 280)
                             .padding(.top, 4)
                     } else if partialBytes > 0, !isInstalled {
-                        Text(String(format: "Скачано %.1f ГБ из %@ — можно продолжить",
+                        Text(String(format: T("Скачано %.1f ГБ из %@ — можно продолжить", "%.1f GB of %@ downloaded — you can resume"),
                                     Double(partialBytes) / 1_000_000_000, sizeText))
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.accent)
@@ -120,16 +120,16 @@ struct ModelCatalogRow: View {
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(Palette.textSecondary)
                         if let onPause {
-                            PillButton(title: "Пауза", icon: .stop) { onPause() }
+                            PillButton(title: T("Пауза", "Pause"), icon: .stop) { onPause() }
                         }
                     }
                 } else if !isInstalled {
                     HStack(spacing: 8) {
-                        PillButton(title: partialBytes > 0 ? "Продолжить" : downloadLabel, icon: .download) {
+                        PillButton(title: partialBytes > 0 ? T("Продолжить", "Resume") : downloadLabel, icon: .download) {
                             onDownload()
                         }
                         if partialBytes > 0, let onDiscardPartial {
-                            PillButton(title: "Сбросить", icon: .clearAll, tone: .danger) { onDiscardPartial() }
+                            PillButton(title: T("Сбросить", "Discard"), icon: .clearAll, tone: .danger) { onDiscardPartial() }
                         }
                     }
                 } else if updateBadge, let updateLabel {
@@ -139,12 +139,12 @@ struct ModelCatalogRow: View {
                 } else if hovering {
                     HStack(spacing: 8) {
                         if let onUpdate {
-                            PillButton(title: updateLabel ?? "Обновить", icon: .refresh) {
+                            PillButton(title: updateLabel ?? T("Обновить", "Refresh"), icon: .refresh) {
                                 onUpdate()
                             }
                         }
                         if !isActive {
-                            PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
+                            PillButton(title: T("Удалить", "Delete"), icon: .clearAll, tone: .danger) {
                                 onDelete()
                             }
                         }
@@ -225,7 +225,7 @@ struct ModelsHub: View {
             HStack(spacing: 8) {
                 IntactIcon(kind: .disk, size: 16)
                     .foregroundStyle(Palette.textSecondary)
-                Text("\(String(format: "%.1f", totalInstalledGB)) ГБ занято на диске")
+                Text(T("\(String(format: "%.1f", totalInstalledGB)) ГБ занято на диске", "\(String(format: "%.1f", totalInstalledGB)) GB on disk"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -235,7 +235,7 @@ struct ModelsHub: View {
             } label: {
                 HStack(spacing: 6) {
                     IntactIcon(kind: fitOnly ? .radioOn : .radioOff, size: 13)
-                    Text("Только то, что влезет")
+                    Text(T("Только то, что влезет", "Only what fits"))
                         .font(.system(size: 12.5, weight: .medium))
                 }
                 .foregroundStyle(fitOnly ? Palette.accent : Palette.textSecondary)
@@ -244,9 +244,9 @@ struct ModelsHub: View {
                 .background(Capsule().fill(fitOnly ? Palette.accent.opacity(0.10) : Palette.pill))
             }
             .buttonStyle(.plain)
-            .help("Скрыть модели, которые не поместятся в \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ памяти")
+            .help(T("Скрыть модели, которые не поместятся в \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ памяти", "Hide models that will not fit into \(String(format: "%.0f", Hardware.physicalMemoryGB)) GB of memory"))
 
-            PillButton(title: "Папки", icon: .folder) {
+            PillButton(title: T("Папки", "Folders"), icon: .folder) {
                 NSWorkspace.shared.open(ModelManager.directory)
                 NSWorkspace.shared.open(LLMModelManager.directory)
                 NSWorkspace.shared.open(GemmaAudioModelManager.directory)
@@ -261,7 +261,7 @@ struct ModelsHub: View {
     private var whisperCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
-                Text("Распознавание речи (Whisper)".uppercased())
+                Text(T("Распознавание речи (Whisper)", "Speech recognition (Whisper)").uppercased())
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Palette.textTertiary)
                     .kerning(0.8)
@@ -288,9 +288,9 @@ struct ModelsHub: View {
                         isActive: settings.modelPath == model.localURL.path,
                         isDownloading: whisperModels.downloading == model.filename,
                         progress: whisperModels.progress,
-                        downloadLabel: "Скачать",
+                        downloadLabel: T("Скачать", "Download"),
                         updateBadge: whisperModels.hasUpdate(model),
-                        updateLabel: "Обновить",
+                        updateLabel: T("Обновить", "Refresh"),
                         partialBytes: whisperModels.partialBytes(model),
                         onPause: { whisperModels.pauseDownload() },
                         onDiscardPartial: { whisperModels.discardPartial(model) },
@@ -324,7 +324,7 @@ struct ModelsHub: View {
     /// можно было только перебирая разделы. Это же и главный вход в выбор:
     /// сюда приходят за моделями, здесь их и назначают.
     private var rolesCard: some View {
-        Card(header: "КАКАЯ МОДЕЛЬ ЗА ЧТО ОТВЕЧАЕТ") {
+        Card(header: T("КАКАЯ МОДЕЛЬ ЗА ЧТО ОТВЕЧАЕТ", "WHICH MODEL DOES WHAT")) {
             ForEach(Array(AIRole.allCases.enumerated()), id: \.element.id) { index, role in
                 AIRoleRow(role: role, first: index == 0,
                           onOpenSettings: { MainWindowState.shared.section = .settings },
@@ -369,9 +369,9 @@ struct ModelsHub: View {
 
     private func header(for tier: LLMTier) -> String {
         switch tier {
-        case .light:  return "Лёгкие · причёсывание текста и короткие брифы"
-        case .large:  return "Крупные · аналитика, код, рассуждения"
-        case .xlarge: return "Очень крупные · настольный предел, спорят с облаком"
+        case .light:  return T("Лёгкие · причёсывание текста и короткие брифы", "Light · text cleanup and short briefs")
+        case .large:  return T("Крупные · аналитика, код, рассуждения", "Large · analysis, code, reasoning")
+        case .xlarge: return T("Очень крупные · настольный предел, спорят с облаком", "Very large · the desktop limit, a match for the cloud")
         }
     }
 
@@ -386,8 +386,8 @@ struct ModelsHub: View {
         let mine = String(format: "%.0f", Hardware.physicalMemoryGB)
         let need = String(format: "%.0f", tier.recommendedRAMGB)
         return fits(tier)
-            ? "Рекомендуется от \(need) ГБ памяти. В этом Mac — \(mine) ГБ, запас есть."
-            : "Рекомендуется от \(need) ГБ памяти, в этом Mac — \(mine) ГБ. Скачать можно, но работать будет через своп."
+            ? T("Рекомендуется от \(need) ГБ памяти. В этом Mac — \(mine) ГБ, запас есть.", "\(need) GB of memory recommended. This Mac has \(mine) GB — room to spare.")
+            : T("Рекомендуется от \(need) ГБ памяти, в этом Mac — \(mine) ГБ. Скачать можно, но работать будет через своп.", "\(need) GB of memory recommended, this Mac has \(mine) GB. You can download it, but it will run through swap.")
     }
 
     private func llmGroup(_ tier: LLMTier, header: String) -> some View {
@@ -405,7 +405,7 @@ struct ModelsHub: View {
 
     private var gemmaAudioCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Card(header: "Экспериментально: аудио целиком (Gemma)") {
+            Card(header: T("Экспериментально: аудио целиком (Gemma)", "Experimental: audio end to end (Gemma)")) {
                 ForEach(Array(GemmaAudioModel.catalog.enumerated()), id: \.element.id) { index, model in
                     ModelCatalogRow(
                         title: model.title,
@@ -440,16 +440,16 @@ struct ModelsHub: View {
     // MARK: - Карточка Скорость и движок
 
     private var engineCard: some View {
-        Card(header: "Скорость и фоновый движок") {
-            Row(title: "Распознавать во время речи",
-                subtitle: "Модель держится загруженной, и текст считается, пока вы говорите. К отпусканию клавиши он обычно уже готов.",
+        Card(header: T("Скорость и фоновый движок", "Speed and background engine")) {
+            Row(title: T("Распознавать во время речи", "Transcribe while speaking"),
+                subtitle: T("Модель держится загруженной, и текст считается, пока вы говорите. К отпусканию клавиши он обычно уже готов.", "The model stays loaded and the text is computed as you speak. By the time you release the key it is usually ready."),
                 first: true) {
                 Toggle("", isOn: $settings.streaming)
                     .toggleStyle(WisprToggleStyle())
                     .onChange(of: settings.streaming) { _, _ in controller.restartEngine() }
             }
-            Row(title: "Состояние whisper-server", subtitle: engineStatus) {
-                PillButton(title: "Перезапустить", icon: .refresh) {
+            Row(title: T("Состояние whisper-server", "whisper-server status"), subtitle: engineStatus) {
+                PillButton(title: T("Перезапустить", "Restart"), icon: .refresh) {
                     controller.restartEngine()
                 }
             }
@@ -460,49 +460,49 @@ struct ModelsHub: View {
 
     private var advancedBlock: some View {
         AdvancedBlock(expanded: $advanced) {
-            Row(title: "Задержка последней вставки", first: true) {
-                Text(controller.lastLatencyMs == 0 ? "мгновенно" : "\(controller.lastLatencyMs) мс")
+            Row(title: T("Задержка последней вставки", "Latency of the last insert"), first: true) {
+                Text(controller.lastLatencyMs == 0 ? T("мгновенно", "instant") : T("\(controller.lastLatencyMs) мс", "\(controller.lastLatencyMs) ms"))
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(controller.lastLatencyMs == 0 ? Palette.iconSuccess : Palette.textSecondary)
             }
-            Row(title: "Черновик каждые") {
+            Row(title: T("Черновик каждые", "Draft every")) {
                 SliderControl(value: Binding(get: { Double(settings.draftIntervalMs) },
                                              set: { settings.draftIntervalMs = Int($0) }),
                               range: 200...1500, step: 50,
-                              caption: "\(settings.draftIntervalMs) мс")
+                              caption: T("\(settings.draftIntervalMs) мс", "\(settings.draftIntervalMs) ms"))
             }
-            Row(title: "Аудиоконтекст энкодера",
-                subtitle: "Урезанный считается быстрее, но обрезает окно распознавания") {
+            Row(title: T("Аудиоконтекст энкодера", "Encoder audio context"),
+                subtitle: T("Урезанный считается быстрее, но обрезает окно распознавания", "A shorter one computes faster but narrows the recognition window")) {
                 WisprDropdown(selection: $settings.draftAudioContext,
                               options: [0, 768, 512]) { ctx in
                     switch ctx {
-                    case 768: Text("768 — окно 15 с")
-                    case 512: Text("512 — окно 10 с")
-                    default:  Text("Полный контекст")
+                    case 768: Text(T("768 — окно 15 с", "768 — 15 s window"))
+                    case 512: Text(T("512 — окно 10 с", "512 — 10 s window"))
+                    default:  Text(T("Полный контекст", "Full context"))
                     }
                 }
                 .onChange(of: settings.draftAudioContext) { _, _ in controller.restartEngine() }
             }
-            Row(title: "Потоков CPU") {
+            Row(title: T("Потоков CPU", "CPU threads")) {
                 SliderControl(value: Binding(get: { Double(settings.threads) },
                                              set: { settings.threads = Int($0) }),
                               range: 1...Double(ProcessInfo.processInfo.activeProcessorCount), step: 1,
                               caption: "\(settings.threads)")
             }
-            Row(title: "Файл модели",
+            Row(title: T("Файл модели", "Model file"),
                 subtitle: URL(fileURLWithPath: settings.modelPath).lastPathComponent) {
                 HStack(spacing: 8) {
-                    PillButton(title: "Выбрать…") { pickModel() }
-                    PillButton(title: "Папка") { NSWorkspace.shared.open(ModelManager.directory) }
+                    PillButton(title: T("Выбрать…", "Choose…")) { pickModel() }
+                    PillButton(title: T("Папка", "Folder")) { NSWorkspace.shared.open(ModelManager.directory) }
                 }
             }
         }
     }
 
     private var engineStatus: String {
-        if !WhisperServer.shared.isAvailable { return "whisper-server не найден — работает запасной режим CLI" }
-        if !settings.streaming { return "Выключено: текст считается после отпускания клавиши" }
-        return controller.engineReady ? "Модель загружена в память и готова" : "Модель загружается…"
+        if !WhisperServer.shared.isAvailable { return T("whisper-server не найден — работает запасной режим CLI", "whisper-server not found — falling back to CLI mode") }
+        if !settings.streaming { return T("Выключено: текст считается после отпускания клавиши", "Off: text is computed after the key is released") }
+        return controller.engineReady ? T("Модель загружена в память и готова", "Model loaded into memory and ready") : T("Модель загружается…", "Model is loading…")
     }
 
     private func pickModel() {
@@ -549,27 +549,27 @@ struct LLMQuantRow: View {
     }
 
     private func gb(_ bytes: Int64) -> String {
-        String(format: "%.1f ГБ", Double(bytes) / 1_000_000_000)
+        String(format: T("%.1f ГБ", "%.1f GB"), Double(bytes) / 1_000_000_000)
     }
 
     private var progressCaption: String {
         let done = gb(models.downloadedBytes)
         let total = models.totalBytes > 0 ? gb(models.totalBytes) : sizeText
-        return models.resumed ? "\(done) из \(total) · продолжено" : "\(done) из \(total)"
+        return models.resumed ? T("\(done) из \(total) · продолжено", "\(done) of \(total) · resumed") : T("\(done) из \(total)", "\(done) of \(total)")
     }
 
     /// Честное предупреждение до скачивания десяти гигабайт: без запаса памяти
     /// llama-server уйдёт в своп и будет отвечать минутами вместо секунд.
     private var warning: String? {
         guard !model.fitsInMemory(selectedQuant) else { return nil }
-        return String(format: "Нужно около %.0f ГБ памяти вместе с контекстом — в этом Mac %.0f ГБ. Скачать можно, но работать будет через своп.",
+        return String(format: T("Нужно около %.0f ГБ памяти вместе с контекстом — в этом Mac %.0f ГБ. Скачать можно, но работать будет через своп.", "Needs about %.0f GB of memory including context — this Mac has %.0f GB. You can download it, but it will run through swap."),
                       model.estimatedRAMGB(for: selectedQuant) + 3, Hardware.physicalMemoryGB)
     }
 
     private var sizeText: String {
         selectedQuant.sizeMB >= 1000
-            ? String(format: "%.1f ГБ", Double(selectedQuant.sizeMB) / 1000.0)
-            : "\(selectedQuant.sizeMB) МБ"
+            ? String(format: T("%.1f ГБ", "%.1f GB"), Double(selectedQuant.sizeMB) / 1000.0)
+            : T("\(selectedQuant.sizeMB) МБ", "\(selectedQuant.sizeMB) MB")
     }
 
     var body: some View {
@@ -593,25 +593,25 @@ struct LLMQuantRow: View {
                             Text(q.quant)
                         }
                         if model.reasons {
-                            Text(model.thinking == .always ? "рассуждает всегда" : "умеет рассуждать")
+                            Text(model.thinking == .always ? T("рассуждает всегда", "always reasons") : T("умеет рассуждать", "can reason"))
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundStyle(Palette.iconProcess)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1.5)
                                 .background(Capsule().fill(Palette.iconProcess.opacity(0.13)))
-                                .help("В чате и брифах модель сначала обдумывает ответ. Дольше, но точнее — в причёсывании диктовки рассуждение всегда выключено.")
+                                .help(T("В чате и брифах модель сначала обдумывает ответ. Дольше, но точнее — в причёсывании диктовки рассуждение всегда выключено.", "In chat and briefs the model thinks before answering. Slower but more accurate — in dictation cleanup reasoning is always off."))
                         }
                         if isLoadedInMemory {
                             HStack(spacing: 4) {
                                 Circle().fill(Palette.iconSuccess).frame(width: 5, height: 5)
-                                Text("в памяти")
+                                Text(T("в памяти", "in memory"))
                                     .font(.system(size: 10.5, weight: .medium))
                             }
                             .foregroundStyle(Palette.iconSuccess)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 1.5)
                             .background(Capsule().fill(Palette.iconSuccess.opacity(0.12)))
-                            .help("Модель загружена в память и отвечает без задержки на старт")
+                            .help(T("Модель загружена в память и отвечает без задержки на старт", "Loaded in memory and answers without the start-up delay"))
                         }
                     }
                     Text(model.note)
@@ -640,7 +640,7 @@ struct LLMQuantRow: View {
                         }
                         .padding(.top, 4)
                     } else if partial > 0 {
-                        Text("Скачано \(gb(partial)) из \(sizeText) — можно продолжить")
+                        Text(T("Скачано \(gb(partial)) из \(sizeText) — можно продолжить", "\(gb(partial)) of \(sizeText) downloaded — you can resume"))
                             .font(.system(size: 12))
                             .foregroundStyle(Palette.accent)
                             .padding(.top, 2)
@@ -654,25 +654,25 @@ struct LLMQuantRow: View {
                         Text("\(Int(models.progress * 100))%")
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(Palette.textSecondary)
-                        PillButton(title: "Пауза", icon: .stop) { models.pauseDownload() }
+                        PillButton(title: T("Пауза", "Pause"), icon: .stop) { models.pauseDownload() }
                     }
                 } else if !isInstalled {
                     HStack(spacing: 8) {
                         if partial > 0 {
-                            PillButton(title: "Продолжить", icon: .download) {
+                            PillButton(title: T("Продолжить", "Resume"), icon: .download) {
                                 models.download(model, selectedQuant)
                             }
-                            PillButton(title: "Сбросить", icon: .clearAll, tone: .danger) {
+                            PillButton(title: T("Сбросить", "Discard"), icon: .clearAll, tone: .danger) {
                                 models.discardPartial(selectedQuant)
                             }
                         } else {
-                            PillButton(title: "Скачать", icon: .download) {
+                            PillButton(title: T("Скачать", "Download"), icon: .download) {
                                 models.download(model, selectedQuant)
                             }
                         }
                     }
                 } else if hovering, !isActive {
-                    PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
+                    PillButton(title: T("Удалить", "Delete"), icon: .clearAll, tone: .danger) {
                         models.delete(model, selectedQuant)
                     }
                 }
@@ -720,7 +720,7 @@ struct GemmaAudioTestRow: View {
     private var subtitle: String {
         if isProcessing { return L10n.aiExperimentProcessing }
         if let error { return error }
-        return result.isEmpty ? "Записать фразу и посмотреть, что вернёт модель" : result
+        return result.isEmpty ? T("Записать фразу и посмотреть, что вернёт модель", "Record a phrase and see what the model returns") : result
     }
 
     private func start() {
@@ -739,7 +739,7 @@ struct GemmaAudioTestRow: View {
         _ = recorder.stop()
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("intact-gemma-test.wav")
         guard recorder.snapshot(to: url, trimTrailingSilence: false) != nil else {
-            error = "Слишком короткая запись."
+            error = T("Слишком короткая запись.", "Recording too short.")
             return
         }
         isProcessing = true

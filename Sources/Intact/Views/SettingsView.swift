@@ -92,7 +92,7 @@ struct SettingsView: View {
                 IntactIcon(kind: .search, size: 13)
                     .foregroundStyle(Palette.textTertiary)
 
-                TextField(L10n.isRu ? "Поиск настроек…" : "Search settings…", text: $searchText)
+                TextField(L10n.isRu ? T("Поиск настроек…", "Search settings…") : "Search settings…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13.5))
                     .foregroundStyle(Palette.textPrimary)
@@ -214,7 +214,7 @@ struct SettingsView: View {
                 VStack(spacing: 8) {
                     IntactIcon(kind: .search, size: 24)
                         .foregroundStyle(Palette.textTertiary)
-                    Text(L10n.isRu ? "Ничего не найдено" : "No results")
+                    Text(L10n.isRu ? T("Ничего не найдено", "Nothing found") : "No results")
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                 }
@@ -272,7 +272,7 @@ struct SettingsView: View {
 
     private var statusText: String {
         if let missing = Permissions.missingDescription { return missing }
-        return controller.engineReady ? "Готов к диктовке" : "Модель загружается…"
+        return controller.engineReady ? T("Готов к диктовке", "Ready to dictate") : T("Модель загружается…", "Model is loading…")
     }
 
     private var detail: some View {
@@ -307,96 +307,94 @@ final class SettingsSearchIndex {
 
     let entries: [SettingsSearchEntry] = [
         // Главная (Home)
-        .init(title: "Главная", subtitle: "Обзор и быстрый доступ", section: .home,
-              keywords: ["главная", "home", "дашборд", "dashboard", "старт", "обзор"]),
+        .init(title: T("Главная", "Home"), subtitle: T("Обзор и быстрый доступ", "Overview and quick access"), section: .home,
+              keywords: [T("главная", "home"), "home", T("дашборд", "dashboard"), "dashboard", T("старт", "start"), T("обзор", "overview")]),
 
         // Чат и ассистент (Chat & Briefs)
-        .init(title: "Чат с ИИ", subtitle: "Диалог с персональным ассистентом", section: .chat,
-              keywords: ["чат", "chat", "ии", "ai", "ассистент", "assistant", "диалог", "вопрос", "сообщение"]),
-        .init(title: "Брифы и заметки", subtitle: "Сводка голосовых диктовок и заметок", section: .briefs,
-              keywords: ["брифы", "briefs", "анализ", "сводка", "заметки", "задачи", "todo", "выжимка", "история", "диктовки", "apple notes", "reminders"]),
-        .init(title: "Спросите ИИ", subtitle: "Хоткей: вопрос голосом — ответ сразу вставляется", section: .askAI,
-              keywords: ["спросите", "ask", "вопрос", "хоткей", "hotkey", "правый", "option", "ии", "ai", "ответ", "мгновенный"]),
+        .init(title: T("Чат с ИИ", "AI Chat"), subtitle: T("Диалог с персональным ассистентом", "Conversation with your assistant"), section: .chat,
+              keywords: [T("чат", "chat"), "chat", T("ии", "ai"), "ai", T("ассистент", "assistant"), "assistant", T("диалог", "dialogue"), T("вопрос", "question"), T("сообщение", "message")]),
+        .init(title: T("Брифы и заметки", "Briefs & Notes"), subtitle: T("Сводка голосовых диктовок и заметок", "Summary of dictations and notes"), section: .briefs,
+              keywords: [T("брифы", "briefs"), "briefs", T("анализ", "analysis"), T("сводка", "summary"), T("заметки", "notes"), T("задачи", "tasks"), "todo", T("выжимка", "digest"), T("история", "history"), T("диктовки", "dictations"), "apple notes", "reminders"]),
+        .init(title: T("Спросите ИИ", "Ask AI"), subtitle: T("Хоткей: вопрос голосом — ответ сразу вставляется", "Hotkey: ask by voice — the answer is inserted at once"), section: .askAI,
+              keywords: [T("спросите", "ask"), "ask", T("вопрос", "question"), T("хоткей", "hotkey"), "hotkey", T("правый", "right"), "option", T("ии", "ai"), "ai", T("ответ", "answer"), T("мгновенный", "instant")]),
 
         // Диктовка (Voice)
-        .init(title: "Горячая клавиша", subtitle: "Запуск диктовки", section: .voice,
-              keywords: ["горячая", "клавиша", "hotkey", "hot key", "shortcut", "шорткат", "клавиатура", "keyboard", "модификатор", "modifier", "option", "alt"]),
-        .init(title: "Режим активации", subtitle: "Удержание / переключатель", section: .voice,
-              keywords: ["режим", "активация", "activation", "mode", "удержание", "hold", "toggle", "переключатель"]),
-        .init(title: "Микрофон", subtitle: "Источник записи звука", section: .voice,
-              keywords: ["микрофон", "microphone", "mic", "аудио", "audio", "запись", "recording", "устройство", "device", "вход", "input"]),
-        .init(title: "Язык диктовки", subtitle: "Автоопределение русского / английского", section: .voice,
-              keywords: ["язык", "language", "диктовка", "dictation", "автоопределение", "auto", "русский", "russian", "английский", "english", "распознавание"]),
-        .init(title: "Вставка текста", subtitle: "Способ вставки результата", section: .voice,
-              keywords: ["вставка", "paste", "insertion", "текст", "text", "буфер", "clipboard", "посимвольно", "type", "копирование"]),
-        .init(title: "Разрешения", subtitle: "Мониторинг ввода, универсальный доступ", section: .voice,
-              keywords: ["разрешения", "permissions", "доступ", "accessibility", "мониторинг", "monitoring", "ввод", "input", "права"]),
-        .init(title: "Перевод на английский", subtitle: "Автоперевод речи", section: .voice,
-              keywords: ["перевод", "translate", "translation", "английский", "english", "автоперевод"]),
-        .init(title: "Подавление шума", subtitle: "[МУЗЫКА], [АПЛОДИСМЕНТЫ]", section: .voice,
-              keywords: ["шум", "noise", "подавление", "suppress", "музыка", "music", "аплодисменты", "теги", "tags", "фильтр"]),
-        .init(title: "Пользовательский словарь", subtitle: "Термины и имена для Whisper", section: .voice,
-              keywords: ["словарь", "vocabulary", "dictionary", "термины", "terms", "имена", "names", "подсказки", "prompts", "prompt"]),
-        .init(title: "Тест микрофона", subtitle: "Проверка записи", section: .voice,
-              keywords: ["тест", "test", "проверка", "check", "микрофон", "microphone", "mic", "запись", "record"]),
+        .init(title: T("Горячая клавиша", "Hotkey"), subtitle: T("Запуск диктовки", "Starting dictation"), section: .voice,
+              keywords: [T("горячая", "hot"), T("клавиша", "key"), "hotkey", "hot key", "shortcut", T("шорткат", "shortcut"), T("клавиатура", "keyboard"), "keyboard", T("модификатор", "modifier"), "modifier", "option", "alt"]),
+        .init(title: T("Режим активации", "Activation mode"), subtitle: T("Удержание / переключатель", "Hold / toggle"), section: .voice,
+              keywords: [T("режим", "mode"), T("активация", "activation"), "activation", "mode", T("удержание", "hold"), "hold", "toggle", T("переключатель", "toggle")]),
+        .init(title: T("Микрофон", "Microphone"), subtitle: T("Источник записи звука", "Audio input source"), section: .voice,
+              keywords: [T("микрофон", "microphone"), "microphone", "mic", T("аудио", "audio"), "audio", T("запись", "record"), "recording", T("устройство", "device"), "device", T("вход", "input"), "input"]),
+        .init(title: T("Язык диктовки", "Dictation language"), subtitle: T("Автоопределение русского / английского", "Auto-detects Russian / English"), section: .voice,
+              keywords: [T("язык", "language"), "language", T("диктовка", "dictation"), "dictation", T("автоопределение", "autodetect"), "auto", T("русский", "russian"), "russian", T("английский", "english"), "english", T("распознавание", "recognition")]),
+        .init(title: T("Вставка текста", "Text insertion"), subtitle: T("Способ вставки результата", "How the result is inserted"), section: .voice,
+              keywords: [T("вставка", "insert"), "paste", "insertion", T("текст", "text"), "text", T("буфер", "clipboard"), "clipboard", T("посимвольно", "keystrokes"), "type", T("копирование", "copy")]),
+        .init(title: T("Разрешения", "Permissions"), subtitle: T("Мониторинг ввода, универсальный доступ", "Input monitoring, accessibility"), section: .voice,
+              keywords: [T("разрешения", "permissions"), "permissions", T("доступ", "access"), "accessibility", T("мониторинг", "monitoring"), "monitoring", T("ввод", "input"), "input", T("права", "rights")]),
+        .init(title: T("Перевод на английский", "Translate to English"), subtitle: T("Автоперевод речи", "Automatic speech translation"), section: .voice,
+              keywords: [T("перевод", "translation"), "translate", "translation", T("английский", "english"), "english", T("автоперевод", "autotranslate")]),
+        .init(title: T("Подавление шума", "Noise suppression"), subtitle: T("[МУЗЫКА], [АПЛОДИСМЕНТЫ]", "[MUSIC], [APPLAUSE]"), section: .voice,
+              keywords: [T("шум", "noise"), "noise", T("подавление", "suppression"), "suppress", T("музыка", "music"), "music", T("аплодисменты", "applause"), T("теги", "tags"), "tags", T("фильтр", "filter")]),
+        .init(title: T("Пользовательский словарь", "Custom dictionary"), subtitle: T("Термины и имена для Whisper", "Terms and names for Whisper"), section: .voice,
+              keywords: [T("словарь", "dictionary"), "vocabulary", "dictionary", T("термины", "terms"), "terms", T("имена", "names"), "names", T("подсказки", "hints"), "prompts", "prompt"]),
+        .init(title: T("Тест микрофона", "Microphone test"), subtitle: T("Проверка записи", "Recording check"), section: .voice,
+              keywords: [T("тест", "test"), "test", T("проверка", "check"), "check", T("микрофон", "microphone"), "microphone", "mic", T("запись", "record"), "record"]),
 
         // Настройки (Settings)
-        .init(title: "Язык интерфейса", subtitle: "Русский / English", section: .settings,
-              keywords: ["язык", "language", "интерфейс", "interface", "русский", "english", "английский", "локализация", "localization"]),
-        .init(title: "Тема", subtitle: "Белая, терракотовая, тёмная", section: .settings,
-              keywords: ["тема", "theme", "цвет", "color", "оформление", "appearance", "белая", "white", "терракотовая", "terracotta", "тёмная", "dark", "ночная", "светлая", "light", "стиль"]),
-        .init(title: "Иконка приложения", subtitle: "Светлая, чёрная, авто", section: .settings,
-              keywords: ["иконка", "icon", "dock", "док", "значок", "светлая", "light", "чёрная", "black", "приложение", "app"]),
-        .init(title: "Индикатор диктовки", subtitle: "Плавающий индикатор записи", section: .settings,
-              keywords: ["индикатор", "indicator", "запись", "recording", "плавающий", "floating", "hud", "pill", "спектр", "spectrum"]),
-        .init(title: "Таймаут копирования", subtitle: "Секунды до скрытия окна", section: .settings,
-              keywords: ["таймаут", "timeout", "копирование", "copy", "dismiss", "скрытие", "окно", "window", "секунды"]),
-        .init(title: "Запуск при входе", subtitle: "Автозагрузка с macOS", section: .settings,
-              keywords: ["запуск", "launch", "вход", "login", "автозагрузка", "autostart", "startup", "загрузка", "boot"]),
-        .init(title: "Значок в Dock", subtitle: "Отображать / скрывать", section: .settings,
-              keywords: ["dock", "док", "значок", "icon", "показать", "show", "скрыть", "hide", "панель"]),
-        .init(title: "Заглушать звук", subtitle: "Тишина во время диктовки", section: .settings,
-              keywords: ["заглушать", "mute", "звук", "audio", "sound", "тишина", "silence", "динамики", "speakers", "громкость"]),
-        .init(title: "Пауза музыки", subtitle: "Apple Music, Spotify", section: .settings,
-              keywords: ["пауза", "pause", "музыка", "music", "видео", "video", "spotify", "apple music", "плеер", "player", "медиа"]),
-        .init(title: "Звуковые сигналы", subtitle: "Звуки начала и конца записи", section: .settings,
-              keywords: ["звуковые", "sounds", "сигналы", "effects", "chime", "начало", "start", "конец", "stop", "ошибка"]),
-        .init(title: "Провайдер ИИ", subtitle: "Локально или в облаке", section: .settings,
-              keywords: ["ии", "ai", "искусственный интеллект", "провайдер", "provider", "claude", "anthropic", "llm", "локально", "local", "облако", "cloud"]),
-        .init(title: "API-ключ Anthropic", subtitle: "Ключ для облачного ИИ", section: .settings,
-              keywords: ["api", "ключ", "key", "anthropic", "claude", "keychain", "облако", "cloud"]),
-        .init(title: "Причёсывание текста ИИ", subtitle: "Убирает слова-паразиты", section: .settings,
-              keywords: ["причёсывание", "cleanup", "текст", "text", "слова-паразиты", "filler", "форматирование", "formatting"]),
+        .init(title: T("Тема", "Theme"), subtitle: T("Белая, терракотовая, тёмная", "White, terracotta, dark"), section: .settings,
+              keywords: [T("тема", "theme"), "theme", T("цвет", "colour"), "color", T("оформление", "appearance"), "appearance", T("белая", "white"), "white", T("терракотовая", "terracotta"), "terracotta", T("тёмная", "dark"), "dark", T("ночная", "night"), T("светлая", "light"), "light", T("стиль", "style")]),
+        .init(title: T("Иконка приложения", "App icon"), subtitle: T("Светлая, чёрная, авто", "Light, black, auto"), section: .settings,
+              keywords: [T("иконка", "icon"), "icon", "dock", T("док", "dock"), T("значок", "badge"), T("светлая", "light"), "light", T("чёрная", "black"), "black", T("приложение", "app"), "app"]),
+        .init(title: T("Индикатор диктовки", "Dictation indicator"), subtitle: T("Плавающий индикатор записи", "Floating recording indicator"), section: .settings,
+              keywords: [T("индикатор", "indicator"), "indicator", T("запись", "record"), "recording", T("плавающий", "floating"), "floating", "hud", "pill", T("спектр", "spectrum"), "spectrum"]),
+        .init(title: T("Таймаут копирования", "Copy card timeout"), subtitle: T("Секунды до скрытия окна", "Seconds before the card hides"), section: .settings,
+              keywords: [T("таймаут", "timeout"), "timeout", T("копирование", "copy"), "copy", "dismiss", T("скрытие", "hiding"), T("окно", "window"), "window", T("секунды", "seconds")]),
+        .init(title: T("Запуск при входе", "Launch at login"), subtitle: T("Автозагрузка с macOS", "Autostart with macOS"), section: .settings,
+              keywords: [T("запуск", "launch"), "launch", T("вход", "input"), "login", T("автозагрузка", "autostart"), "autostart", "startup", T("загрузка", "startup"), "boot"]),
+        .init(title: T("Значок в Dock", "Dock icon"), subtitle: T("Отображать / скрывать", "Show / hide"), section: .settings,
+              keywords: ["dock", T("док", "dock"), T("значок", "badge"), "icon", T("показать", "show"), "show", T("скрыть", "hide"), "hide", T("панель", "panel")]),
+        .init(title: T("Заглушать звук", "Mute sound"), subtitle: T("Тишина во время диктовки", "Silence while dictating"), section: .settings,
+              keywords: [T("заглушать", "mute"), "mute", T("звук", "sound"), "audio", "sound", T("тишина", "silence"), "silence", T("динамики", "speakers"), "speakers", T("громкость", "volume")]),
+        .init(title: T("Пауза музыки", "Pause music"), subtitle: "Apple Music, Spotify", section: .settings,
+              keywords: [T("пауза", "pause"), "pause", T("музыка", "music"), "music", T("видео", "video"), "video", "spotify", "apple music", T("плеер", "player"), "player", T("медиа", "media")]),
+        .init(title: T("Звуковые сигналы", "Sound cues"), subtitle: T("Звуки начала и конца записи", "Sounds at the start and end of recording"), section: .settings,
+              keywords: [T("звуковые", "sound"), "sounds", T("сигналы", "cues"), "effects", "chime", T("начало", "start"), "start", T("конец", "end"), "stop", T("ошибка", "error")]),
+        .init(title: T("Провайдер ИИ", "AI provider"), subtitle: T("Локально или в облаке", "Local or in the cloud"), section: .settings,
+              keywords: [T("ии", "ai"), "ai", T("искусственный интеллект", "artificial intelligence"), T("провайдер", "provider"), "provider", "claude", "anthropic", "llm", T("локально", "local"), "local", T("облако", "cloud"), "cloud"]),
+        .init(title: T("API-ключ Anthropic", "Anthropic API key"), subtitle: T("Ключ для облачного ИИ", "Key for the cloud AI"), section: .settings,
+              keywords: ["api", T("ключ", "key"), "key", "anthropic", "claude", "keychain", T("облако", "cloud"), "cloud"]),
+        .init(title: T("Причёсывание текста ИИ", "AI text cleanup"), subtitle: T("Убирает слова-паразиты", "Removes filler words"), section: .settings,
+              keywords: [T("причёсывание", "cleanup"), "cleanup", T("текст", "text"), "text", T("слова-паразиты", "filler words"), "filler", T("форматирование", "formatting"), "formatting"]),
 
         // История (History)
-        .init(title: "История записей", subtitle: "Поиск и просмотр диктовок", section: .history,
-              keywords: ["история", "history", "записи", "records", "диктовки", "поиск", "копировать"]),
-        .init(title: "Автоочистка истории", subtitle: "Лимит строк и очистка по таймеру", section: .history,
-              keywords: ["автоочистка", "очистка", "лимит", "таймер", "ежедневно", "еженедельно", "ежемесячно", "строк", "записей", "хранение", "clear", "limit", "schedule"]),
+        .init(title: T("История записей", "Recording history"), subtitle: T("Поиск и просмотр диктовок", "Search and browse dictations"), section: .history,
+              keywords: [T("история", "history"), "history", T("записи", "records"), "records", T("диктовки", "dictations"), T("поиск", "search"), T("копировать", "copy")]),
+        .init(title: T("Автоочистка истории", "History auto-clear"), subtitle: T("Лимит строк и очистка по таймеру", "Row limit and scheduled clearing"), section: .history,
+              keywords: [T("автоочистка", "autoclear"), T("очистка", "clearing"), T("лимит", "limit"), T("таймер", "timer"), T("ежедневно", "daily"), T("еженедельно", "weekly"), T("ежемесячно", "monthly"), T("строк", "rows"), T("записей", "records"), T("хранение", "retention"), "clear", "limit", "schedule"]),
 
         // Модели (Models)
-        .init(title: "Модели Whisper", subtitle: "Установка и выбор модели", section: .models,
-              keywords: ["модель", "model", "whisper", "ggml", "скачать", "download", "установить", "install", "large", "turbo", "base", "medium", "small"]),
-        .init(title: "Потоковое распознавание", subtitle: "Текст во время речи", section: .models,
-              keywords: ["потоковое", "streaming", "реалтайм", "realtime", "live", "черновик", "draft", "во время", "речь"]),
-        .init(title: "Потоки CPU", subtitle: "Число ядер для распознавания", section: .models,
-              keywords: ["потоки", "threads", "cpu", "ядра", "cores", "производительность", "performance", "скорость", "speed"]),
-        .init(title: "Локальные модели ИИ", subtitle: "Причёсывание текста, GGUF", section: .models,
-              keywords: ["llm", "локальная", "модель", "gguf", "причёсывание", "cleanup"]),
+        .init(title: T("Модели Whisper", "Whisper models"), subtitle: T("Установка и выбор модели", "Installing and choosing a model"), section: .models,
+              keywords: [T("модель", "model"), "model", "whisper", "ggml", T("скачать", "download"), "download", T("установить", "install"), "install", "large", "turbo", "base", "medium", "small"]),
+        .init(title: T("Потоковое распознавание", "Streaming recognition"), subtitle: T("Текст во время речи", "Text while you speak"), section: .models,
+              keywords: [T("потоковое", "streaming"), "streaming", T("реалтайм", "realtime"), "realtime", "live", T("черновик", "draft"), "draft", T("во время", "while speaking"), T("речь", "speech")]),
+        .init(title: T("Потоки CPU", "CPU threads"), subtitle: T("Число ядер для распознавания", "Cores used for recognition"), section: .models,
+              keywords: [T("потоки", "threads"), "threads", "cpu", T("ядра", "cores"), "cores", T("производительность", "performance"), "performance", T("скорость", "speed"), "speed"]),
+        .init(title: T("Локальные модели ИИ", "Local AI models"), subtitle: T("Причёсывание текста, GGUF", "Text cleanup, GGUF"), section: .models,
+              keywords: ["llm", T("локальная", "local"), T("модель", "model"), "gguf", T("причёсывание", "cleanup"), "cleanup"]),
 
         // История (History)
-        .init(title: "История", subtitle: "Просмотр и копирование записей", section: .history,
-              keywords: ["история", "history", "записи", "records", "копировать", "copy", "очистить", "clear", "прошлые"]),
+        .init(title: T("История", "History"), subtitle: T("Просмотр и копирование записей", "Browsing and copying records"), section: .history,
+              keywords: [T("история", "history"), "history", T("записи", "records"), "records", T("копировать", "copy"), "copy", T("очистить", "clear"), "clear", T("прошлые", "past")]),
 
         // О программе (About)
-        .init(title: "Движок распознавания", subtitle: "whisper.cpp + Metal", section: .about,
-              keywords: ["движок", "engine", "whisper", "metal", "gpu", "apple silicon", "m1", "m2", "m3", "m4", "распознавание"]),
-        .init(title: "Версия", subtitle: "Intact", section: .about,
-              keywords: ["версия", "version", "about", "о программе", "информация", "info"]),
-        .init(title: "Приватность", subtitle: "100% локальная обработка", section: .about,
-              keywords: ["приватность", "privacy", "безопасность", "security", "локальная", "local", "на устройстве", "on-device"]),
-        .init(title: "Журнал работы", subtitle: "Логи и отладка", section: .about,
-              keywords: ["журнал", "log", "logs", "логи", "отладка", "debug", "файл", "file"]),
+        .init(title: T("Движок распознавания", "Recognition engine"), subtitle: "whisper.cpp + Metal", section: .about,
+              keywords: [T("движок", "engine"), "engine", "whisper", "metal", "gpu", "apple silicon", "m1", "m2", "m3", "m4", T("распознавание", "recognition")]),
+        .init(title: T("Версия", "Version"), subtitle: "Intact", section: .about,
+              keywords: [T("версия", "version"), "version", "about", T("о программе", "about"), T("информация", "information"), "info"]),
+        .init(title: T("Приватность", "Privacy"), subtitle: T("100% локальная обработка", "100% on-device processing"), section: .about,
+              keywords: [T("приватность", "privacy"), "privacy", T("безопасность", "security"), "security", T("локальная", "local"), "local", T("на устройстве", "on device"), "on-device"]),
+        .init(title: T("Журнал работы", "Activity log"), subtitle: T("Логи и отладка", "Logs and debugging"), section: .about,
+              keywords: [T("журнал", "log"), "log", "logs", T("логи", "logs"), T("отладка", "debugging"), "debug", T("файл", "file"), "file"]),
     ]
 
     func search(query: String) -> [SettingsSearchEntry] {
@@ -503,12 +501,12 @@ struct PermissionRow: View {
                 HStack(spacing: 6) {
                     IntactIcon(kind: .success, size: 15)
                         .foregroundStyle(Palette.iconSuccess)
-                    Text("выдано")
+                    Text(T("выдано", "granted"))
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                 }
             } else {
-                PillButton(title: "Разрешить", action: request)
+                PillButton(title: T("Разрешить", "Grant"), action: request)
             }
         }
     }
@@ -693,7 +691,7 @@ struct AdvancedBlock<Content: View>: View {
                 withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
             } label: {
                 HStack(spacing: 7) {
-                    Text("Дополнительно")
+                    Text(T("Дополнительно", "Advanced"))
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Palette.textPrimary)
                     IntactIcon(kind: .chevronRight, size: 12, weight: .medium)
@@ -861,7 +859,7 @@ struct HistoryTab: View {
             ? filteredEntries.filter { selection.contains($0.id) }
             : filteredEntries
         let text = Exporter.historyMarkdown(entries)
-        switch Exporter.save(text: text, suggestedName: "Intact-история-\(Exporter.fileStamp())") {
+        switch Exporter.save(text: text, suggestedName: T("Intact-история-\(Exporter.fileStamp())", "Intact-history-\(Exporter.fileStamp())")) {
         case .saved(let url):  Exporter.reveal(url)
         case .cancelled:       break
         case .failed(let msg): exportError = msg
@@ -917,8 +915,8 @@ struct HistoryTab: View {
 
             // ── Автоочистка и лимиты ────────────────────────────────────
             Card(header: L10n.historyAutoClearHeader) {
-                Row(title: "Сохранять историю записей",
-                    subtitle: "Позволяет скопировать продиктованный текст позже. Выключено — ничего не пишется на диск.",
+                Row(title: T("Сохранять историю записей", "Keep a history of records"),
+                    subtitle: T("Позволяет скопировать продиктованный текст позже. Выключено — ничего не пишется на диск.", "Lets you copy dictated text later. Off — nothing is written to disk."),
                     first: true) {
                     Toggle("", isOn: $settings.keepHistory)
                         .toggleStyle(WisprToggleStyle())
@@ -1005,7 +1003,7 @@ struct HistoryTab: View {
                     } label: {
                         HStack(spacing: 6) {
                             IntactIcon(kind: selecting ? .close : .radioOff, size: 12)
-                            Text(selecting ? "Отменить выбор" : "Выбрать")
+                            Text(selecting ? T("Отменить выбор", "Cancel selection") : T("Выбрать", "Select"))
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .foregroundStyle(selecting ? Palette.accent : Palette.textPrimary)
@@ -1017,7 +1015,7 @@ struct HistoryTab: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Отметить несколько записей и что-то с ними сделать")
+                    .help(T("Отметить несколько записей и что-то с ними сделать", "Mark several records and do something with them"))
 
                     // Выгрузка истории в Markdown-файл
                     Button {
@@ -1025,7 +1023,7 @@ struct HistoryTab: View {
                     } label: {
                         HStack(spacing: 6) {
                             IntactIcon(kind: .export, size: 13)
-                            Text("Выгрузить")
+                            Text(T("Выгрузить", "Export"))
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .foregroundStyle(Palette.textPrimary)
@@ -1037,7 +1035,7 @@ struct HistoryTab: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .help("Сохранить историю диктовок в файл Markdown")
+                    .help(T("Сохранить историю диктовок в файл Markdown", "Save the dictation history to a Markdown file"))
                     .onHover { if $0 { exportError = nil } }
 
                     // Кнопка открытия поповера очистки
@@ -1138,7 +1136,7 @@ struct HistoryTab: View {
         return Group {
             if present.count > 1 {
                 HStack(spacing: 7) {
-                    filterChip(title: "Все", count: history.entries.count,
+                    filterChip(title: T("Все", "All"), count: history.entries.count,
                                icon: nil, active: kindFilter == nil) { kindFilter = nil }
                     ForEach(present) { kind in
                         filterChip(title: kind.title, count: counts[kind] ?? 0,
@@ -1179,14 +1177,14 @@ struct HistoryTab: View {
 
     private var selectionBar: some View {
         HStack(spacing: 10) {
-            Text(selection.isEmpty ? "Отметьте записи" : "Выбрано: \(selection.count)")
+            Text(selection.isEmpty ? T("Отметьте записи", "Mark some records") : T("Выбрано: \(selection.count)", "Selected: \(selection.count)"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Palette.textPrimary)
 
             Button {
                 selection = Set(filteredEntries.map(\.id))
             } label: {
-                Text(isFiltered ? "Все найденные" : "Все")
+                Text(isFiltered ? T("Все найденные", "All found") : T("Все", "All"))
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(Palette.accent)
             }
@@ -1194,15 +1192,15 @@ struct HistoryTab: View {
 
             Spacer()
 
-            PillButton(title: "В чат", icon: .chat) { sendSelectionToChat() }
+            PillButton(title: T("В чат", "To chat"), icon: .chat) { sendSelectionToChat() }
                 .opacity(selection.isEmpty ? 0.45 : 1)
                 .disabled(selection.isEmpty)
 
-            PillButton(title: "Выгрузить", icon: .export) { exportHistory() }
+            PillButton(title: T("Выгрузить", "Export"), icon: .export) { exportHistory() }
                 .opacity(selection.isEmpty ? 0.45 : 1)
                 .disabled(selection.isEmpty)
 
-            PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
+            PillButton(title: T("Удалить", "Delete"), icon: .clearAll, tone: .danger) {
                 history.delete(ids: selection)
                 selection.removeAll()
             }
@@ -1377,14 +1375,14 @@ struct HistoryRow: View {
                         } label: {
                             HStack(spacing: 5) {
                                 IntactIcon(kind: .eye, size: 12)
-                                Text(expanded ? "Свернуть" : "Показать целиком")
+                                Text(expanded ? T("Свернуть", "Collapse") : T("Показать целиком", "Show in full"))
                                     .font(.system(size: 12, weight: .medium))
                             }
                             .foregroundStyle(Palette.accent)
                         }
                         .buttonStyle(.plain)
                     }
-                    Text("\(entry.kind.title) · \(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)")
+                    Text(T("\(entry.kind.title) · \(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)", "\(entry.kind.title) · \(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) s · \(entry.model)"))
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 }
@@ -1413,7 +1411,7 @@ struct HistoryRow: View {
                         HStack(spacing: 5) {
                             IntactIcon(kind: copied ? .copied : .copy, size: 12)
                                 .foregroundStyle(copied ? Palette.accent : Palette.textSecondary)
-                            Text(copied ? (L10n.isRu ? "Скопировано!" : "Copied!") : L10n.historyCopyBtn)
+                            Text(copied ? (L10n.isRu ? T("Скопировано!", "Copied!") : "Copied!") : L10n.historyCopyBtn)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(copied ? Palette.accent : Palette.textPrimary)
                         }
@@ -1441,53 +1439,53 @@ struct AboutTab: View {
     @ObservedObject var settings: AppSettings
 
     private var whisperStatus: String {
-        Transcriber.binaryPath ?? "не найден — brew install whisper-cpp"
+        Transcriber.binaryPath ?? T("не найден — brew install whisper-cpp", "not found — brew install whisper-cpp")
     }
 
     var body: some View {
-        SettingsPage(title: "О программе") {
+        SettingsPage(title: T("О программе", "About")) {
             Card {
-                Row(title: "Движок распознавания",
-                    subtitle: "whisper.cpp с аппаратным ускорением Apple Silicon (Metal)",
+                Row(title: T("Движок распознавания", "Recognition engine"),
+                    subtitle: T("whisper.cpp с аппаратным ускорением Apple Silicon (Metal)", "whisper.cpp with Apple Silicon hardware acceleration (Metal)"),
                     first: true) {
                     Text(URL(fileURLWithPath: settings.modelPath).lastPathComponent)
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
                 }
-                Row(title: "Утилита whisper-cli") {
+                Row(title: T("Утилита whisper-cli", "whisper-cli utility")) {
                     Text(whisperStatus)
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(Transcriber.binaryPath == nil ? .red : Palette.textSecondary)
                 }
-                Row(title: "Ядер процессора") {
+                Row(title: T("Ядер процессора", "CPU cores")) {
                     Text("\(ProcessInfo.processInfo.activeProcessorCount)")
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                 }
-                Row(title: "Версия") {
+                Row(title: T("Версия", "Version")) {
                     Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                 }
-                Row(title: "Журнал работы",
-                    subtitle: "Логирование нажатий клавиш, прав доступа и ошибок") {
-                    PillButton(title: "Показать файл", icon: .folder) {
+                Row(title: T("Журнал работы", "Activity log"),
+                    subtitle: T("Логирование нажатий клавиш, прав доступа и ошибок", "Logging of key presses, permissions and errors")) {
+                    PillButton(title: T("Показать файл", "Show the file"), icon: .folder) {
                         NSWorkspace.shared.selectFile(Log.path, inFileViewerRootedAtPath: "")
                     }
                 }
             }
 
-            Card(header: "Приватность и безопасность") {
+            Card(header: T("Приватность и безопасность", "Privacy and security")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         IntactIcon(kind: .lock, size: 15)
                             .foregroundStyle(Palette.textPrimary)
-                        Text("100% локальная обработка на устройстве")
+                        Text(T("100% локальная обработка на устройстве", "100% on-device processing"))
                             .font(.system(size: 13.5, weight: .semibold))
                             .foregroundStyle(Palette.textPrimary)
                     }
 
-                    Text("Весь процесс записи и распознавания речи выполняется исключительно на вашем Mac. Аудиофайлы никогда не отправляются на сторонние серверы и удаляются из памяти сразу после завершения диктовки.")
+                    Text(T("Весь процесс записи и распознавания речи выполняется исключительно на вашем Mac. Аудиофайлы никогда не отправляются на сторонние серверы и удаляются из памяти сразу после завершения диктовки.", "Recording and speech recognition happen entirely on your Mac. Audio files are never sent to third-party servers and are dropped from memory as soon as dictation ends."))
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

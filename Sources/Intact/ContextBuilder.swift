@@ -16,7 +16,7 @@ enum ContextBuilder {
 
         // 0. Прикреплённые файлы — не завязаны на toggle-источники, добавляются всегда.
         if !files.isEmpty {
-            badges.append("Файлы (\(files.count))")
+            badges.append(T("Файлы (\(files.count))", "Files (\(files.count))"))
             var text = "### Прикреплённые файлы:\n"
             for f in files {
                 text += "--- \(f.displayName) ---\n\(f.content)\n\n"
@@ -32,8 +32,8 @@ enum ContextBuilder {
             // модель получала «81 записей» и видела 25.
             let sent = todayEntries.prefix(25)
             if !sent.isEmpty {
-                let suffix = todayEntries.count > sent.count ? " из \(todayEntries.count)" : ""
-                badges.append("Диктовки сегодня (\(sent.count)\(suffix))")
+                let suffix = todayEntries.count > sent.count ? T(" из \(todayEntries.count)", " of \(todayEntries.count)") : ""
+                badges.append(T("Диктовки сегодня (\(sent.count)\(suffix))", "Dictations today (\(sent.count)\(suffix))"))
                 var text = "### Диктовки за сегодня (последние \(sent.count) записей):\n"
                 let formatter = DateFormatter()
                 formatter.dateFormat = "HH:mm"
@@ -50,7 +50,7 @@ enum ContextBuilder {
         if sources.contains(.dictationRecent) && !sources.contains(.dictationToday) {
             let entries = History.shared.entries.prefix(30)
             if !entries.isEmpty {
-                badges.append("История диктовок (\(entries.count))")
+                badges.append(T("История диктовок (\(entries.count))", "Dictation history (\(entries.count))"))
                 var text = "### Последние диктовки (\(entries.count) записей):\n"
                 let formatter = DateFormatter()
                 formatter.dateFormat = "d MMM, HH:mm"
@@ -87,7 +87,7 @@ enum ContextBuilder {
             AppleRemindersService.fetchPendingReminders { reminders in
                 let pending = reminders.filter { !$0.isCompleted }.prefix(15)
                 if !pending.isEmpty {
-                    badges.append("Напоминания (\(pending.count))")
+                    badges.append(T("Напоминания (\(pending.count))", "Reminders (\(pending.count))"))
                     var text = "### Текущие напоминания Apple Reminders:\n"
                     let formatter = DateFormatter()
                     formatter.dateFormat = "d MMM в HH:mm"

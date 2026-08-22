@@ -142,7 +142,7 @@ struct ChatTab: View {
 
     private var quickAnalysisSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("БЫСТРЫЙ АНАЛИЗ")
+            Text(T("БЫСТРЫЙ АНАЛИЗ", "QUICK ANALYSIS"))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -185,7 +185,7 @@ struct ChatTab: View {
 
     private var conversationHeader: some View {
         HStack {
-            Text("ДИАЛОГ")
+            Text(T("ДИАЛОГ", "CONVERSATION"))
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -195,20 +195,20 @@ struct ChatTab: View {
             } label: {
                 HStack(spacing: 5) {
                     IntactIcon(kind: .export, size: 12)
-                    Text("Выгрузить")
+                    Text(T("Выгрузить", "Export"))
                         .font(.system(size: 12))
                 }
                 .foregroundStyle(Palette.textTertiary)
             }
             .buttonStyle(.plain)
-            .help("Сохранить весь диалог в файл Markdown")
+            .help(T("Сохранить весь диалог в файл Markdown", "Save the whole conversation to a Markdown file"))
 
             Button {
                 chat.clearHistory()
             } label: {
                 HStack(spacing: 5) {
                     IntactIcon(kind: .clearChat, size: 12)
-                    Text("Очистить (\(chat.messages.count))")
+                    Text(T("Очистить (\(chat.messages.count))", "Clear (\(chat.messages.count))"))
                         .font(.system(size: 12))
                 }
                 .foregroundStyle(Palette.textTertiary)
@@ -221,7 +221,7 @@ struct ChatTab: View {
     /// переписки, которую она выгружает.
     private func exportReport() {
         let text = Exporter.reportMarkdown(chat.messages)
-        switch Exporter.save(text: text, suggestedName: "Intact-отчёт-\(Exporter.fileStamp())") {
+        switch Exporter.save(text: text, suggestedName: T("Intact-отчёт-\(Exporter.fileStamp())", "Intact-report-\(Exporter.fileStamp())")) {
         case .saved(let url):  Exporter.reveal(url)
         case .cancelled:       break
         case .failed(let msg): chat.errorInfo = AIErrorInfo(message: msg)
@@ -231,7 +231,7 @@ struct ChatTab: View {
     private var generatingIndicator: some View {
         HStack(spacing: 10) {
             ThinkingDots(size: 18, tone: .process)
-            Text(chat.toolStatus ?? "Анализирую и формирую ответ…")
+            Text(chat.toolStatus ?? T("Анализирую и формирую ответ…", "Reading and writing the answer…"))
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.textSecondary)
                 .lineLimit(1)
@@ -259,7 +259,7 @@ struct ChatTab: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(railVisible ? "Скрыть список чатов" : "Показать список чатов")
+            .help(railVisible ? T("Скрыть список чатов", "Hide chat list") : T("Показать список чатов", "Show chat list"))
 
             AIModelPicker(
                 role: .chat,
@@ -270,14 +270,14 @@ struct ChatTab: View {
             if isCloudChat {
                 HStack(spacing: 4) {
                     IntactIcon(kind: .lock, size: 10)
-                    Text("уходит в облако")
+                    Text(T("уходит в облако", "goes to the cloud"))
                         .font(.system(size: 11, weight: .medium))
                 }
                 .foregroundStyle(Palette.iconWarning)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(Palette.iconWarning.opacity(0.12)))
-                .help("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Anthropic")
+                .help(T("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Anthropic", "Messages, dictations, notes and the contents of attached files are sent to Anthropic's servers"))
             }
 
             Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
@@ -312,7 +312,7 @@ struct ChatTab: View {
             } label: {
                 HStack(spacing: 4) {
                     IntactIcon(kind: .settings, size: 12)
-                    Text("Настройки ИИ")
+                    Text(T("Настройки ИИ", "AI settings"))
                         .font(.system(size: 12))
                 }
                 .foregroundStyle(Palette.textTertiary)
@@ -329,16 +329,16 @@ struct ChatTab: View {
     private var contextLabel: String {
         let count = chat.selectedContextSources.count
         let tokens = chat.estimatedContextTokens
-        guard tokens > 0 else { return "Контекст: \(count)" }
+        guard tokens > 0 else { return T("Контекст: \(count)", "Context: \(count)") }
         let short = tokens >= 1000
             ? String(format: "%.1fk", Double(tokens) / 1000)
             : "\(tokens)"
-        return "Контекст: \(count) · ≈\(short) ток."
+        return T("Контекст: \(count) · ≈\(short) ток.", "Context: \(count) · ≈\(short) tok.")
     }
 
     private var contextSelectionPopover: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("ИСТОЧНИКИ ДАННЫХ ДЛЯ ИИ")
+            Text(T("ИСТОЧНИКИ ДАННЫХ ДЛЯ ИИ", "DATA SOURCES FOR THE AI"))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.6)
@@ -348,26 +348,26 @@ struct ChatTab: View {
             contextToggleRow(
                 source: .dictationToday,
                 icon: .voice,
-                title: "Диктовки за сегодня",
-                subtitle: "Анализировать голосовые записи сегодняшнего дня"
+                title: T("Диктовки за сегодня", "Today's dictations"),
+                subtitle: T("Анализировать голосовые записи сегодняшнего дня", "Analyse today's voice recordings")
             )
             contextToggleRow(
                 source: .dictationRecent,
                 icon: .history,
-                title: "Все диктовки",
-                subtitle: "История прошлых дней"
+                title: T("Все диктовки", "All dictations"),
+                subtitle: T("История прошлых дней", "History from previous days")
             )
             contextToggleRow(
                 source: .appleNotes,
                 icon: .briefs,
-                title: "Заметки Apple Notes",
-                subtitle: "Заметки из папки Intact"
+                title: T("Заметки Apple Notes", "Apple Notes"),
+                subtitle: T("Заметки из папки Intact", "Notes from the Intact folder")
             )
             contextToggleRow(
                 source: .appleReminders,
                 icon: .quickTasks,
-                title: "Напоминания",
-                subtitle: "Задачи из Apple Reminders"
+                title: T("Напоминания", "Reminders"),
+                subtitle: T("Задачи из Apple Reminders", "Tasks from Apple Reminders")
             )
 
             Divider().overlay(Palette.hairline).padding(.vertical, 4)
@@ -384,11 +384,11 @@ struct ChatTab: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(chat.contextGatheredAt == nil
-                     ? "Контекст ещё не собран"
-                     : "Собран в \(timeString(from: chat.contextGatheredAt!))")
+                     ? T("Контекст ещё не собран", "Context not gathered yet")
+                     : T("Собран в \(timeString(from: chat.contextGatheredAt!))", "Gathered at \(timeString(from: chat.contextGatheredAt!))"))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(Palette.textSecondary)
-                Text("Один набор на весь разговор — не пересобирается на каждую реплику")
+                Text(T("Один набор на весь разговор — не пересобирается на каждую реплику", "One set for the whole conversation — not rebuilt on every message"))
                     .font(.system(size: 10.5))
                     .foregroundStyle(Palette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -400,7 +400,7 @@ struct ChatTab: View {
                 Button { chat.refreshContext() } label: {
                     HStack(spacing: 4) {
                         IntactIcon(kind: .refresh, size: 11)
-                        Text("Обновить").font(.system(size: 11.5, weight: .medium))
+                        Text(T("Обновить", "Refresh")).font(.system(size: 11.5, weight: .medium))
                     }
                     .foregroundStyle(Palette.accent)
                     .padding(.horizontal, 8)
@@ -457,9 +457,9 @@ struct ChatTab: View {
 
     private var quickChipsRow: some View {
         HStack(spacing: 10) {
-            quickChip(iconKind: .quickSummary, label: "Сводка за сегодня")  { chat.analyzeTodayDictations() }
-            quickChip(iconKind: .quickTasks,   label: "Извлечь задачи")      { chat.extractTasksFromHistoryAndNotes() }
-            quickChip(iconKind: .quickNotes,   label: "Сводка заметок")        { chat.summarizeNotes() }
+            quickChip(iconKind: .quickSummary, label: T("Сводка за сегодня", "Today's summary"))  { chat.analyzeTodayDictations() }
+            quickChip(iconKind: .quickTasks,   label: T("Извлечь задачи", "Extract tasks"))      { chat.extractTasksFromHistoryAndNotes() }
+            quickChip(iconKind: .quickNotes,   label: T("Сводка заметок", "Notes summary"))        { chat.summarizeNotes() }
             Spacer()
         }
     }
@@ -497,10 +497,10 @@ struct ChatTab: View {
         HStack(spacing: 14) {
             IconTile(kind: .aiStar, tone: .active, side: 40)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Ассистент готов к работе")
+                Text(T("Ассистент готов к работе", "The assistant is ready"))
                     .font(.system(size: 14.5, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
-                Text("Задайте вопрос ниже или запустите быстрый анализ выше")
+                Text(T("Задайте вопрос ниже или запустите быстрый анализ выше", "Ask a question below or run a quick analysis above"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -531,7 +531,7 @@ struct ChatTab: View {
                     if !isUser {
                         IntactIcon(kind: .aiStar, size: 11)
                             .foregroundStyle(Palette.accent)
-                        Text("Intact ИИ")
+                        Text(T("Intact ИИ", "Intact AI"))
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(Palette.accent)
                     }
@@ -548,7 +548,7 @@ struct ChatTab: View {
                     if isUser {
                         IntactIcon(kind: .user, size: 11)
                             .foregroundStyle(Palette.textTertiary)
-                        Text("Вы")
+                        Text(T("Вы", "You"))
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(Palette.textTertiary)
                     }
@@ -598,7 +598,7 @@ struct ChatTab: View {
                     } label: {
                         HStack(spacing: 4) {
                             IntactIcon(kind: copiedMessageID == msg.id ? .copied : .copy, size: 12)
-                            Text(copiedMessageID == msg.id ? "Скопировано" : "Копировать ответ целиком")
+                            Text(copiedMessageID == msg.id ? T("Скопировано", "Copied") : T("Копировать ответ целиком", "Copy the whole answer"))
                                 .font(.system(size: 11))
                         }
                         .foregroundStyle(Palette.textTertiary)
@@ -664,7 +664,7 @@ struct ChatTab: View {
                             .opacity(controller.blink ? 0.3 : 1.0)
                             .animation(.easeInOut(duration: 0.5).repeatForever(), value: controller.blink)
 
-                        Text("Идёт запись… (\(controller.elapsedText))")
+                        Text(T("Идёт запись… (\(controller.elapsedText))", "Recording… (\(controller.elapsedText))"))
                             .font(.system(size: 13.5, weight: .medium))
                             .foregroundStyle(Palette.textPrimary)
 
@@ -677,7 +677,7 @@ struct ChatTab: View {
                             controller.cancel()
                             isChatRecording = false
                         } label: {
-                            Text("Отмена")
+                            Text(T("Отмена", "Cancel"))
                                 .font(.system(size: 11.5, weight: .medium))
                                 .foregroundStyle(Palette.textSecondary)
                                 .padding(.horizontal, 8)
@@ -691,7 +691,7 @@ struct ChatTab: View {
                 } else if isChatRecording && (controller.state == .transcribing || controller.state == .processingAI) {
                     HStack(spacing: 10) {
                         ThinkingDots(size: 18, tone: .voice)
-                        Text("Распознавание речи Whisper…")
+                        Text(T("Распознавание речи Whisper…", "Whisper is transcribing…"))
                             .font(.system(size: 13.5, weight: .medium))
                             .foregroundStyle(Palette.textSecondary)
                         Spacer()
@@ -699,7 +699,7 @@ struct ChatTab: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10.5)
                 } else {
-                    TextField("Спросите что-нибудь или надиктуйте голосом…", text: $inputText, axis: .vertical)
+                    TextField(T("Спросите что-нибудь или надиктуйте голосом…", "Ask something, or dictate it"), text: $inputText, axis: .vertical)
                         .textFieldStyle(.plain)
                         .lineLimit(1...5)
                         .font(.system(size: 14))
@@ -729,7 +729,7 @@ struct ChatTab: View {
                     .background(Circle().fill(Palette.pill))
             }
             .buttonStyle(.plain)
-            .help("Прикрепить файл или папку")
+            .help(T("Прикрепить файл или папку", "Attach a file or folder"))
 
             // Кнопка голосового сообщения (ГС / микрофон)
             Button {
@@ -753,7 +753,7 @@ struct ChatTab: View {
                 )
             }
             .buttonStyle(.plain)
-            .help(isChatRecording ? "Остановить и отправить запрос" : "Голосовой запрос в чат (нажмите для записи)")
+            .help(isChatRecording ? T("Остановить и отправить запрос", "Stop and send the request") : T("Голосовой запрос в чат (нажмите для записи)", "Voice request into chat (click to record)"))
 
             // Кнопка отправки текста — во время генерации превращается в «Стоп»
             // и остаётся кликабельной, а не просто меняет иконку задизейбленной.
@@ -770,7 +770,7 @@ struct ChatTab: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSend && !chat.isGenerating)
-            .help(chat.isGenerating ? "Остановить генерацию" : "Отправить")
+            .help(chat.isGenerating ? T("Остановить генерацию", "Stop generating") : T("Отправить", "Send"))
             .animation(.spring(response: 0.22), value: canSend)
         }
         .padding(.vertical, 12)
@@ -798,8 +798,8 @@ struct ChatTab: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
-        panel.prompt = "Прикрепить"
-        panel.message = "Выберите файлы или папку, которые ИИ сможет прочитать в этом диалоге"
+        panel.prompt = T("Прикрепить", "Attach")
+        panel.message = T("Выберите файлы или папку, которые ИИ сможет прочитать в этом диалоге", "Choose files or a folder the AI may read in this conversation")
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return }
         chat.attachFiles(urls: panel.urls)

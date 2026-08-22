@@ -15,18 +15,18 @@ struct SettingsTab: View {
     @State private var selfTestResults: [CloudCheck] = []
 
     var body: some View {
-        SettingsPage(title: "Настройки") {
+        SettingsPage(title: T("Настройки", "Settings")) {
 
             // ── Оформление ──────────────────────────────────────────────
-            Card(header: "ОФОРМЛЕНИЕ") {
+            Card(header: T("ОФОРМЛЕНИЕ", "APPEARANCE")) {
                 // Переключателя языка здесь больше нет. Из ~700 строк
                 // интерфейса через L10n проходили 85 — английский вариант
                 // давал русское окно с десятком английских вкраплений,
                 // то есть был хуже, чем честный русский. Сам L10n остался
                 // в коде: если английский когда-нибудь доведут до конца,
                 // переключатель вернётся сюда же.
-                Row(title: "Плавающий индикатор записи",
-                    subtitle: "Показывать индикатор поверх всех окон во время речи",
+                Row(title: T("Плавающий индикатор записи", "Floating recording indicator"),
+                    subtitle: T("Показывать индикатор поверх всех окон во время речи", "Show the indicator above all windows while speaking"),
                     first: true) {
                     Toggle("", isOn: $settings.showIndicator)
                         .toggleStyle(WisprToggleStyle())
@@ -40,44 +40,44 @@ struct SettingsTab: View {
             appIconSelectionCard
 
             // ── Система и звук ──────────────────────────────────────────
-            Card(header: "СИСТЕМА И ЗВУК") {
-                Row(title: "Запускать при входе в систему",
-                    subtitle: "Автоматический запуск Intact вместе с macOS",
+            Card(header: T("СИСТЕМА И ЗВУК", "SYSTEM AND SOUND")) {
+                Row(title: T("Запускать при входе в систему", "Launch at login"),
+                    subtitle: T("Автоматический запуск Intact вместе с macOS", "Start Intact together with macOS"),
                     first: true) {
                     Toggle("", isOn: $settings.launchAtLogin)
                         .toggleStyle(WisprToggleStyle())
                         .onChange(of: settings.launchAtLogin) { _, new in LoginItem.set(enabled: new) }
                 }
 
-                Row(title: "Значок в Dock",
-                    subtitle: "Отображать приложение в панели Dock") {
+                Row(title: T("Значок в Dock", "Dock icon"),
+                    subtitle: T("Отображать приложение в панели Dock", "Show the app in the Dock")) {
                     Toggle("", isOn: $settings.showDockIcon)
                         .toggleStyle(WisprToggleStyle())
                 }
 
-                Row(title: "Заглушать системный звук во время речи",
-                    subtitle: "Отключает вывод динамиков и наушников на время записи") {
+                Row(title: T("Заглушать системный звук во время речи", "Mute system sound while speaking"),
+                    subtitle: T("Отключает вывод динамиков и наушников на время записи", "Silences speakers and headphones for the duration of the recording")) {
                     Toggle("", isOn: $settings.muteAudioWhileDictating)
                         .toggleStyle(WisprToggleStyle())
                 }
 
-                Row(title: "Приостанавливать музыку и видео",
-                    subtitle: "Ставит на паузу Apple Music, Spotify и другие плееры на время речи") {
+                Row(title: T("Приостанавливать музыку и видео", "Pause music and video"),
+                    subtitle: T("Ставит на паузу Apple Music, Spotify и другие плееры на время речи", "Pauses Apple Music, Spotify and other players while you speak")) {
                     Toggle("", isOn: $settings.pauseMediaWhileDictating)
                         .toggleStyle(WisprToggleStyle())
                 }
 
-                Row(title: "Звуковые сигналы",
-                    subtitle: "Короткие звуки при начале, окончании и ошибке записи") {
+                Row(title: T("Звуковые сигналы", "Sound cues"),
+                    subtitle: T("Короткие звуки при начале, окончании и ошибке записи", "Short sounds at the start, end and on error")) {
                     Toggle("", isOn: $settings.playSounds)
                         .toggleStyle(WisprToggleStyle())
                 }
             }
 
             // ── ИИ и провайдеры ──────────────────────────────────────────
-            Card(header: "ИИ И ПРОВАЙДЕРЫ") {
-                Row(title: "Провайдер ИИ",
-                    subtitle: "Используется для умного причёсывания текста и чата",
+            Card(header: T("ИИ И ПРОВАЙДЕРЫ", "AI AND PROVIDERS")) {
+                Row(title: T("Провайдер ИИ", "AI provider"),
+                    subtitle: T("Используется для умного причёсывания текста и чата", "Used for smart text cleanup and chat"),
                     first: true) {
                     WisprDropdown(selection: $settings.aiProviderKind,
                                   options: AIProviderKind.allCases) { kind in
@@ -86,8 +86,8 @@ struct SettingsTab: View {
                 }
 
                 if settings.aiProviderKind == .cloud {
-                    Row(title: "API-ключ Anthropic",
-                        subtitle: "Ключ сохраняется в защищённом хранилище Keychain") {
+                    Row(title: T("API-ключ Anthropic", "Anthropic API key"),
+                        subtitle: T("Ключ сохраняется в защищённом хранилище Keychain", "The key is stored in the Keychain")) {
                         HStack(spacing: 8) {
                             SecureField("sk-ant-api03-...", text: $apiKeyText)
                                 .textFieldStyle(.plain)
@@ -102,7 +102,7 @@ struct SettingsTab: View {
                                                 .stroke(Palette.hairline, lineWidth: 1)
                                         )
                                 )
-                            PillButton(title: apiKeySaved ? "Сохранено" : "Сохранить",
+                            PillButton(title: apiKeySaved ? T("Сохранено", "Saved") : T("Сохранить", "Save"),
                                        icon: apiKeySaved ? .success : .copied,
                                        tone: apiKeySaved ? .success : nil) {
                                 KeychainHelper.set(apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -113,7 +113,7 @@ struct SettingsTab: View {
                         }
                     }
 
-                    Row(title: "Модель Claude",
+                    Row(title: T("Модель Claude", "Claude model"),
                         subtitle: cloudModelSubtitle) {
                         WisprDropdown(selection: $settings.aiCloudModel,
                                       options: AIModelCatalog.cloud.map(\.id)) { id in
@@ -124,12 +124,12 @@ struct SettingsTab: View {
                     // Ключ есть только у владельца машины, поэтому облачный
                     // путь нельзя проверить заранее. Одна кнопка проверяет
                     // всё сразу: ключ, поток, расширенные поля, поиск и учёт.
-                    Row(title: "Проверить облако",
+                    Row(title: T("Проверить облако", "Check the cloud"),
                         subtitle: selfTestStatus) {
                         if isSelfTesting {
                             ProgressView().controlSize(.small)
                         } else {
-                            PillButton(title: "Запустить проверку", icon: .refresh) { runSelfTest() }
+                            PillButton(title: T("Запустить проверку", "Run the check"), icon: .refresh) { runSelfTest() }
                         }
                     }
 
@@ -142,16 +142,16 @@ struct SettingsTab: View {
                 }
 
                 if settings.aiProviderKind == .local {
-                    Row(title: "Локальные модели GGUF",
-                        subtitle: "Загрузка и управление моделями llama-server") {
-                        PillButton(title: "Хаб моделей", icon: .models) {
+                    Row(title: T("Локальные модели GGUF", "Local GGUF models"),
+                        subtitle: T("Загрузка и управление моделями llama-server", "Downloading and managing llama-server models")) {
+                        PillButton(title: T("Хаб моделей", "Model hub"), icon: .models) {
                             onOpenModels?()
                         }
                     }
                 }
 
-                Row(title: "Умное причёсывание диктовки",
-                    subtitle: "Убирает слова-паразиты («э-э», «ну») и форматирует текст") {
+                Row(title: T("Умное причёсывание диктовки", "Smart dictation cleanup"),
+                    subtitle: T("Убирает слова-паразиты («э-э», «ну») и форматирует текст", "Removes filler words (“uh”, “well”) and formats the text")) {
                     Toggle("", isOn: $settings.enableAICleanup)
                         .toggleStyle(WisprToggleStyle())
                         .disabled(settings.aiProviderKind == .none)
@@ -162,15 +162,15 @@ struct SettingsTab: View {
             // Одна модель на всё приложение — это выбор между «умно, но
             // диктовка тормозит» и «быстро, но в чате слабая модель».
             // Здесь каждый раздел получает свою.
-            Card(header: "МОДЕЛЬ ПО РАЗДЕЛАМ") {
+            Card(header: T("МОДЕЛЬ ПО РАЗДЕЛАМ", "MODEL PER SECTION")) {
                 ForEach(Array(AIRole.allCases.enumerated()), id: \.element.id) { index, role in
                     AIRoleRow(role: role, first: index == 0,
                               onOpenSettings: {},
                               onOpenModels: { onOpenModels?() })
                 }
 
-                Row(title: "Рассуждение локальной модели",
-                    subtitle: "В чате и брифах модель сначала обдумывает ответ. Медленнее, но заметно точнее на разборах. В причёсывании диктовки выключено всегда — там важнее секунды.") {
+                Row(title: T("Рассуждение локальной модели", "Local model reasoning"),
+                    subtitle: T("В чате и брифах модель сначала обдумывает ответ. Медленнее, но заметно точнее на разборах. В причёсывании диктовки выключено всегда — там важнее секунды.", "In chat and briefs the model thinks before answering. Slower, but noticeably better on analysis. Always off in dictation cleanup — seconds matter more there.")) {
                     Toggle("", isOn: $settings.localThinkingInChat)
                         .toggleStyle(WisprToggleStyle())
                 }
@@ -187,18 +187,18 @@ struct SettingsTab: View {
     private var selfTestStatus: String {
         if isSelfTesting { return selfTestStage }
         if selfTestResults.isEmpty {
-            return "Пять коротких запросов: ключ, поток, расширенные параметры, поиск, учёт расхода. Стоит доли цента."
+            return T("Пять коротких запросов: ключ, поток, расширенные параметры, поиск, учёт расхода. Стоит доли цента.", "Five short requests: key, streaming, extended parameters, search, usage accounting. Costs a fraction of a cent.")
         }
         let failed = selfTestResults.filter { !$0.ok }.count
         return failed == 0
-            ? "Всё работает — \(selfTestResults.count) из \(selfTestResults.count)"
-            : "Не прошло проверок: \(failed) из \(selfTestResults.count)"
+            ? T("Всё работает — \(selfTestResults.count) из \(selfTestResults.count)", "All good — \(selfTestResults.count) of \(selfTestResults.count)")
+            : T("Не прошло проверок: \(failed) из \(selfTestResults.count)", "Checks failed: \(failed) of \(selfTestResults.count)")
     }
 
     private func runSelfTest() {
         isSelfTesting = true
         selfTestResults = []
-        selfTestStage = "Начинаю…"
+        selfTestStage = T("Начинаю…", "Starting…")
         CloudAIProvider.shared.runSelfTest(
             webSearch: settings.enableLocalWebSearch,
             onProgress: { stage in selfTestStage = stage },
@@ -214,29 +214,29 @@ struct SettingsTab: View {
     /// приложениями, а не часть какого-то одного экрана. Раньше эти
     /// настройки жили в «Брифах», где кроме них были ещё и сами брифы.
     private var integrationsCard: some View {
-        Card(header: "ЗАМЕТКИ И НАПОМИНАНИЯ") {
-            Row(title: "Создавать заметки по командам",
-                subtitle: "«Делаем заметку…», «Заметка…», «Создай заметку…» — сохраняет текст в Apple Notes без вставки",
+        Card(header: T("ЗАМЕТКИ И НАПОМИНАНИЯ", "NOTES AND REMINDERS")) {
+            Row(title: T("Создавать заметки по командам", "Create notes from voice commands"),
+                subtitle: T("«Делаем заметку…», «Заметка…», «Создай заметку…» — сохраняет текст в Apple Notes без вставки", "“Make a note…”, “Note…”, “Create a note…” — saves the text to Apple Notes without inserting it"),
                 first: true) {
                 Toggle("", isOn: $settings.enableVoiceNotes)
                     .toggleStyle(WisprToggleStyle())
             }
             if settings.enableVoiceNotes {
-                Row(title: "Папка в Заметках",
-                    subtitle: "Папка в приложении Заметки (по умолчанию «Intact»)") {
+                Row(title: T("Папка в Заметках", "Notes folder"),
+                    subtitle: T("Папка в приложении Заметки (по умолчанию «Intact»)", "Folder in the Notes app (“Intact” by default)")) {
                     compactField(placeholder: "Intact", text: $settings.voiceNotesFolder, width: 130)
                 }
             }
 
-            Row(title: "Создавать напоминания по командам",
-                subtitle: "«Напомни завтра в 15:00…», «Поставь задачу…» — создаёт напоминание в Apple Reminders") {
+            Row(title: T("Создавать напоминания по командам", "Create reminders from voice commands"),
+                subtitle: T("«Напомни завтра в 15:00…», «Поставь задачу…» — создаёт напоминание в Apple Reminders", "“Remind me tomorrow at 3pm…”, “Add a task…” — creates a reminder in Apple Reminders")) {
                 Toggle("", isOn: $settings.enableVoiceReminders)
                     .toggleStyle(WisprToggleStyle())
             }
             if settings.enableVoiceReminders {
-                Row(title: "Список напоминаний",
-                    subtitle: "Оставьте пустым для списка по умолчанию") {
-                    compactField(placeholder: "По умолчанию", text: $settings.voiceRemindersList, width: 140)
+                Row(title: T("Список напоминаний", "Reminders list"),
+                    subtitle: T("Оставьте пустым для списка по умолчанию", "Leave empty for the default list")) {
+                    compactField(placeholder: T("По умолчанию", "Default"), text: $settings.voiceRemindersList, width: 140)
                 }
             }
         }
@@ -266,17 +266,17 @@ struct SettingsTab: View {
     /// Раньше её нельзя было увидеть нигде, кроме счёта в конце месяца.
     private var cloudSpendCard: some View {
         let byRole = usage.todayByRole()
-        return Card(header: "РАСХОД ОБЛАКА") {
-            Row(title: "Сегодня",
+        return Card(header: T("РАСХОД ОБЛАКА", "CLOUD SPEND")) {
+            Row(title: T("Сегодня", "Today"),
                 subtitle: byRole.isEmpty
-                    ? "Облачных запросов сегодня не было. Локальные модели не считаются — они бесплатны."
-                    : "Оценка сверху: чтение кэша на самом деле дешевле, чем считает этот счётчик.",
+                    ? T("Облачных запросов сегодня не было. Локальные модели не считаются — они бесплатны.", "No cloud requests today. Local models are not counted — they are free.")
+                    : T("Оценка сверху: чтение кэша на самом деле дешевле, чем считает этот счётчик.", "An upper bound: reading a cached prefix actually costs less than this counter assumes."),
                 first: true) {
                 HStack(spacing: 10) {
                     Text(UsageTracker.money(usage.todayCost))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Palette.textPrimary)
-                    Text(UsageTracker.tokensShort(usage.todayTokens) + " ток.")
+                    Text(UsageTracker.tokensShort(usage.todayTokens) + T(" ток.", " tok."))
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(Palette.textTertiary)
                 }
@@ -284,7 +284,7 @@ struct SettingsTab: View {
 
             ForEach(byRole, id: \.role.id) { item in
                 Row(title: item.role.title,
-                    subtitle: "\(item.requests) \(Plural.form(item.requests, "запрос", "запроса", "запросов")) · \(UsageTracker.tokensShort(item.tokens)) токенов") {
+                    subtitle: T("\(item.requests) \(Plural.form(item.requests, "запрос", "запроса", "запросов")) · \(UsageTracker.tokensShort(item.tokens)) токенов", "\(item.requests) \(Plural.form(item.requests, "request", "requests", "requests")) · \(UsageTracker.tokensShort(item.tokens)) tokens")) {
                     Text(UsageTracker.money(item.cost))
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
@@ -292,12 +292,12 @@ struct SettingsTab: View {
             }
 
             if usage.weekCost > 0 {
-                Row(title: "За последние 7 дней") {
+                Row(title: T("За последние 7 дней", "Over the last 7 days")) {
                     HStack(spacing: 10) {
                         Text(UsageTracker.money(usage.weekCost))
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(Palette.textSecondary)
-                        PillButton(title: "Сбросить", icon: .clearAll) { usage.clear() }
+                        PillButton(title: T("Сбросить", "Discard"), icon: .clearAll) { usage.clear() }
                     }
                 }
             }
@@ -308,7 +308,7 @@ struct SettingsTab: View {
     /// а честная цена и окно контекста того, что выбрано прямо сейчас.
     private var cloudModelSubtitle: String {
         guard let model = AIModelCatalog.cloudModel(id: settings.aiCloudModel) else {
-            return "Модель по умолчанию для всех разделов"
+            return T("Модель по умолчанию для всех разделов", "Default model for every section")
         }
         return "\(model.contextText) · \(model.priceText)"
     }

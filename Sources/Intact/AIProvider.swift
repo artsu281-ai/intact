@@ -13,15 +13,15 @@ enum AIError: Error {
 
     var localizedDescription: String {
         switch self {
-        case .notConfigured:      return "AI не настроен"
-        case .network(let error): return "Сетевая ошибка: \(error.localizedDescription)"
-        case .badResponse:        return "Некорректный ответ от AI"
-        case .timeout:            return "AI не ответил вовремя"
-        case .providerUnavailable: return "AI-провайдер недоступен"
+        case .notConfigured:      return T("AI не настроен", "AI is not configured")
+        case .network(let error): return T("Сетевая ошибка: \(error.localizedDescription)", "Network error: \(error.localizedDescription)")
+        case .badResponse:        return T("Некорректный ответ от AI", "Malformed response from the AI")
+        case .timeout:            return T("AI не ответил вовремя", "The AI did not answer in time")
+        case .providerUnavailable: return T("AI-провайдер недоступен", "AI provider unavailable")
         case .refused(let explanation):
-            return explanation.map { "Модель отклонила запрос: \($0)" } ?? "Модель отклонила запрос"
+            return explanation.map { T("Модель отклонила запрос: \($0)", "The model declined the request: \($0)") } ?? T("Модель отклонила запрос", "The model declined the request")
         case .server(let code, let message):
-            return "Ошибка \(code): \(message)"
+            return T("Ошибка \(code): \(message)", "Error \(code): \(message)")
         }
     }
 }
@@ -48,41 +48,41 @@ extension AIError {
     var info: AIErrorInfo {
         switch self {
         case .notConfigured:
-            return AIErrorInfo(message: "Для этой задачи не выбрана модель.",
-                               actionLabel: "Выбрать модель", section: .settings)
+            return AIErrorInfo(message: T("Для этой задачи не выбрана модель.", "No model is chosen for this task."),
+                               actionLabel: T("Выбрать модель", "Choose a model"), section: .settings)
 
         case .providerUnavailable:
-            return AIErrorInfo(message: "Локальная модель не запустилась. Проверьте, что установлен llama-server и выбранный файл модели на месте.",
-                               actionLabel: "Открыть модели", section: .models)
+            return AIErrorInfo(message: T("Локальная модель не запустилась. Проверьте, что установлен llama-server и выбранный файл модели на месте.", "The local model did not start. Check that llama-server is installed and the chosen model file is still there."),
+                               actionLabel: T("Открыть модели", "Open Models"), section: .models)
 
         case .timeout:
-            return AIErrorInfo(message: "Модель не ответила вовремя. Крупная модель на длинном тексте может не уложиться — повторите запрос или выберите модель полегче.",
-                               actionLabel: "Сменить модель", section: .settings)
+            return AIErrorInfo(message: T("Модель не ответила вовремя. Крупная модель на длинном тексте может не уложиться — повторите запрос или выберите модель полегче.", "The model did not answer in time. A large model on long text may not make it — retry, or pick a lighter model."),
+                               actionLabel: T("Сменить модель", "Change the model"), section: .settings)
 
         case .network(let error):
-            return AIErrorInfo(message: "Нет связи с сервером: \(error.localizedDescription)")
+            return AIErrorInfo(message: T("Нет связи с сервером: \(error.localizedDescription)", "No connection to the server: \(error.localizedDescription)"))
 
         case .badResponse:
-            return AIErrorInfo(message: "Модель вернула пустой ответ. Обычно помогает просто повторить запрос.")
+            return AIErrorInfo(message: T("Модель вернула пустой ответ. Обычно помогает просто повторить запрос.", "The model returned an empty answer. Retrying usually helps."))
 
         case .refused(let explanation):
-            return AIErrorInfo(message: explanation.map { "Модель отклонила запрос: \($0)" }
-                               ?? "Модель отклонила запрос. Попробуйте переформулировать.")
+            return AIErrorInfo(message: explanation.map { T("Модель отклонила запрос: \($0)", "The model declined the request: \($0)") }
+                               ?? T("Модель отклонила запрос. Попробуйте переформулировать.", "The model declined the request. Try rephrasing it."))
 
         case .server(let code, let message):
             switch code {
             case 401, 403:
-                return AIErrorInfo(message: "Ключ Anthropic не принят. Проверьте, что он скопирован целиком и не отозван.",
-                                   actionLabel: "Проверить ключ", section: .settings)
+                return AIErrorInfo(message: T("Ключ Anthropic не принят. Проверьте, что он скопирован целиком и не отозван.", "The Anthropic key was not accepted. Check that it was copied in full and has not been revoked."),
+                                   actionLabel: T("Проверить ключ", "Check the key"), section: .settings)
             case 429:
-                return AIErrorInfo(message: "Слишком много запросов подряд — API просит подождать. Повторите через минуту.")
+                return AIErrorInfo(message: T("Слишком много запросов подряд — API просит подождать. Повторите через минуту.", "Too many requests in a row — the API is asking you to wait. Retry in a minute."))
             case 402:
-                return AIErrorInfo(message: "На счету Anthropic закончились средства.",
-                                   actionLabel: "Открыть настройки ИИ", section: .settings)
+                return AIErrorInfo(message: T("На счету Anthropic закончились средства.", "The Anthropic account has run out of credit."),
+                                   actionLabel: T("Открыть настройки ИИ", "Open AI settings"), section: .settings)
             case 500...599:
-                return AIErrorInfo(message: "Сбой на стороне Anthropic. Обычно проходит за минуту.")
+                return AIErrorInfo(message: T("Сбой на стороне Anthropic. Обычно проходит за минуту.", "A failure on Anthropic's side. Usually clears within a minute."))
             default:
-                return AIErrorInfo(message: "Запрос отклонён: \(message)")
+                return AIErrorInfo(message: T("Запрос отклонён: \(message)", "Request rejected: \(message)"))
             }
         }
     }

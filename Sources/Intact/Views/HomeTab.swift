@@ -71,7 +71,7 @@ struct HomeTab: View {
 
     private var todayText: String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.locale = Locale(identifier: L10n.isRu ? "ru_RU" : "en_US")
         formatter.dateFormat = "EEEE, d MMMM"
         return formatter.string(from: Date()).capitalizedFirst
     }
@@ -86,15 +86,15 @@ struct HomeTab: View {
 
     private var attention: Attention? {
         if !models.hasAnyModelInstalled {
-            return Attention(text: "Модель распознавания не установлена — диктовка не заработает",
-                             action: "Скачать модель", section: .models)
+            return Attention(text: T("Модель распознавания не установлена — диктовка не заработает", "No recognition model installed — dictation will not work"),
+                             action: T("Скачать модель", "Download a model"), section: .models)
         }
         if let missing = Permissions.missingDescription {
-            return Attention(text: missing, action: "Выдать доступ", section: .voice)
+            return Attention(text: missing, action: T("Выдать доступ", "Grant access"), section: .voice)
         }
         if settings.enableAICleanup, !AIRouter.shared.isReady(for: .cleanup) {
-            return Attention(text: "Причёсывание включено, но модель для него не готова",
-                             action: "Выбрать модель", section: .voice)
+            return Attention(text: T("Причёсывание включено, но модель для него не готова", "Cleanup is on, but its model is not ready"),
+                             action: T("Выбрать модель", "Choose a model"), section: .voice)
         }
         return nil
     }
@@ -126,12 +126,12 @@ struct HomeTab: View {
     private var dayHeaderRow: some View {
         HStack(alignment: .center, spacing: 18) {
             stat(value: "\(todayEntries.count)",
-                 label: Plural.form(todayEntries.count, "запись", "записи", "записей"))
+                 label: Plural.form(todayEntries.count, T("запись", "record"), T("записи", "records"), T("записей", "records")))
             divider()
-            stat(value: spokenText, label: "речи")
+            stat(value: spokenText, label: T("речи", "of speech"))
             if usage.todayCost > 0 {
                 divider()
-                stat(value: UsageTracker.money(usage.todayCost), label: "облако")
+                stat(value: UsageTracker.money(usage.todayCost), label: T("облако", "cloud"))
             }
 
             Spacer()
@@ -139,7 +139,7 @@ struct HomeTab: View {
             if briefs.generating == .day {
                 HStack(spacing: 8) {
                     ThinkingDots(size: 15, tone: .process)
-                    Text("Собираю бриф…")
+                    Text(T("Собираю бриф…", "Building the brief…"))
                         .font(.system(size: 12.5))
                         .foregroundStyle(Palette.textSecondary)
                 }
@@ -150,7 +150,7 @@ struct HomeTab: View {
                 } label: {
                     HStack(spacing: 7) {
                         IntactIcon(kind: .quickSummary, size: 14)
-                        Text(todayBrief == nil ? "Собрать бриф за день" : "Пересобрать бриф")
+                        Text(todayBrief == nil ? T("Собрать бриф за день", "Build today's brief") : T("Пересобрать бриф", "Rebuild the brief"))
                             .font(.system(size: 13.5, weight: .medium))
                     }
                     .foregroundStyle(Palette.accent)
@@ -187,8 +187,8 @@ struct HomeTab: View {
     /// и на пять минут.
     private var spokenText: String {
         let total = todayEntries.reduce(0) { $0 + $1.seconds }
-        if total < 60 { return "\(Int(total)) с" }
-        return "\(Int(total / 60)) мин"
+        if total < 60 { return T("\(Int(total)) с", "\(Int(total)) s") }
+        return T("\(Int(total / 60)) мин", "\(Int(total / 60)) min")
     }
 
     private func stat(value: String, label: String) -> some View {
@@ -211,7 +211,7 @@ struct HomeTab: View {
     private var dayTimeline: some View {
         let shown = Array(todayEntries.prefix(12))
         return VStack(alignment: .leading, spacing: 10) {
-            Text("СЕГОДНЯ")
+            Text(T("СЕГОДНЯ", "TODAY"))
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
@@ -235,7 +235,7 @@ struct HomeTab: View {
             if todayEntries.count > shown.count {
                 Button { onOpenSection(.history) } label: {
                     HStack(spacing: 5) {
-                        Text("Ещё \(todayEntries.count - shown.count) за сегодня — вся история")
+                        Text(T("Ещё \(todayEntries.count - shown.count) за сегодня — вся история", "\(todayEntries.count - shown.count) more today — full history"))
                             .font(.system(size: 13, weight: .medium))
                         IntactIcon(kind: .chevronRight, size: 11, weight: .medium)
                     }
@@ -250,10 +250,10 @@ struct HomeTab: View {
         HStack(spacing: 12) {
             SidebarIntactIcon(kind: .voice, selected: false, size: 20)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Сегодня ещё тихо")
+                Text(T("Сегодня ещё тихо", "Quiet so far today"))
                     .font(.system(size: 13.5, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
-                Text("Удержи \(settings.triggerKey.symbol) и скажи что-нибудь — записи появятся здесь")
+                Text(T("Удержи \(settings.triggerKey.symbol) и скажи что-нибудь — записи появятся здесь", "Hold \(settings.triggerKey.symbol) and say something — your records will appear here"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -282,7 +282,7 @@ struct HomeTab: View {
                     .foregroundStyle(Palette.textPrimary)
                 Spacer()
                 Button { onOpenSection(.briefs) } label: {
-                    Text("Все брифы")
+                    Text(T("Все брифы", "All briefs"))
                         .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(Palette.accent)
                 }
@@ -308,10 +308,10 @@ struct HomeTab: View {
     /// в боковике, дублировать их плитками во весь экран незачем.
     private var shortcutsRow: some View {
         HStack(spacing: 10) {
-            shortcut(icon: .chat, title: "Чат с ИИ", subtitle: modelSubtitle) { onOpenSection(.chat) }
-            shortcut(icon: .aiStar, title: "Спросите ИИ",
-                     subtitle: settings.enableAIHotkey ? settings.aiTriggerKey.symbol : "выключено") { onOpenSection(.askAI) }
-            shortcut(icon: .voice, title: "Диктовка",
+            shortcut(icon: .chat, title: T("Чат с ИИ", "AI Chat"), subtitle: modelSubtitle) { onOpenSection(.chat) }
+            shortcut(icon: .aiStar, title: T("Спросите ИИ", "Ask AI"),
+                     subtitle: settings.enableAIHotkey ? settings.aiTriggerKey.symbol : T("выключено", "off")) { onOpenSection(.askAI) }
+            shortcut(icon: .voice, title: T("Диктовка", "Dictation"),
                      subtitle: settings.triggerKey.symbol) { onOpenSection(.voice) }
         }
     }
@@ -399,7 +399,7 @@ private struct DayEntryRow: View {
                 HStack(spacing: 5) {
                     IntactIcon(kind: copied ? .copied : .copy, size: 12)
                     if copied {
-                        Text("Скопировано")
+                        Text(T("Скопировано", "Copied"))
                             .font(.system(size: 11.5, weight: .medium))
                     }
                 }
@@ -412,7 +412,7 @@ private struct DayEntryRow: View {
                 )
             }
             .buttonStyle(.plain)
-            .help("Скопировать текст записи")
+            .help(T("Скопировать текст записи", "Copy the text of this record"))
             .opacity(hovering || copied ? 1 : 0)
         }
         .padding(.horizontal, 16)

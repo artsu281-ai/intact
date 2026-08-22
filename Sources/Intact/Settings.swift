@@ -340,7 +340,6 @@ final class AppSettings: ObservableObject {
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
     @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
     @Published var appIconStyle: AppIconStyle { didSet { d.set(appIconStyle.rawValue, forKey: "appIconStyle"); applyTheme() } }
-    @Published var interfaceLanguage: InterfaceLanguage { didSet { d.set(interfaceLanguage.rawValue, forKey: "interfaceLanguage"); objectWillChange.send() } }
     @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var enableVoiceNotes: Bool { didSet { d.set(enableVoiceNotes, forKey: "enableVoiceNotes") } }
     @Published var voiceNotesFolder: String { didSet { d.set(voiceNotesFolder, forKey: "voiceNotesFolder") } }
@@ -459,7 +458,6 @@ final class AppSettings: ObservableObject {
         pauseMediaWhileDictating = d.object(forKey: "pauseMediaWhileDictating") == nil ? true : d.bool(forKey: "pauseMediaWhileDictating")
         appTheme = AppTheme(rawValue: d.string(forKey: "appTheme") ?? "") ?? .white
         appIconStyle = AppIconStyle(rawValue: d.string(forKey: "appIconStyle") ?? "") ?? .auto
-        interfaceLanguage = InterfaceLanguage(rawValue: d.string(forKey: "interfaceLanguage") ?? "") ?? .russian
         copyDismissTimeoutSeconds = d.object(forKey: "copyDismissTimeoutSeconds") == nil ? 5 : d.integer(forKey: "copyDismissTimeoutSeconds")
         enableVoiceNotes = d.object(forKey: "enableVoiceNotes") == nil ? true : d.bool(forKey: "enableVoiceNotes")
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"

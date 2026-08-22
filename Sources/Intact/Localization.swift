@@ -2,14 +2,30 @@ import Foundation
 import SwiftUI
 
 /// Модуль локализации интерфейса Intact (Русский / English).
+///
+/// Язык берётся из системы, а не из настройки приложения. Отдельный
+/// переключатель означал бы, что человек, у которого macOS на английском,
+/// всё равно должен найти его и переключить — а промахнуться тут не в чем:
+/// язык интерфейса ровно один на всю систему, и приложение просто следует
+/// за ним.
 enum L10n {
-    static var lang: InterfaceLanguage {
-        AppSettings.shared.interfaceLanguage
-    }
+    /// Русский интерфейс — если первый язык системы русский. Кэшируется:
+    /// свойство читают сотни раз на отрисовку экрана, а язык системы
+    /// не меняется без перезапуска приложения.
+    static let isRu: Bool = {
+        let preferred = Locale.preferredLanguages.first ?? "en"
+        return preferred.hasPrefix("ru")
+    }()
 
-    static var isRu: Bool {
-        lang == .russian
-    }
+    static var lang: InterfaceLanguage { isRu ? .russian : .english }
+
+    /// Двуязычная строка прямо в месте использования.
+    ///
+    /// Для интерфейса на семьсот строк таблица ключей была бы отдельным
+    /// файлом, который расходится с кодом при каждой правке. Здесь оба
+    /// варианта стоят рядом с тем, что они подписывают, и разойтись
+    /// физически не могут.
+    static func t(_ ru: String, _ en: String) -> String { isRu ? ru : en }
 
     // MARK: - Разделы бокового меню
     static var sectionVoice: String { isRu ? "ГОЛОС" : "VOICE" }
@@ -290,6 +306,11 @@ enum Plural {
     ///   - few: форма для 2–4 («записи»)
     ///   - many: форма для 5–20 и остальных («записей»)
     static func form(_ count: Int, _ one: String, _ few: String, _ many: String) -> String {
+        // В английском форма всего одна на всё, кроме единицы. Русские
+        // правила применительно к нему дали бы «21 record» вместо «21 records»:
+        // 21 оканчивается на 1, и по-русски это действительно «21 запись».
+        guard L10n.isRu else { return abs(count) == 1 ? one : many }
+
         let mod10 = abs(count) % 10
         let mod100 = abs(count) % 100
         if mod10 == 1 && mod100 != 11 { return one }
@@ -297,3 +318,6 @@ enum Plural {
         return many
     }
 }
+
+/// Короткий алиас для `L10n.t` — двуязычная строка в месте использования.
+func T(_ ru: String, _ en: String) -> String { L10n.t(ru, en) }

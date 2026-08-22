@@ -18,7 +18,7 @@ struct VoiceTab: View {
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        SettingsPage(title: "Диктовка") {
+        SettingsPage(title: T("Диктовка", "Dictation")) {
 
             // Баннер установки модели, если нужна
             if !models.hasAnyModelInstalled || models.downloading != nil {
@@ -32,7 +32,7 @@ struct VoiceTab: View {
             liveCheckCard
 
             // ── Горячая клавиша ─────────────────────────────────────────
-            Card(header: "ГОРЯЧАЯ КЛАВИША") {
+            Card(header: T("ГОРЯЧАЯ КЛАВИША", "HOTKEY")) {
                 Row(title: L10n.genHotKey,
                     subtitle: activationSubtitle,
                     first: true) {
@@ -45,14 +45,14 @@ struct VoiceTab: View {
                         HotKeyRecorder(settings: settings)
                     }
                 }
-                Row(title: "Режим активации",
+                Row(title: T("Режим активации", "Activation mode"),
                     subtitle: settings.activationMode.help) {
                     WisprDropdown(selection: $settings.activationMode,
                                   options: ActivationMode.allCases) { mode in
                         Text(mode.title)
                     }
                 }
-                Row(title: "Вставка текста",
+                Row(title: T("Вставка текста", "Text insertion"),
                     subtitle: settings.outputMode.help) {
                     WisprDropdown(selection: $settings.outputMode,
                                   options: OutputMode.allCases) { mode in
@@ -65,9 +65,9 @@ struct VoiceTab: View {
             // Модель выбирается здесь же, где включается сама функция: раньше
             // тумблер жил в «Диктовке», а модель — в общих настройках, и связь
             // между ними приходилось держать в голове.
-            Card(header: "УМНОЕ ПРИЧЁСЫВАНИЕ") {
-                Row(title: "Причёсывать текст перед вставкой",
-                    subtitle: "Убирает «э-э» и «короче», расставляет знаки препинания. Если модель не успела — вставляется исходный текст.",
+            Card(header: T("УМНОЕ ПРИЧЁСЫВАНИЕ", "SMART CLEANUP")) {
+                Row(title: T("Причёсывать текст перед вставкой", "Clean up the text before inserting"),
+                    subtitle: T("Убирает «э-э» и «короче», расставляет знаки препинания. Если модель не успела — вставляется исходный текст.", "Removes “uh” and “you know”, adds punctuation. If the model does not make it in time, the original text is inserted."),
                     first: true) {
                     Toggle("", isOn: $settings.enableAICleanup)
                         .toggleStyle(WisprToggleStyle())
@@ -83,52 +83,52 @@ struct VoiceTab: View {
             // Та же настройка, что и во вкладке «Брифы и заметки» (общий
             // AppSettings.trimTrailingPeriod/appendSpace) — здесь она логичнее
             // рядом с «Вставкой текста», где её и ищут в первую очередь.
-            Card(header: "ФОРМАТИРОВАНИЕ ТЕКСТА") {
-                Row(title: "Убирать точку в конце",
-                    subtitle: "Удалять завершающую точку при коротких фразах",
+            Card(header: T("ФОРМАТИРОВАНИЕ ТЕКСТА", "TEXT FORMATTING")) {
+                Row(title: T("Убирать точку в конце", "Trim the trailing period"),
+                    subtitle: T("Удалять завершающую точку при коротких фразах", "Remove the final period on short phrases"),
                     first: true) {
                     Toggle("", isOn: $settings.trimTrailingPeriod)
                         .toggleStyle(WisprToggleStyle())
                 }
-                Row(title: "Добавлять пробел после текста",
-                    subtitle: "Автоматически ставить пробел после вставленного фрагмента") {
+                Row(title: T("Добавлять пробел после текста", "Add a space after the text"),
+                    subtitle: T("Автоматически ставить пробел после вставленного фрагмента", "Automatically add a space after the inserted fragment")) {
                     Toggle("", isOn: $settings.appendSpace)
                         .toggleStyle(WisprToggleStyle())
                 }
             }
 
             // ── Микрофон ────────────────────────────────────────────────
-            Card(header: "МИКРОФОН") {
-                Row(title: "Источник звука",
-                    subtitle: "Устройство записи для распознавания",
+            Card(header: T("МИКРОФОН", "MICROPHONE")) {
+                Row(title: T("Источник звука", "Audio source"),
+                    subtitle: T("Устройство записи для распознавания", "Recording device for speech recognition"),
                     first: true) {
                     WisprDropdown(selection: $settings.inputDeviceUID,
                                   options: availableDeviceUIDs) { uid in
                         Text(deviceName(for: uid))
                     }
                 }
-                Row(title: "Обновить список устройств",
-                    subtitle: "Если подключили гарнитуру или внешний микрофон") {
-                    PillButton(title: "Обновить", icon: .refresh) {
+                Row(title: T("Обновить список устройств", "Refresh the device list"),
+                    subtitle: T("Если подключили гарнитуру или внешний микрофон", "If you plugged in a headset or an external microphone")) {
+                    PillButton(title: T("Обновить", "Refresh"), icon: .refresh) {
                         devices = AudioRecorder.availableInputDevices()
                     }
                 }
             }
 
             // ── Язык ─────────────────────────────────────────────────────
-            Card(header: "ЯЗЫК ДИКТОВКИ") {
-                Row(title: "Язык",
-                    subtitle: "Автоопределение поддерживает смесь русского и английского",
+            Card(header: T("ЯЗЫК ДИКТОВКИ", "DICTATION LANGUAGE")) {
+                Row(title: T("Язык", "Language"),
+                    subtitle: T("Автоопределение поддерживает смесь русского и английского", "Auto-detection handles a mix of Russian and English"),
                     first: true) {
                     SearchableLanguageDropdown(selection: $settings.language)
                 }
-                Row(title: "Переводить речь на английский",
-                    subtitle: "Whisper автоматически переведёт сказанное в английский текст") {
+                Row(title: T("Переводить речь на английский", "Translate speech into English"),
+                    subtitle: T("Whisper автоматически переведёт сказанное в английский текст", "Whisper will translate what you said into English text")) {
                     Toggle("", isOn: $settings.translateToEnglish)
                         .toggleStyle(WisprToggleStyle())
                 }
-                Row(title: "Подавлять пометки о шуме",
-                    subtitle: "Игнорировать теги [МУЗЫКА], [АПЛОДИСМЕНТЫ]") {
+                Row(title: T("Подавлять пометки о шуме", "Suppress noise markers"),
+                    subtitle: T("Игнорировать теги [МУЗЫКА], [АПЛОДИСМЕНТЫ]", "Ignore [MUSIC] and [APPLAUSE] tags")) {
                     Toggle("", isOn: $settings.suppressNonSpeech)
                         .toggleStyle(WisprToggleStyle())
                 }
@@ -141,24 +141,24 @@ struct VoiceTab: View {
             // Выданные разрешения — это отсутствие проблемы, и занимать ими
             // полкарточки незачем: сворачиваем в одну строку.
             if permInput && permAX {
-                Card(header: "РАЗРЕШЕНИЯ СИСТЕМЫ") {
-                    Row(title: "Все разрешения выданы",
-                        subtitle: "Мониторинг ввода и универсальный доступ",
+                Card(header: T("РАЗРЕШЕНИЯ СИСТЕМЫ", "SYSTEM PERMISSIONS")) {
+                    Row(title: T("Все разрешения выданы", "All permissions granted"),
+                        subtitle: T("Мониторинг ввода и универсальный доступ", "Input monitoring and accessibility"),
                         first: true) {
                         IntactIcon(kind: .success, size: 17)
                             .foregroundStyle(Palette.iconSuccess)
                     }
                 }
             } else {
-                Card(header: "РАЗРЕШЕНИЯ СИСТЕМЫ") {
-                    PermissionRow(title: "Мониторинг ввода",
-                                  subtitle: "Чтобы читать удержание клавиши ⌥",
+                Card(header: T("РАЗРЕШЕНИЯ СИСТЕМЫ", "SYSTEM PERMISSIONS")) {
+                    PermissionRow(title: T("Мониторинг ввода", "Input monitoring"),
+                                  subtitle: T("Чтобы читать удержание клавиши ⌥", "To read the held ⌥ key"),
                                   granted: permInput, first: true) {
                         Permissions.requestInputMonitoring()
                         Permissions.openInputMonitoringSettings()
                     }
-                    PermissionRow(title: "Универсальный доступ",
-                                  subtitle: "Чтобы автоматически вставлять распознанный текст",
+                    PermissionRow(title: T("Универсальный доступ", "Accessibility"),
+                                  subtitle: T("Чтобы автоматически вставлять распознанный текст", "To insert the recognised text automatically"),
                                   granted: permAX) {
                         Permissions.requestAccessibility()
                         Permissions.openAccessibilitySettings()
@@ -169,29 +169,29 @@ struct VoiceTab: View {
             // ── Дополнительно ────────────────────────────────────────────
             AdvancedBlock(expanded: $advanced) {
                 if settings.activationMode == .modifierHold {
-                    Row(title: "Игнорировать нажатия короче",
-                        subtitle: "Защита от случайного касания клавиши-модификатора", first: true) {
+                    Row(title: T("Игнорировать нажатия короче", "Ignore presses shorter than"),
+                        subtitle: T("Защита от случайного касания клавиши-модификатора", "Guards against brushing the modifier key by accident"), first: true) {
                         SliderControl(
                             value: Binding(get: { Double(settings.minHoldMs) },
                                            set: { settings.minHoldMs = Int($0) }),
                             range: 100...800, step: 50,
-                            caption: "\(settings.minHoldMs) мс")
+                            caption: T("\(settings.minHoldMs) мс", "\(settings.minHoldMs) ms"))
                     }
                 }
-                Row(title: "Таймаут карточки копирования",
-                    subtitle: "Через сколько секунд скрывать карточку, если вставить текст было некуда") {
+                Row(title: T("Таймаут карточки копирования", "Copy card timeout"),
+                    subtitle: T("Через сколько секунд скрывать карточку, если вставить текст было некуда", "How many seconds before the card hides when there was nowhere to insert the text")) {
                     WisprDropdown(selection: $settings.copyDismissTimeoutSeconds,
                                   options: [3, 5, 10, 15, 30]) { sec in
-                        Text("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")")
+                        Text(T("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")", "\(sec) s\(sec == 5 ? " (default)" : "")"))
                     }
                 }
-                Row(title: "Максимальная длина записи",
+                Row(title: T("Максимальная длина записи", "Maximum recording length"),
                     first: settings.activationMode != .modifierHold) {
                     SliderControl(
                         value: Binding(get: { Double(settings.maxSeconds) },
                                        set: { settings.maxSeconds = Int($0) }),
                         range: 30...1800, step: 30,
-                        caption: "\(settings.maxSeconds / 60) мин")
+                        caption: T("\(settings.maxSeconds / 60) мин", "\(settings.maxSeconds / 60) min"))
                 }
             }
         }
@@ -242,20 +242,20 @@ struct VoiceTab: View {
                         .foregroundStyle(Palette.textSecondary)
                 } else if controller.state == .transcribing || controller.state == .processingAI {
                     ThinkingDots(size: 16, tone: .voice)
-                    Text(controller.state == .processingAI ? "Причёсываю…" : "Распознаю…")
+                    Text(controller.state == .processingAI ? T("Причёсываю…", "Cleaning up…") : T("Распознаю…", "Transcribing…"))
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textSecondary)
                 } else {
-                    Text("Скажите фразу — текст появится здесь и никуда не вставится")
+                    Text(T("Скажите фразу — текст появится здесь и никуда не вставится", "Say a phrase — the text appears here and is inserted nowhere"))
                         .font(.system(size: 13))
                         .foregroundStyle(Palette.textTertiary)
                 }
                 Spacer()
                 if controller.lastLatencyMs > 0 {
-                    Text("\(controller.lastLatencyMs) мс")
+                    Text(T("\(controller.lastLatencyMs) мс", "\(controller.lastLatencyMs) ms"))
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(Palette.textTertiary)
-                        .help("Задержка последнего распознавания")
+                        .help(T("Задержка последнего распознавания", "Latency of the last recognition"))
                 }
             }
 
@@ -290,9 +290,9 @@ struct VoiceTab: View {
 
     private var checkButtonTitle: String {
         switch controller.state {
-        case .recording: return "Остановить"
-        case .transcribing, .processingAI, .answeringAI: return "Обработка…"
-        case .idle: return "Проверить микрофон"
+        case .recording: return T("Остановить", "Stop")
+        case .transcribing, .processingAI, .answeringAI: return T("Обработка…", "Working…")
+        case .idle: return T("Проверить микрофон", "Test the microphone")
         }
     }
 
@@ -305,7 +305,7 @@ struct VoiceTab: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             if !muted {
-                PillButton(title: "Копировать", icon: .copy) {
+                PillButton(title: T("Копировать", "Copy"), icon: .copy) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
                 }
@@ -326,13 +326,13 @@ struct VoiceTab: View {
     /// для заметок: в него писали фразы, а модель ждёт список слов.
     private var dictionaryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Пользовательский словарь")
+            Text(T("Пользовательский словарь", "Custom dictionary"))
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Palette.textPrimary)
                 .padding(.leading, 2)
 
             VStack(alignment: .leading, spacing: 12) {
-                Text("Термины, профессиональный сленг и имена, которые модель может слышать неверно. Добавляйте по одному.")
+                Text(T("Термины, профессиональный сленг и имена, которые модель может слышать неверно. Добавляйте по одному.", "Terms, jargon and names the model may mishear. Add them one at a time."))
                     .font(.system(size: 13))
                     .foregroundStyle(Palette.textSecondary)
 
@@ -341,7 +341,7 @@ struct VoiceTab: View {
                 }
 
                 HStack(spacing: 8) {
-                    TextField("Например, Kubernetes", text: $newTerm)
+                    TextField(T("Например, Kubernetes", "For example, Kubernetes"), text: $newTerm)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13))
                         .padding(.horizontal, 12)
@@ -356,16 +356,16 @@ struct VoiceTab: View {
                         )
                         .frame(maxWidth: 260)
                         .onSubmit { addTerm() }
-                    PillButton(title: "Добавить", icon: .plus) { addTerm() }
+                    PillButton(title: T("Добавить", "Add"), icon: .plus) { addTerm() }
                     Spacer()
                 }
 
                 if dictionaryTerms.isEmpty {
-                    Text("Пример: Kubernetes, Postgres, SwiftUI, деплой, коммит, рефакторинг")
+                    Text(T("Пример: Kubernetes, Postgres, SwiftUI, деплой, коммит, рефакторинг", "For example: Kubernetes, Postgres, SwiftUI, deploy, commit, refactoring"))
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 } else {
-                    Text("Уходит в модель как подсказка: \(dictionaryTerms.count) \(Plural.form(dictionaryTerms.count, "термин", "термина", "терминов"))")
+                    Text(T("Уходит в модель как подсказка: \(dictionaryTerms.count) \(Plural.form(dictionaryTerms.count, "термин", "термина", "терминов"))", "Sent to the model as a hint: \(dictionaryTerms.count) \(Plural.form(dictionaryTerms.count, "term", "terms", "terms"))"))
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 }
@@ -396,16 +396,16 @@ struct VoiceTab: View {
 
     private var activationSubtitle: String {
         switch settings.activationMode {
-        case .modifierHold:  return "Удерживайте \(settings.triggerKey.symbol) во время речи"
-        case .hotKeyHold:    return "Удерживайте сочетание во время речи"
-        case .hotKeyToggle:  return "Нажмите один раз для старта, второй — для вставки"
+        case .modifierHold:  return T("Удерживайте \(settings.triggerKey.symbol) во время речи", "Hold \(settings.triggerKey.symbol) while speaking")
+        case .hotKeyHold:    return T("Удерживайте сочетание во время речи", "Hold the combination while speaking")
+        case .hotKeyToggle:  return T("Нажмите один раз для старта, второй — для вставки", "Press once to start, again to insert")
         }
     }
 
     private var availableDeviceUIDs: [String] { [""] + devices.map { $0.id } }
 
     private func deviceName(for uid: String) -> String {
-        if uid.isEmpty { return "Системный по умолчанию" }
-        return devices.first(where: { $0.id == uid })?.name ?? "Неизвестный микрофон"
+        if uid.isEmpty { return T("Системный по умолчанию", "System default") }
+        return devices.first(where: { $0.id == uid })?.name ?? T("Неизвестный микрофон", "Unknown microphone")
     }
 }

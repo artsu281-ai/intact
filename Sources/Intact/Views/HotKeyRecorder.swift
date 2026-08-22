@@ -16,7 +16,7 @@ struct HotKeyRecorder: View {
                     Circle()
                         .fill(Palette.iconWarning)
                         .frame(width: 7, height: 7)
-                    Text("Нажмите клавиши…")
+                    Text(T("Нажмите клавиши…", "Press keys…"))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Palette.textPrimary)
                 } else {

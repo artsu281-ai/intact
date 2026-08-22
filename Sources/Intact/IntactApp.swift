@@ -56,13 +56,13 @@ struct MenuContent: View {
         }
 
         if controller.lastLatencyMs > 0 && !controller.lastResult.isEmpty {
-            Text("Скорость: \(controller.lastLatencyMs) мс")
+            Text(T("Скорость: \(controller.lastLatencyMs) мс", "Speed: \(controller.lastLatencyMs) ms"))
         }
 
         if let missing = Permissions.missingDescription {
             Divider()
             Text("⚠︎ \(missing)")
-            Button("Выдать разрешения…") {
+            Button(T("Выдать разрешения…", "Grant permissions…")) {
                 if !Permissions.inputMonitoring {
                     Permissions.requestInputMonitoring()
                     Permissions.openInputMonitoringSettings()
@@ -75,26 +75,26 @@ struct MenuContent: View {
 
         Divider()
 
-        Button(controller.state == .recording ? "Остановить и распознать" : "Начать диктовку") {
+        Button(controller.state == .recording ? T("Остановить и распознать", "Stop and transcribe") : T("Начать диктовку", "Start dictation")) {
             controller.toggle()
         }
         .keyboardShortcut("d")
         .disabled(controller.state == .transcribing || controller.state == .processingAI)
 
         if controller.state == .recording {
-            Button("Отменить запись") { controller.cancel() }
+            Button(T("Отменить запись", "Cancel recording")) { controller.cancel() }
         }
 
         if !controller.lastResult.isEmpty {
             Divider()
-            Button("Скопировать последний результат") {
+            Button(T("Скопировать последний результат", "Copy the last result")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(controller.lastResult, forType: .string)
             }
         }
 
         if !history.entries.isEmpty {
-            Menu("Недавние записи (\(min(history.entries.count, 50)))") {
+            Menu(T("Недавние записи (\(min(history.entries.count, 50)))", "Recent records (\(min(history.entries.count, 50)))")) {
                 ForEach(history.entries.prefix(8)) { entry in
                     Button {
                         NSPasteboard.general.clearContents()
@@ -104,7 +104,7 @@ struct MenuContent: View {
                     }
                 }
                 Divider()
-                Button("Очистить историю") {
+                Button(T("Очистить историю", "Clear history")) {
                     history.clear()
                 }
             }
@@ -115,7 +115,7 @@ struct MenuContent: View {
         // Меню строки состояния раньше дублировало половину настроек:
         // язык, режим вставки, тема и восемь тумблеров. Всё это живёт
         // в окне, а здесь нужно то, что делают на бегу.
-        Menu("Модель чата: \(shortModelTitle)") {
+        Menu(T("Модель чата: \(shortModelTitle)", "Chat model: \(shortModelTitle)")) {
             ForEach(AIModelCatalog.cloud) { model in
                 Button {
                     AIModelCatalog.apply(.cloud(model.id), to: .chat)
@@ -148,10 +148,10 @@ struct MenuContent: View {
         Button(L10n.chatMenuTitle) { ChatWindow.shared.show() }
             .keyboardShortcut("i", modifiers: [.command, .shift])
 
-        Button("Настройки…") { SettingsWindow.shared.show() }
+        Button(T("Настройки…", "Settings…")) { SettingsWindow.shared.show() }
             .keyboardShortcut(",")
 
-        Button("Выйти") { NSApp.terminate(nil) }
+        Button(T("Выйти", "Quit")) { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 
@@ -163,10 +163,10 @@ struct MenuContent: View {
 
     private var statusLine: String {
         if !ModelManager.shared.hasAnyModelInstalled {
-            return "⚠︎ " + (settings.interfaceLanguage == .russian ? "Модель не установлена" : "No model installed")
+            return "⚠︎ " + T("Модель не установлена", "No model installed")
         }
         switch controller.state {
-        case .recording:    return (settings.interfaceLanguage == .russian ? "Запись " : "Recording ") + controller.elapsedText
+        case .recording:    return T("Запись ", "Recording ") + controller.elapsedText
         case .transcribing: return L10n.hudTranscribing
         case .processingAI: return L10n.hudProcessingAI
         case .answeringAI:  return L10n.hudAnsweringAI
@@ -177,8 +177,8 @@ struct MenuContent: View {
             let modelName = URL(fileURLWithPath: settings.modelPath).deletingPathExtension().lastPathComponent
                 .replacingOccurrences(of: "ggml-", with: "")
             return controller.engineReady
-                ? (settings.interfaceLanguage == .russian ? "Intact готов · \(modelName) · \(key)" : "Intact ready · \(modelName) · \(key)")
-                : (settings.interfaceLanguage == .russian ? "Загрузка модели (\(modelName))…" : "Loading model (\(modelName))…")
+                ? T("Intact готов · \(modelName) · \(key)", "Intact ready · \(modelName) · \(key)")
+                : T("Загрузка модели (\(modelName))…", "Loading model (\(modelName))…")
         }
     }
 }
@@ -277,33 +277,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         let ctl = DictationController.shared
 
-        let chat = NSMenuItem(title: "Чат с ИИ…", action: #selector(dockOpenChat), keyEquivalent: "")
+        let chat = NSMenuItem(title: T("Чат с ИИ…", "AI Chat…"), action: #selector(dockOpenChat), keyEquivalent: "")
         chat.target = self
         menu.addItem(chat)
 
         let dictate = NSMenuItem(
-            title: ctl.state == .recording ? "Остановить и распознать" : "Начать диктовку",
+            title: ctl.state == .recording ? T("Остановить и распознать", "Stop and transcribe") : T("Начать диктовку", "Start dictation"),
             action: #selector(dockToggleDictation), keyEquivalent: "")
         dictate.target = self
         dictate.isEnabled = ctl.state != .transcribing
         menu.addItem(dictate)
 
         if ctl.state == .recording {
-            let cancel = NSMenuItem(title: "Отменить запись", action: #selector(dockCancel), keyEquivalent: "")
+            let cancel = NSMenuItem(title: T("Отменить запись", "Cancel recording"), action: #selector(dockCancel), keyEquivalent: "")
             cancel.target = self
             menu.addItem(cancel)
         }
 
         if !ctl.lastResult.isEmpty {
             menu.addItem(.separator())
-            let copy = NSMenuItem(title: "Копировать последний результат",
+            let copy = NSMenuItem(title: T("Копировать последний результат", "Copy the last result"),
                                   action: #selector(dockCopyLast), keyEquivalent: "")
             copy.target = self
             menu.addItem(copy)
         }
 
         menu.addItem(.separator())
-        let prefs = NSMenuItem(title: "Настройки…", action: #selector(dockOpenSettings), keyEquivalent: "")
+        let prefs = NSMenuItem(title: T("Настройки…", "Settings…"), action: #selector(dockOpenSettings), keyEquivalent: "")
         prefs.target = self
         menu.addItem(prefs)
 

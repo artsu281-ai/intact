@@ -161,7 +161,7 @@ final class DictationController: ObservableObject {
         ensureMicPermission { [weak self] granted in
             guard let self else { return }
             guard granted else {
-                self.fail("Нет доступа к микрофону. Разреши его в «Настройки → Конфиденциальность и безопасность → Микрофон».")
+                self.fail(T("Нет доступа к микрофону. Разреши его в «Настройки → Конфиденциальность и безопасность → Микрофон».", "No access to the microphone. Allow it in System Settings → Privacy & Security → Microphone."))
                 return
             }
             do {
@@ -516,7 +516,7 @@ final class DictationController: ObservableObject {
     private func answerWithAI(text: String, seconds: TimeInterval, latencyMs: Int) {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка»."
+            lastError = T("Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка».", "Speech was not recognised: silence, or the microphone is too quiet. Check the audio source under Dictation.")
             return
         }
         // «Напомни...» / «Заметка: ...» через правый Option — это команда,
@@ -524,7 +524,7 @@ final class DictationController: ObservableObject {
         if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
         guard AIRouter.shared.isReady(for: .quickAnswer) else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Для быстрого ответа не выбрана модель — задайте её в разделе «Спросите ИИ»."
+            lastError = T("Для быстрого ответа не выбрана модель — задайте её в разделе «Спросите ИИ».", "No model is chosen for quick answers — set one under Ask AI.")
             return
         }
 
@@ -545,7 +545,7 @@ final class DictationController: ObservableObject {
                 guard let answer, !answer.isEmpty else {
                     if self.settings.playSounds { NSSound(named: "Basso")?.play() }
                     self.lastError = failure?.shortMessage
-                        ?? "Модель не ответила за \(Int(AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25)) с. Повторите или выберите модель побыстрее."
+                        ?? T("Модель не ответила за \(Int(AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25)) с. Повторите или выберите модель побыстрее.", "The model did not answer within \(Int(AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25)) s. Retry, or pick a faster model.")
                     return
                 }
                 self.finishAIAnswer(answer, seconds: seconds, latencyMs: latencyMs)
@@ -673,7 +673,7 @@ final class DictationController: ObservableObject {
 
         guard !lastResult.isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка»."
+            lastError = T("Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка».", "Speech was not recognised: silence, or the microphone is too quiet. Check the audio source under Dictation.")
             if let handler = customResultHandler {
                 customResultHandler = nil
                 handler("")
@@ -727,7 +727,7 @@ final class DictationController: ObservableObject {
     private func showReminderSavedToast(title: String, dueDate: Date?) {
         if let dueDate {
             let fmt = DateFormatter()
-            fmt.locale = Locale(identifier: "ru_RU")
+            fmt.locale = Locale(identifier: L10n.isRu ? "ru_RU" : "en_US")
             fmt.dateFormat = "d MMM в HH:mm"
             reminderSavedText = "\(title) (\(fmt.string(from: dueDate)))"
         } else {

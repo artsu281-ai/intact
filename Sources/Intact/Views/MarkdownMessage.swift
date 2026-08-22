@@ -238,7 +238,7 @@ private struct CodeBlock: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text(language?.uppercased() ?? "КОД")
+            Text(language?.uppercased() ?? T("КОД", "CODE"))
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.6)
@@ -248,7 +248,7 @@ private struct CodeBlock: View {
             Button(action: copy) {
                 HStack(spacing: 5) {
                     IntactIcon(kind: copied ? .copied : .copy, size: 12)
-                    Text(copied ? "Скопировано" : "Копировать")
+                    Text(copied ? T("Скопировано", "Copied") : T("Копировать", "Copy"))
                         .font(.system(size: 11, weight: .medium))
                 }
                 .foregroundStyle(copied ? Palette.accent : Palette.textSecondary)
@@ -261,7 +261,7 @@ private struct CodeBlock: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Скопировать этот блок кода")
+            .help(T("Скопировать этот блок кода", "Copy this code block"))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
