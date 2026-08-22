@@ -472,7 +472,11 @@ final class AppSettings: ObservableObject {
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         aiRoleOverrides = (d.dictionary(forKey: "aiRoleOverrides") as? [String: String]) ?? [:]
         cloudConsentGiven = d.bool(forKey: "cloudConsentGiven")
-        localThinkingInChat = d.object(forKey: "localThinkingInChat") == nil ? true : d.bool(forKey: "localThinkingInChat")
+        // По умолчанию выключено. Включённое, оно на локальной 27B означает
+        // минуты тишины перед первой буквой ответа: рассуждение идёт в
+        // reasoning_content, и до конца размышления показывать нечего.
+        // Это осознанный выбор пользователя, а не то, что должно случаться само.
+        localThinkingInChat = d.bool(forKey: "localThinkingInChat")
         briefScheduleEnabled = d.bool(forKey: "briefScheduleEnabled")
         briefScheduleHour = d.object(forKey: "briefScheduleHour") == nil ? 21 : d.integer(forKey: "briefScheduleHour")
         briefScheduleMinute = d.object(forKey: "briefScheduleMinute") == nil ? 0 : d.integer(forKey: "briefScheduleMinute")

@@ -128,6 +128,10 @@ final class BriefService: ObservableObject {
     @Published private(set) var briefs: [Brief] = []
     /// Какой бриф собирается прямо сейчас.
     @Published private(set) var generating: BriefKind? = nil
+    /// Когда начали собирать — чтобы показать, сколько уже идёт.
+    private(set) var startedAt: Date?
+
+    var elapsed: TimeInterval { startedAt.map { Date().timeIntervalSince($0) } ?? 0 }
     /// Текст, который набирается по мере генерации — чтобы было видно, что идёт работа.
     @Published private(set) var draft: String = ""
     @Published var errorInfo: AIErrorInfo? = nil
@@ -151,6 +155,7 @@ final class BriefService: ObservableObject {
         }
 
         generating = kind
+        startedAt = Date()
         draft = ""
         errorInfo = nil
 
@@ -159,7 +164,7 @@ final class BriefService: ObservableObject {
         ContextBuilder.gather(sources: kind.sources) { [weak self] context, badges in
             guard let self else { return }
             guard !context.isEmpty else {
-                self.generating = nil
+                self.generating = nil; self.startedAt = nil
                 self.errorInfo = AIErrorInfo(
                     message: T("Нечего разбирать: за выбранный период нет ни диктовок, ни заметок.", "Nothing to work through: there are no dictations or notes for this period."),
                     actionLabel: T("Открыть историю", "Open history"), section: .history)
@@ -179,7 +184,7 @@ final class BriefService: ObservableObject {
                 completion: { [weak self] result in
                     DispatchQueue.main.async {
                         guard let self else { return }
-                        self.generating = nil
+                        self.generating = nil; self.startedAt = nil
                         self.task = nil
                         switch result {
                         case .success(let text):
@@ -202,6 +207,7 @@ final class BriefService: ObservableObject {
         task?.cancel()
         task = nil
         generating = nil
+        startedAt = nil
         draft = ""
     }
 

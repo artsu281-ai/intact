@@ -60,6 +60,13 @@ final class AIChatService: ObservableObject {
     @Published private(set) var activeThreadID: UUID
 
     @Published var isGenerating: Bool = false
+    /// Когда начали генерировать — чтобы показать, сколько уже идёт.
+    /// Без этого долгий ответ неотличим от зависшего.
+    private(set) var generationStartedAt: Date?
+
+    var generationElapsed: TimeInterval {
+        generationStartedAt.map { Date().timeIntervalSince($0) } ?? 0
+    }
     /// Хэндл на текущий запрос к ИИ — держим, чтобы кнопка «Стоп» могла его отменить.
     private var currentTask: AITask?
     /// Что сейчас делает модель в рамках цикла вызова инструментов — «Ищу…», «Читаю…».
@@ -345,6 +352,7 @@ final class AIChatService: ObservableObject {
             self.messages.append(userMsg)
             self.touchActiveThread(firstPrompt: isFirstInThread ? trimmed : nil)
             self.isGenerating = true
+            self.generationStartedAt = Date()
 
             // Ветка, в которой задан вопрос: ответ вернётся именно сюда,
             // даже если пользователь тем временем откроет другой диалог.
@@ -395,7 +403,7 @@ final class AIChatService: ObservableObject {
                 completion: { [weak self] result in
                     DispatchQueue.main.async {
                         guard let self else { return }
-                        self.isGenerating = false
+                        self.isGenerating = false; self.generationStartedAt = nil
                         self.currentTask = nil
                         self.finishStreaming(in: targetThreadID)
                         if case .failure(let error) = result {
@@ -437,7 +445,7 @@ final class AIChatService: ObservableObject {
                 case .success(let outcome):
                     if outcome.toolCalls.isEmpty {
                         let text = (outcome.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                        self.isGenerating = false
+                        self.isGenerating = false; self.generationStartedAt = nil
                         self.currentTask = nil
                         self.toolStatus = nil
                         if !text.isEmpty { self.appendDelta(text, to: targetThreadID) }
@@ -448,7 +456,7 @@ final class AIChatService: ObservableObject {
                                           targetThreadID: targetThreadID, roundsLeft: roundsLeft)
                     }
                 case .failure(let error):
-                    self.isGenerating = false
+                    self.isGenerating = false; self.generationStartedAt = nil
                     self.currentTask = nil
                     self.toolStatus = nil
                     self.errorInfo = error.info
@@ -517,7 +525,7 @@ final class AIChatService: ObservableObject {
             completion: { [weak self] result in
                 DispatchQueue.main.async {
                     guard let self else { return }
-                    self.isGenerating = false
+                    self.isGenerating = false; self.generationStartedAt = nil
                     self.currentTask = nil
                     self.toolStatus = nil
                     self.finishStreaming(in: targetThreadID)
@@ -536,6 +544,7 @@ final class AIChatService: ObservableObject {
         currentTask?.cancel()
         currentTask = nil
         isGenerating = false
+        generationStartedAt = nil
         toolStatus = nil
         finishStreaming(in: activeThreadID)
     }

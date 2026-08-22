@@ -228,15 +228,29 @@ struct ChatTab: View {
         }
     }
 
+    /// Пока модель рассуждает, показывать нечего: ход мысли идёт отдельным
+    /// полем и в ответ не попадает. На локальной 27B это минуты тишины,
+    /// в которые индикатор выглядит зависшим — поэтому он называет, что
+    /// именно происходит, и считает секунды.
     private var generatingIndicator: some View {
         HStack(spacing: 10) {
             ThinkingDots(size: 18, tone: .process)
-            Text(chat.toolStatus ?? T("Анализирую и формирую ответ…", "Reading and writing the answer…"))
-                .font(.system(size: 13))
-                .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Text(generatingLabel)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Palette.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
             Spacer()
+            if chat.generationElapsed > 20 {
+                Button { chat.stopGenerating() } label: {
+                    Text(T("Остановить", "Stop"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Palette.accent)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -244,6 +258,20 @@ struct ChatTab: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Palette.dropdownBg)
         )
+    }
+
+    private var generatingLabel: String {
+        if let tool = chat.toolStatus { return tool }
+
+        let reasons = AIRouter.shared.routing(for: .chat)?.thinks == true
+        let base = reasons
+            ? T("Модель обдумывает ответ — текст появится, когда она закончит",
+                "The model is thinking — text appears once it is done")
+            : T("Анализирую и формирую ответ…", "Reading and writing the answer…")
+
+        let elapsed = Int(chat.generationElapsed)
+        guard elapsed >= 3 else { return base }
+        return "\(base) · \(elapsed / 60):\(String(format: "%02d", elapsed % 60))"
     }
 
     // MARK: - Sticky провайдер-хедер

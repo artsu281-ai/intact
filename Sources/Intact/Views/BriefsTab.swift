@@ -119,9 +119,11 @@ struct BriefsTab: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 ThinkingDots(size: 16, tone: .process)
-                Text(T("Собираю \(service.generating?.title.lowercased() ?? "бриф")…", "Building \(service.generating?.title.lowercased() ?? "brief")…"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Palette.textSecondary)
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(draftLabel)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Palette.textSecondary)
+                }
                 Spacer()
             }
             if !service.draft.isEmpty {
@@ -138,6 +140,16 @@ struct BriefsTab: View {
                         .strokeBorder(Palette.hairline, lineWidth: 1)
                 )
         )
+    }
+
+    /// Та же беда, что и в чате: с рассуждающей моделью до первой строки
+    /// брифа проходят минуты, и без счётчика это выглядит как зависание.
+    private var draftLabel: String {
+        let what = service.generating?.title.lowercased() ?? T("бриф", "brief")
+        let base = T("Собираю \(what)…", "Building \(what)…")
+        let elapsed = Int(service.elapsed)
+        guard elapsed >= 3 else { return base }
+        return "\(base) · \(elapsed / 60):\(String(format: "%02d", elapsed % 60))"
     }
 
     // MARK: - Пусто

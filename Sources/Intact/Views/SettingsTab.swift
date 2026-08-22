@@ -170,7 +170,7 @@ struct SettingsTab: View {
                 }
 
                 Row(title: T("Рассуждение локальной модели", "Local model reasoning"),
-                    subtitle: T("В чате и брифах модель сначала обдумывает ответ. Медленнее, но заметно точнее на разборах. В причёсывании диктовки выключено всегда — там важнее секунды.", "In chat and briefs the model thinks before answering. Slower, but noticeably better on analysis. Always off in dictation cleanup — seconds matter more there.")) {
+                    subtitle: T("В чате и брифах модель сначала обдумывает ответ: точнее на разборах, но на крупной модели первая буква ответа появляется через минуты — ход мысли в текст не попадает. В причёсывании диктовки выключено всегда.", "In chat and briefs the model thinks before answering: better on analysis, but on a large model the first character of the answer is minutes away — the reasoning itself never reaches the text. Always off in dictation cleanup.")) {
                     Toggle("", isOn: $settings.localThinkingInChat)
                         .toggleStyle(WisprToggleStyle())
                 }
