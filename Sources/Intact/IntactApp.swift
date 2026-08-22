@@ -242,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.onAIProviderChange = { DictationController.shared.warmUpLocalAI() }
         applyActivation()
         DictationController.shared.warmUp()
+        BriefService.shared.startScheduler()
 
         atexit {
             WhisperServer.killAllOrphanedServers()

@@ -191,6 +191,19 @@ struct ChatTab: View {
                 .kerning(0.8)
             Spacer()
             Button {
+                exportReport()
+            } label: {
+                HStack(spacing: 5) {
+                    IntactIcon(kind: .export, size: 12)
+                    Text("Выгрузить")
+                        .font(.system(size: 12))
+                }
+                .foregroundStyle(Palette.textTertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Сохранить весь диалог в файл Markdown")
+
+            Button {
                 chat.clearHistory()
             } label: {
                 HStack(spacing: 5) {
@@ -201,6 +214,17 @@ struct ChatTab: View {
                 .foregroundStyle(Palette.textTertiary)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    /// Отчёт по разговору. Раньше кнопка жила в «Брифах» — за экран от
+    /// переписки, которую она выгружает.
+    private func exportReport() {
+        let text = Exporter.reportMarkdown(chat.messages)
+        switch Exporter.save(text: text, suggestedName: "Intact-отчёт-\(Exporter.fileStamp())") {
+        case .saved(let url):  Exporter.reveal(url)
+        case .cancelled:       break
+        case .failed(let msg): chat.errorInfo = AIErrorInfo(message: msg)
         }
     }
 

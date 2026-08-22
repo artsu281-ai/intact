@@ -215,6 +215,13 @@ struct VoiceTab: View {
                             caption: "\(settings.minHoldMs) мс")
                     }
                 }
+                Row(title: "Таймаут карточки копирования",
+                    subtitle: "Через сколько секунд скрывать карточку, если вставить текст было некуда") {
+                    WisprDropdown(selection: $settings.copyDismissTimeoutSeconds,
+                                  options: [3, 5, 10, 15, 30]) { sec in
+                        Text("\(sec) сек\(sec == 5 ? " (по умолч.)" : "")")
+                    }
+                }
                 Row(title: "Максимальная длина записи",
                     first: settings.activationMode != .modifierHold) {
                     SliderControl(

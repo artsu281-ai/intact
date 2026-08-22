@@ -151,10 +151,62 @@ struct SettingsTab: View {
             }
 
             cloudSpendCard
+            integrationsCard
         }
         .onAppear {
             apiKeyText = KeychainHelper.get(service: CloudAIProvider.keychainService) ?? ""
         }
+    }
+
+    // MARK: - Интеграции
+
+    /// Заметки и напоминания — это то, что приложение делает с чужими
+    /// приложениями, а не часть какого-то одного экрана. Раньше эти
+    /// настройки жили в «Брифах», где кроме них были ещё и сами брифы.
+    private var integrationsCard: some View {
+        Card(header: "ЗАМЕТКИ И НАПОМИНАНИЯ") {
+            Row(title: "Создавать заметки по командам",
+                subtitle: "«Делаем заметку…», «Заметка…», «Создай заметку…» — сохраняет текст в Apple Notes без вставки",
+                first: true) {
+                Toggle("", isOn: $settings.enableVoiceNotes)
+                    .toggleStyle(WisprToggleStyle())
+            }
+            if settings.enableVoiceNotes {
+                Row(title: "Папка в Заметках",
+                    subtitle: "Папка в приложении Заметки (по умолчанию «Intact»)") {
+                    compactField(placeholder: "Intact", text: $settings.voiceNotesFolder, width: 130)
+                }
+            }
+
+            Row(title: "Создавать напоминания по командам",
+                subtitle: "«Напомни завтра в 15:00…», «Поставь задачу…» — создаёт напоминание в Apple Reminders") {
+                Toggle("", isOn: $settings.enableVoiceReminders)
+                    .toggleStyle(WisprToggleStyle())
+            }
+            if settings.enableVoiceReminders {
+                Row(title: "Список напоминаний",
+                    subtitle: "Оставьте пустым для списка по умолчанию") {
+                    compactField(placeholder: "По умолчанию", text: $settings.voiceRemindersList, width: 140)
+                }
+            }
+        }
+    }
+
+    private func compactField(placeholder: String, text: Binding<String>, width: CGFloat) -> some View {
+        TextField(placeholder, text: text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Palette.dropdownBg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Palette.hairline, lineWidth: 1)
+                    )
+            )
+            .frame(width: width)
     }
 
     // MARK: - Расход облака

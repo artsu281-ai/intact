@@ -356,6 +356,13 @@ final class AppSettings: ObservableObject {
     /// Пользователь подтвердил, что понимает: с облачной моделью текст
     /// покидает устройство. Спрашивается один раз, перед первым включением.
     @Published var cloudConsentGiven: Bool { didSet { d.set(cloudConsentGiven, forKey: "cloudConsentGiven") } }
+
+    /// Автоматический бриф: что собирать, во сколько и когда собирали в последний раз.
+    @Published var briefScheduleEnabled: Bool { didSet { d.set(briefScheduleEnabled, forKey: "briefScheduleEnabled") } }
+    @Published var briefScheduleHour: Int { didSet { d.set(briefScheduleHour, forKey: "briefScheduleHour") } }
+    @Published var briefScheduleMinute: Int { didSet { d.set(briefScheduleMinute, forKey: "briefScheduleMinute") } }
+    @Published var briefScheduleKind: BriefKind { didSet { d.set(briefScheduleKind.rawValue, forKey: "briefScheduleKind") } }
+    @Published var lastBriefRunTimestamp: Double { didSet { d.set(lastBriefRunTimestamp, forKey: "lastBriefRunTimestamp") } }
     @Published var gemmaAudioModelFilename: String { didSet { d.set(gemmaAudioModelFilename, forKey: "gemmaAudioModelFilename") } }
     /// Доступ в интернет для локальной модели через собственный SearXNG (см. WebTools).
     @Published var enableLocalWebSearch: Bool { didSet { d.set(enableLocalWebSearch, forKey: "enableLocalWebSearch") } }
@@ -463,6 +470,11 @@ final class AppSettings: ObservableObject {
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         aiRoleOverrides = (d.dictionary(forKey: "aiRoleOverrides") as? [String: String]) ?? [:]
         cloudConsentGiven = d.bool(forKey: "cloudConsentGiven")
+        briefScheduleEnabled = d.bool(forKey: "briefScheduleEnabled")
+        briefScheduleHour = d.object(forKey: "briefScheduleHour") == nil ? 21 : d.integer(forKey: "briefScheduleHour")
+        briefScheduleMinute = d.object(forKey: "briefScheduleMinute") == nil ? 0 : d.integer(forKey: "briefScheduleMinute")
+        briefScheduleKind = BriefKind(rawValue: d.string(forKey: "briefScheduleKind") ?? "") ?? .day
+        lastBriefRunTimestamp = d.double(forKey: "lastBriefRunTimestamp")
         gemmaAudioModelFilename = d.string(forKey: "gemmaAudioModelFilename") ?? ""
         enableLocalWebSearch = d.object(forKey: "enableLocalWebSearch") == nil ? false : d.bool(forKey: "enableLocalWebSearch")
         enableAIHotkey = d.object(forKey: "enableAIHotkey") == nil ? false : d.bool(forKey: "enableAIHotkey")

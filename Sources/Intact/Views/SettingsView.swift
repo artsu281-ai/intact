@@ -917,9 +917,14 @@ struct HistoryTab: View {
 
             // ── Автоочистка и лимиты ────────────────────────────────────
             Card(header: L10n.historyAutoClearHeader) {
-                Row(title: L10n.historyLimitTitle,
-                    subtitle: L10n.historyLimitSub,
+                Row(title: "Сохранять историю записей",
+                    subtitle: "Позволяет скопировать продиктованный текст позже. Выключено — ничего не пишется на диск.",
                     first: true) {
+                    Toggle("", isOn: $settings.keepHistory)
+                        .toggleStyle(WisprToggleStyle())
+                }
+                Row(title: L10n.historyLimitTitle,
+                    subtitle: L10n.historyLimitSub) {
                     WisprDropdown(selection: $settings.historyLimitOption,
                                   options: HistoryLimitOption.allCases) { opt in
                         Text(opt.title)
