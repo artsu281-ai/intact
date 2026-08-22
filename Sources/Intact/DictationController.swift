@@ -544,7 +544,7 @@ final class DictationController: ObservableObject {
         TextInserter.deliver(answer, mode: settings.outputMode)
         if settings.playSounds { NSSound(named: "Pop")?.play() }
         if settings.keepHistory {
-            History.shared.add(HistoryEntry(text: "✨ \(answer)",
+            History.shared.add(HistoryEntry(text: answer, kind: .aiAnswer,
                                             seconds: seconds,
                                             model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
         }
@@ -562,7 +562,7 @@ final class DictationController: ObservableObject {
                 // В историю кладём произнесённую фразу целиком, а не обрезок после
                 // команды: если команда сработала ошибочно, это единственный способ
                 // вернуть текст — вставка-то не состоялась.
-                History.shared.add(HistoryEntry(text: "📝 \(text)",
+                History.shared.add(HistoryEntry(text: text, kind: .note,
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
@@ -576,7 +576,7 @@ final class DictationController: ObservableObject {
             if settings.keepHistory {
                 let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
                 // Как и с заметками — сохраняем сказанное целиком, срок дописываем справкой.
-                History.shared.add(HistoryEntry(text: "⏰ \(text)\(dueInfo)",
+                History.shared.add(HistoryEntry(text: text + dueInfo, kind: .reminder,
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
@@ -605,7 +605,7 @@ final class DictationController: ObservableObject {
             customResultHandler = nil
             if settings.playSounds { NSSound(named: "Pop")?.play() }
             if settings.keepHistory {
-                History.shared.add(HistoryEntry(text: "💬 \(lastResult)",
+                History.shared.add(HistoryEntry(text: lastResult, kind: .chat,
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }

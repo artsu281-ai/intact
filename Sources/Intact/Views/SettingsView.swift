@@ -848,12 +848,18 @@ struct HistoryTab: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject private var history = History.shared
     @State private var query = ""
+    @State private var kindFilter: HistoryKind? = nil
+    @State private var selection: Set<UUID> = []
+    @State private var selecting = false
     @State private var showClearPopover = false
     @State private var exportError: String? = nil
 
-    /// Выгружает то, что сейчас видно: с активным поиском — только найденное.
+    /// Выгружает то, что сейчас видно: с активным поиском и фильтром —
+    /// только найденное; в режиме выбора — только отмеченное.
     private func exportHistory() {
-        let entries = filteredEntries
+        let entries = selecting && !selection.isEmpty
+            ? filteredEntries.filter { selection.contains($0.id) }
+            : filteredEntries
         let text = Exporter.historyMarkdown(entries)
         switch Exporter.save(text: text, suggestedName: "Intact-история-\(Exporter.fileStamp())") {
         case .saved(let url):  Exporter.reveal(url)
@@ -864,12 +870,46 @@ struct HistoryTab: View {
 
     private var filteredEntries: [HistoryEntry] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return history.entries }
         return history.entries.filter { entry in
-            entry.text.lowercased().contains(trimmed) ||
-            entry.model.lowercased().contains(trimmed) ||
-            entry.date.formatted(date: .abbreviated, time: .shortened).lowercased().contains(trimmed)
+            if let kindFilter, entry.kind != kindFilter { return false }
+            guard !trimmed.isEmpty else { return true }
+            return entry.text.lowercased().contains(trimmed)
+                || entry.model.lowercased().contains(trimmed)
+                || entry.kind.title.lowercased().contains(trimmed)
+                || entry.date.formatted(date: .abbreviated, time: .shortened).lowercased().contains(trimmed)
         }
+    }
+
+    /// Сколько записей каждого типа есть вообще — фильтр не должен предлагать
+    /// пустые категории.
+    private var kindCounts: [HistoryKind: Int] {
+        Dictionary(grouping: history.entries, by: \.kind).mapValues(\.count)
+    }
+
+    private var isFiltered: Bool {
+        kindFilter != nil || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Отправляет отмеченные записи в новую ветку чата — самый частый способ
+    /// продолжить работу с продиктованным: «вот что я наговорил, собери план».
+    private func sendSelectionToChat() {
+        let chosen = filteredEntries.filter { selection.contains($0.id) }
+        guard !chosen.isEmpty else { return }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM, HH:mm"
+        let block = chosen
+            .sorted { $0.date < $1.date }
+            .map { "• [\(formatter.string(from: $0.date))] \($0.kind.title): «\($0.text)»" }
+            .joined(separator: "\n")
+
+        AIChatService.shared.newThread()
+        AIChatService.shared.send(
+            prompt: "Вот выбранные записи из моей истории:\n\n\(block)\n\nРазбери их: выдели темы, решения и задачи.",
+            forceContext: [])
+        selecting = false
+        selection.removeAll()
+        MainWindowState.shared.section = .chat
     }
 
     var body: some View {
@@ -951,6 +991,29 @@ struct HistoryTab: View {
 
                     Spacer()
 
+                    // Режим выбора нескольких записей
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selecting.toggle()
+                            if !selecting { selection.removeAll() }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            IntactIcon(kind: selecting ? .close : .radioOff, size: 12)
+                            Text(selecting ? "Отменить выбор" : "Выбрать")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(selecting ? Palette.accent : Palette.textPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(selecting ? Palette.accent.opacity(0.10) : Palette.pill)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Отметить несколько записей и что-то с ними сделать")
+
                     // Выгрузка истории в Markdown-файл
                     Button {
                         exportHistory()
@@ -1001,6 +1064,12 @@ struct HistoryTab: View {
                 }
                 .padding(.bottom, 4)
 
+                kindFilterRow
+
+                if selecting {
+                    selectionBar
+                }
+
                 if let err = exportError {
                     HStack(spacing: 8) {
                         IntactIcon(kind: .error, size: 15)
@@ -1035,7 +1104,16 @@ struct HistoryTab: View {
                 } else {
                     Card {
                         ForEach(Array(filteredEntries.enumerated()), id: \.element.id) { index, entry in
-                            HistoryRow(entry: entry, first: index == 0) {
+                            HistoryRow(entry: entry,
+                                       first: index == 0,
+                                       isSelected: selecting ? selection.contains(entry.id) : nil,
+                                       onToggleSelect: {
+                                           if selection.contains(entry.id) {
+                                               selection.remove(entry.id)
+                                           } else {
+                                               selection.insert(entry.id)
+                                           }
+                                       }) {
                                 history.delete(id: entry.id)
                             }
                         }
@@ -1043,6 +1121,100 @@ struct HistoryTab: View {
                 }
             }
         }
+    }
+
+    // MARK: - Фильтр по типу
+
+    /// Типы показываем только те, что реально встречаются в истории:
+    /// пустая категория в фильтре — это обещание, за которым ничего нет.
+    private var kindFilterRow: some View {
+        let counts = kindCounts
+        let present = HistoryKind.allCases.filter { (counts[$0] ?? 0) > 0 }
+        return Group {
+            if present.count > 1 {
+                HStack(spacing: 7) {
+                    filterChip(title: "Все", count: history.entries.count,
+                               icon: nil, active: kindFilter == nil) { kindFilter = nil }
+                    ForEach(present) { kind in
+                        filterChip(title: kind.title, count: counts[kind] ?? 0,
+                                   icon: kind.icon, active: kindFilter == kind) {
+                            kindFilter = (kindFilter == kind) ? nil : kind
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.bottom, 8)
+            }
+        }
+    }
+
+    private func filterChip(title: String, count: Int, icon: IntactIconKind?,
+                            active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { IntactIcon(kind: icon, size: 11) }
+                Text(title).font(.system(size: 12, weight: .medium))
+                Text("\(count)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(active ? Palette.accent.opacity(0.75) : Palette.textTertiary)
+            }
+            .foregroundStyle(active ? Palette.accent : Palette.textSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(active ? Palette.accent.opacity(0.10) : Palette.pill)
+                    .overlay(Capsule().stroke(active ? Palette.accent.opacity(0.28) : Color.clear, lineWidth: 1))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Панель множественного выбора
+
+    private var selectionBar: some View {
+        HStack(spacing: 10) {
+            Text(selection.isEmpty ? "Отметьте записи" : "Выбрано: \(selection.count)")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Palette.textPrimary)
+
+            Button {
+                selection = Set(filteredEntries.map(\.id))
+            } label: {
+                Text(isFiltered ? "Все найденные" : "Все")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Palette.accent)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            PillButton(title: "В чат", icon: .chat) { sendSelectionToChat() }
+                .opacity(selection.isEmpty ? 0.45 : 1)
+                .disabled(selection.isEmpty)
+
+            PillButton(title: "Выгрузить", icon: .export) { exportHistory() }
+                .opacity(selection.isEmpty ? 0.45 : 1)
+                .disabled(selection.isEmpty)
+
+            PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {
+                history.delete(ids: selection)
+                selection.removeAll()
+            }
+            .opacity(selection.isEmpty ? 0.45 : 1)
+            .disabled(selection.isEmpty)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Palette.accent.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Palette.accent.opacity(0.20), lineWidth: 1)
+                )
+        )
+        .padding(.bottom, 8)
     }
 }
 
@@ -1150,6 +1322,9 @@ struct HistoryClearOptionRow: View {
 struct HistoryRow: View {
     let entry: HistoryEntry
     var first: Bool
+    /// nil — режим выбора выключен, чекбоксов нет.
+    var isSelected: Bool? = nil
+    var onToggleSelect: (() -> Void)? = nil
     var onDelete: () -> Void
     @State private var hovering = false
     @State private var copied = false
@@ -1165,6 +1340,23 @@ struct HistoryRow: View {
                 Rectangle().fill(Palette.hairline).frame(height: 1).padding(.leading, 22)
             }
             HStack(alignment: .top, spacing: 16) {
+                if let isSelected {
+                    Button { onToggleSelect?() } label: {
+                        IntactIcon(kind: isSelected ? .radioOn : .radioOff, size: 17)
+                            .foregroundStyle(isSelected ? Palette.accent : Palette.iconMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 1)
+                }
+
+                // Тип записи — значком, а не эмодзи внутри текста: так его
+                // видно в списке и не видно в экспорте, поиске и промпте.
+                IntactIcon(kind: entry.kind.icon, size: 15)
+                    .foregroundStyle(entry.kind == .dictation ? Palette.iconMuted : Palette.accent)
+                    .frame(width: 18)
+                    .padding(.top, 2)
+                    .help(entry.kind.title)
+
                 VStack(alignment: .leading, spacing: 5) {
                     Text(entry.text)
                         .font(.system(size: 14))
@@ -1187,7 +1379,7 @@ struct HistoryRow: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    Text("\(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)")
+                    Text("\(entry.kind.title) · \(entry.date.formatted(date: .abbreviated, time: .shortened)) · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 }

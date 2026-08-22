@@ -621,7 +621,8 @@ final class AIChatService: ObservableObject {
                 formatter.dateFormat = "HH:mm"
                 for e in sent {
                     let time = formatter.string(from: e.date)
-                    text += "• [\(time)]: «\(e.text)»\n"
+                    let kind = e.kind == .dictation ? "" : " (\(e.kind.title))"
+                    text += "• [\(time)]\(kind): «\(e.text)»\n"
                 }
                 contextBlocks.append(text)
             }
@@ -637,7 +638,8 @@ final class AIChatService: ObservableObject {
                 formatter.dateFormat = "d MMM, HH:mm"
                 for e in entries {
                     let time = formatter.string(from: e.date)
-                    text += "• [\(time)]: «\(e.text)»\n"
+                    let kind = e.kind == .dictation ? "" : " (\(e.kind.title))"
+                    text += "• [\(time)]\(kind): «\(e.text)»\n"
                 }
                 contextBlocks.append(text)
             }

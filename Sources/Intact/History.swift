@@ -1,18 +1,103 @@
 import Foundation
 
+/// Чем закончилась диктовка: вставкой текста, заметкой, напоминанием,
+/// ответом ИИ или сообщением в чат.
+///
+/// Раньше это писалось эмодзи в начало самого текста («📝 …»). Из-за этого
+/// значок уезжал в экспорт, в поиск и в промпт, который читает модель,
+/// а отфильтровать историю по типу было нечем. Теперь это поле записи.
+enum HistoryKind: String, Codable, CaseIterable, Identifiable {
+    case dictation
+    case note
+    case reminder
+    case aiAnswer
+    case chat
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dictation: return "Диктовка"
+        case .note:      return "Заметка"
+        case .reminder:  return "Напоминание"
+        case .aiAnswer:  return "Ответ ИИ"
+        case .chat:      return "В чат"
+        }
+    }
+
+    var icon: IntactIconKind {
+        switch self {
+        case .dictation: return .voice
+        case .note:      return .briefs
+        case .reminder:  return .reminder
+        case .aiAnswer:  return .aiStar
+        case .chat:      return .chat
+        }
+    }
+
+    /// Значок для выгрузки в Markdown — там тип нужен именно текстом.
+    var marker: String {
+        switch self {
+        case .dictation: return "🎙"
+        case .note:      return "📝"
+        case .reminder:  return "⏰"
+        case .aiAnswer:  return "✨"
+        case .chat:      return "💬"
+        }
+    }
+
+    /// Старые записи хранили тип префиксом в тексте. Разбираем его один раз
+    /// при чтении с диска и дальше живём с нормальным полем.
+    static func migrate(from raw: String) -> (kind: HistoryKind, text: String) {
+        let prefixes: [(String, HistoryKind)] = [
+            ("📝 ", .note), ("⏰ ", .reminder), ("✨ ", .aiAnswer), ("💬 ", .chat)
+        ]
+        for (prefix, kind) in prefixes where raw.hasPrefix(prefix) {
+            return (kind, String(raw.dropFirst(prefix.count)))
+        }
+        return (.dictation, raw)
+    }
+}
+
 struct HistoryEntry: Identifiable, Codable, Hashable {
     let id: UUID
     let text: String
     let date: Date
     let seconds: Double
     let model: String
+    let kind: HistoryKind
 
-    init(text: String, seconds: Double, model: String) {
+    init(text: String, kind: HistoryKind = .dictation, seconds: Double, model: String) {
         self.id = UUID()
         self.text = text
         self.date = Date()
         self.seconds = seconds
         self.model = model
+        self.kind = kind
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, text, date, seconds, model, kind
+    }
+
+    /// Записи, сделанные до появления поля `kind`, читаются по префиксу текста
+    /// и тут же теряют его — миграция происходит на первом же сохранении.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        seconds = try container.decode(Double.self, forKey: .seconds)
+        model = try container.decode(String.self, forKey: .model)
+
+        let raw = try container.decode(String.self, forKey: .text)
+        if let stored = try container.decodeIfPresent(HistoryKind.self, forKey: .kind) {
+            kind = stored
+            text = raw
+        } else {
+            let migrated = HistoryKind.migrate(from: raw)
+            kind = migrated.kind
+            text = migrated.text
+        }
     }
 }
 
@@ -39,6 +124,8 @@ final class History: ObservableObject {
            let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) {
             entries = decoded
         }
+        // performAutoCleanup всегда заканчивается записью на диск — этим же
+        // проходом на диск ложится и результат миграции типов.
         performAutoCleanup()
         setupPeriodicTimer()
     }
@@ -51,6 +138,12 @@ final class History: ObservableObject {
 
     func delete(id: UUID) {
         entries.removeAll(where: { $0.id == id })
+        persist()
+    }
+
+    func delete(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        entries.removeAll(where: { ids.contains($0.id) })
         persist()
     }
 

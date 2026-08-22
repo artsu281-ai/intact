@@ -56,7 +56,8 @@ enum Exporter {
         for day in byDay.keys.sorted(by: >) {
             out += "\n## \(day.formatted(date: .long, time: .omitted))\n\n"
             for entry in (byDay[day] ?? []).sorted(by: { $0.date > $1.date }) {
-                let meta = "\(entry.date.formatted(date: .omitted, time: .shortened))"
+                let meta = "\(entry.kind.marker) \(entry.kind.title)"
+                    + " · \(entry.date.formatted(date: .omitted, time: .shortened))"
                     + " · \(String(format: "%.1f", entry.seconds)) с · \(entry.model)"
                 out += "- **\(meta)**\n  \n  \(entry.text)\n\n"
             }
