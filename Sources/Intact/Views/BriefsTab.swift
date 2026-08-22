@@ -75,16 +75,16 @@ struct BriefsTab: View {
                         }
                     }
                 }
-                if let err = chat.errorMessage {
-                    Row(title: "Ошибка") {
-                        HStack(spacing: 8) {
+                if let err = chat.errorInfo {
+                    Row(title: "Ошибка", subtitle: err.message) {
+                        if let label = err.actionLabel, let section = err.section {
+                            PillButton(title: label, icon: .settingsPage) {
+                                onOpenSection?(section)
+                            }
+                        } else {
                             IntactIcon(kind: .error, size: 15)
                                 .foregroundStyle(Palette.iconDanger)
-                            Text(err)
-                                .font(.system(size: 12))
-                                .foregroundStyle(Palette.iconDanger)
                         }
-                        .frame(maxWidth: 320, alignment: .trailing)
                     }
                 }
             }

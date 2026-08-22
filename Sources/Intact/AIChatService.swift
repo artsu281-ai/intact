@@ -65,7 +65,8 @@ final class AIChatService: ObservableObject {
     /// Что сейчас делает модель в рамках цикла вызова инструментов — «Ищу…», «Читаю…».
     /// nil, когда либо не генерируем, либо ждём обычный текстовый ответ.
     @Published var toolStatus: String? = nil
-    @Published var errorMessage: String? = nil
+    /// Ошибка с подсказкой, что делать дальше.
+    @Published var errorInfo: AIErrorInfo? = nil
     /// Идёт пересборка контекста — на время неё кнопка обновления крутится.
     @Published var isGatheringContext = false
 
@@ -211,7 +212,7 @@ final class AIChatService: ObservableObject {
     /// Открывает новый диалог. Если текущий ещё пуст, переиспользуем его —
     /// иначе список засоряется пустыми «Новый чат» от каждого нажатия.
     func newThread() {
-        errorMessage = nil
+        errorInfo = nil
         if let active = activeThread, active.isEmpty {
             return
         }
@@ -222,7 +223,7 @@ final class AIChatService: ObservableObject {
 
     func select(_ id: UUID) {
         guard threads.contains(where: { $0.id == id }) else { return }
-        errorMessage = nil
+        errorInfo = nil
         activeThreadID = id
     }
 
@@ -254,7 +255,7 @@ final class AIChatService: ObservableObject {
             threads[index].modelLabel = nil
         }
         invalidateContext(in: activeThreadID)
-        errorMessage = nil
+        errorInfo = nil
         persist()
     }
 
@@ -322,7 +323,7 @@ final class AIChatService: ObservableObject {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isGenerating else { return }
 
-        errorMessage = nil
+        errorInfo = nil
 
         // Быстрые действия задают свои источники — это свойство ветки,
         // а не разовый параметр запроса: следующая реплика в том же
@@ -398,7 +399,7 @@ final class AIChatService: ObservableObject {
                         self.currentTask = nil
                         self.finishStreaming(in: targetThreadID)
                         if case .failure(let error) = result {
-                            self.errorMessage = error.localizedDescription
+                            self.errorInfo = error.info
                         }
                     }
                 }
@@ -450,7 +451,7 @@ final class AIChatService: ObservableObject {
                     self.isGenerating = false
                     self.currentTask = nil
                     self.toolStatus = nil
-                    self.errorMessage = error.localizedDescription
+                    self.errorInfo = error.info
                 }
             }
         }
@@ -521,7 +522,7 @@ final class AIChatService: ObservableObject {
                     self.toolStatus = nil
                     self.finishStreaming(in: targetThreadID)
                     if case .failure(let error) = result {
-                        self.errorMessage = error.localizedDescription
+                        self.errorInfo = error.info
                     }
                 }
             }
@@ -580,7 +581,7 @@ final class AIChatService: ObservableObject {
     ///
     /// Молчаливый провал здесь — худший вариант: пользователь кликает «Прикрепить»,
     /// ничего не появляется, и кажется, что кнопка сломана. Поэтому нечитаемые файлы
-    /// не просто пропускаются — они попадают в `errorMessage`.
+    /// не просто пропускаются — они попадают в `errorInfo`.
     @discardableResult
     func attachFiles(urls: [URL]) -> Bool {
         var totalBytes = attachedFiles.reduce(0) { $0 + $1.content.utf8.count }
@@ -607,9 +608,9 @@ final class AIChatService: ObservableObject {
 
         if attachedCount == 0 && !skipped.isEmpty {
             let names = skipped.prefix(3).joined(separator: ", ")
-            errorMessage = "Не удалось прочитать: \(names). Поддерживаются текстовые файлы (txt, md, код и т.п.) и PDF."
+            errorInfo = AIErrorInfo(message: "Не удалось прочитать: \(names). Поддерживаются текстовые файлы (txt, md, код и т.п.) и PDF.")
         } else if !skipped.isEmpty {
-            errorMessage = "Не прочитано: \(skipped.prefix(3).joined(separator: ", "))\(skipped.count > 3 ? " и ещё \(skipped.count - 3)" : "")"
+            errorInfo = AIErrorInfo(message: "Не прочитано: \(skipped.prefix(3).joined(separator: ", "))\(skipped.count > 3 ? " и ещё \(skipped.count - 3)" : "")")
         }
         return attachedCount > 0
     }

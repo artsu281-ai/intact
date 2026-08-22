@@ -57,7 +57,7 @@ struct ChatTab: View {
                 ContentColumn {
                     VStack(alignment: .leading, spacing: 22) {
                         quickAnalysisSection
-                        if let err = chat.errorMessage { errorBanner(err) }
+                        if let err = chat.errorInfo { errorBanner(err) }
                     }
                 }
                 .padding(.top, 20)
@@ -103,7 +103,7 @@ struct ChatTab: View {
                         quickAnalysisSection
                             .padding(.top, 20)
 
-                        if let err = chat.errorMessage {
+                        if let err = chat.errorInfo {
                             errorBanner(err)
                         }
 
@@ -150,14 +150,30 @@ struct ChatTab: View {
         }
     }
 
-    private func errorBanner(_ text: String) -> some View {
-        HStack(spacing: 10) {
+    /// Ошибка с кнопкой, ведущей туда, где её можно починить. Сообщение
+    /// без действия — это тупик: человек читает «Ошибка 401» и остаётся
+    /// с ней один на один.
+    private func errorBanner(_ info: AIErrorInfo) -> some View {
+        HStack(alignment: .top, spacing: 10) {
             IntactIcon(kind: .error, size: 15)
                 .foregroundStyle(Palette.iconDanger)
-            Text(text)
+                .padding(.top, 1)
+            Text(info.message)
                 .font(.system(size: 12.5))
                 .foregroundStyle(Palette.iconDanger)
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            if let label = info.actionLabel, let section = info.section {
+                Button { onOpenSection?(section) } label: {
+                    Text(label)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Palette.iconDanger)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4.5)
+                        .background(Capsule().fill(Palette.iconDanger.opacity(0.14)))
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

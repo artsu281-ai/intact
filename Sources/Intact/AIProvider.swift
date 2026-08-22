@@ -26,6 +26,72 @@ enum AIError: Error {
     }
 }
 
+/// Ошибка, приведённая к тому, что можно показать человеку: что случилось
+/// и что с этим делать.
+///
+/// «Некорректный ответ от AI» и «Ошибка 400» — это то, что видел пользователь.
+/// Ни одна из этих строк не говорит, что делать дальше, а починить их
+/// в настольном приложении негде.
+struct AIErrorInfo: Equatable {
+    let message: String
+    let actionLabel: String?
+    let section: SettingsSection?
+
+    init(message: String, actionLabel: String? = nil, section: SettingsSection? = nil) {
+        self.message = message
+        self.actionLabel = actionLabel
+        self.section = section
+    }
+}
+
+extension AIError {
+    var info: AIErrorInfo {
+        switch self {
+        case .notConfigured:
+            return AIErrorInfo(message: "Для этой задачи не выбрана модель.",
+                               actionLabel: "Выбрать модель", section: .settings)
+
+        case .providerUnavailable:
+            return AIErrorInfo(message: "Локальная модель не запустилась. Проверьте, что установлен llama-server и выбранный файл модели на месте.",
+                               actionLabel: "Открыть модели", section: .models)
+
+        case .timeout:
+            return AIErrorInfo(message: "Модель не ответила вовремя. Крупная модель на длинном тексте может не уложиться — повторите запрос или выберите модель полегче.",
+                               actionLabel: "Сменить модель", section: .settings)
+
+        case .network(let error):
+            return AIErrorInfo(message: "Нет связи с сервером: \(error.localizedDescription)")
+
+        case .badResponse:
+            return AIErrorInfo(message: "Модель вернула пустой ответ. Обычно помогает просто повторить запрос.")
+
+        case .refused(let explanation):
+            return AIErrorInfo(message: explanation.map { "Модель отклонила запрос: \($0)" }
+                               ?? "Модель отклонила запрос. Попробуйте переформулировать.")
+
+        case .server(let code, let message):
+            switch code {
+            case 401, 403:
+                return AIErrorInfo(message: "Ключ Anthropic не принят. Проверьте, что он скопирован целиком и не отозван.",
+                                   actionLabel: "Проверить ключ", section: .settings)
+            case 429:
+                return AIErrorInfo(message: "Слишком много запросов подряд — API просит подождать. Повторите через минуту.")
+            case 402:
+                return AIErrorInfo(message: "На счету Anthropic закончились средства.",
+                                   actionLabel: "Открыть настройки ИИ", section: .settings)
+            case 500...599:
+                return AIErrorInfo(message: "Сбой на стороне Anthropic. Обычно проходит за минуту.")
+            default:
+                return AIErrorInfo(message: "Запрос отклонён: \(message)")
+            }
+        }
+    }
+
+    /// Короткая версия для мест, где кнопке действия негде поместиться —
+    /// плавающий индикатор, лог.
+    var shortMessage: String { info.message }
+}
+
 /// Вызов инструмента (web-поиск и т.п.), который запросила модель.
 struct AIToolCall: Hashable {
     let id: String

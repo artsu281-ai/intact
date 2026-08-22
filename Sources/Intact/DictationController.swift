@@ -482,7 +482,7 @@ final class DictationController: ObservableObject {
     private func answerWithAI(text: String, seconds: TimeInterval, latencyMs: Int) {
         guard !text.trimmingCharacters(in: .whitespaces).isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Речь не распознана — тишина или слишком тихий микрофон."
+            lastError = "Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка»."
             return
         }
         // «Напомни...» / «Заметка: ...» через правый Option — это команда,
@@ -490,7 +490,7 @@ final class DictationController: ObservableObject {
         if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
         guard AIRouter.shared.isReady(for: .quickAnswer) else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Чтобы спрашивать ИИ, выбери модель в разделе «Спросите ИИ»."
+            lastError = "Для быстрого ответа не выбрана модель — задайте её в разделе «Спросите ИИ»."
             return
         }
 
@@ -498,7 +498,10 @@ final class DictationController: ObservableObject {
         if settings.showIndicator { indicator.show(controller: self) }
 
         var settled = false
-        let settle: (String?) -> Void = { [weak self] answer in
+        // Причина неудачи доходит до пользователя как есть: «попробуй ещё раз»
+        // одинаково звучало и на просроченном ключе, и на выключенном интернете,
+        // и на слишком медленной модели — то есть не помогало ни в одном случае.
+        let settle: (String?, AIError?) -> Void = { [weak self] answer, failure in
             DispatchQueue.main.async {
                 guard let self, !settled else { return }
                 settled = true
@@ -506,7 +509,8 @@ final class DictationController: ObservableObject {
                 self.indicator.hide()
                 guard let answer, !answer.isEmpty else {
                     if self.settings.playSounds { NSSound(named: "Basso")?.play() }
-                    self.lastError = "ИИ не ответил вовремя или отказался — попробуй ещё раз."
+                    self.lastError = failure?.shortMessage
+                        ?? "Модель не ответила за \(Int(AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25)) с. Повторите или выберите модель побыстрее."
                     return
                 }
                 self.finishAIAnswer(answer, seconds: seconds, latencyMs: latencyMs)
@@ -516,15 +520,15 @@ final class DictationController: ObservableObject {
         // Настоящий ответ обычно длиннее причёсанной фразы — таймаут щедрее, чем
         // у cleanup, и тоже зависит от того, какая модель выбрана под эту роль.
         let deadline = AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25
-        DispatchQueue.main.asyncAfter(deadline: .now() + deadline) { settle(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + deadline) { settle(nil, nil) }
 
         AIRouter.shared.complete(role: .quickAnswer, system: Self.aiAnswerSystemPrompt, user: text) { result in
             switch result {
             case .success(let answer):
-                settle(answer.trimmingCharacters(in: .whitespacesAndNewlines))
+                settle(answer.trimmingCharacters(in: .whitespacesAndNewlines), nil)
             case .failure(let error):
                 Log.write("AI-ответ не получен (\(error.localizedDescription))")
-                settle(nil)
+                settle(nil, error)
             }
         }
     }
@@ -592,7 +596,7 @@ final class DictationController: ObservableObject {
 
         guard !lastResult.isEmpty else {
             if settings.playSounds { NSSound(named: "Basso")?.play() }
-            lastError = "Речь не распознана — тишина или слишком тихий микрофон."
+            lastError = "Речь не распознана: тишина или слишком тихий микрофон. Проверьте источник звука в разделе «Диктовка»."
             if let handler = customResultHandler {
                 customResultHandler = nil
                 handler("")
