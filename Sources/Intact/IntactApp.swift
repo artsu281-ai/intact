@@ -112,78 +112,35 @@ struct MenuContent: View {
 
         Divider()
 
-        Menu("Язык: \(languageTitle)") {
-            Button(action: { settings.language = "auto" }) {
-                HStack {
-                    Text("Автоопределение")
-                    if settings.language == "auto" { MenuCheckmark() }
-                }
-            }
-            Button(action: { settings.language = "ru" }) {
-                HStack {
-                    Text("Русский")
-                    if settings.language == "ru" { MenuCheckmark() }
-                }
-            }
-            Button(action: { settings.language = "en" }) {
-                HStack {
-                    Text("English")
-                    if settings.language == "en" { MenuCheckmark() }
-                }
-            }
-            Divider()
-            Toggle("Переводить на английский", isOn: $settings.translateToEnglish)
-        }
-
-        Menu("Режим вставки: \(settings.outputMode.shortTitle)") {
-            ForEach(OutputMode.allCases) { mode in
+        // Меню строки состояния раньше дублировало половину настроек:
+        // язык, режим вставки, тема и восемь тумблеров. Всё это живёт
+        // в окне, а здесь нужно то, что делают на бегу.
+        Menu("Модель чата: \(shortModelTitle)") {
+            ForEach(AIModelCatalog.cloud) { model in
                 Button {
-                    settings.outputMode = mode
+                    AIModelCatalog.apply(.cloud(model.id), to: .chat)
                 } label: {
                     HStack {
-                        Text(mode.shortTitle)
-                        if settings.outputMode == mode { MenuCheckmark() }
+                        Text(model.title)
+                        if AIModelCatalog.resolved(for: .chat) == .cloud(model.id) { MenuCheckmark() }
+                    }
+                }
+                .disabled(!CloudAIProvider.shared.isReady)
+            }
+            let installed = LLMModelManager.shared.installedPairs
+            if !installed.isEmpty {
+                Divider()
+                ForEach(installed, id: \.quant.filename) { pair in
+                    Button {
+                        AIModelCatalog.apply(.local(pair.quant.filename), to: .chat)
+                    } label: {
+                        HStack {
+                            Text(LLMModel.displayName(model: pair.model, quant: pair.quant))
+                            if AIModelCatalog.resolved(for: .chat) == .local(pair.quant.filename) { MenuCheckmark() }
+                        }
                     }
                 }
             }
-        }
-
-        Menu("Тема оформления: \(settings.appTheme.title)") {
-            ForEach(AppTheme.allCases) { theme in
-                Button {
-                    settings.appTheme = theme
-                } label: {
-                    HStack {
-                        Text(theme.title)
-                        if settings.appTheme == theme { MenuCheckmark() }
-                    }
-                }
-            }
-        }
-
-        Menu("Быстрые настройки") {
-            Toggle("Заметки в Apple Notes", isOn: $settings.enableVoiceNotes)
-            Toggle("Напоминания в Apple Reminders", isOn: $settings.enableVoiceReminders)
-            Toggle("Заглушать звук при диктовке", isOn: $settings.muteAudioWhileDictating)
-            Toggle("Пауза музыки (Apple Music/Spotify)", isOn: $settings.pauseMediaWhileDictating)
-            Toggle("Плавающий мини-индикатор", isOn: $settings.showIndicator)
-            Toggle("Звуковые сигналы", isOn: $settings.playSounds)
-            Toggle("Убирать точку в конце", isOn: $settings.trimTrailingPeriod)
-            Toggle("Добавлять пробел в конце", isOn: $settings.appendSpace)
-            Divider()
-            Toggle("Запуск при входе в macOS", isOn: $settings.launchAtLogin)
-                .onChange(of: settings.launchAtLogin) { _, new in LoginItem.set(enabled: new) }
-        }
-
-        Divider()
-
-        Button("Перезапустить движок Whisper") {
-            DictationController.shared.restartEngine()
-        }
-
-        Button("Проверить обновления моделей…") {
-            SettingsWindow.shared.show()
-            modelManager.checkForUpdates()
         }
 
         Divider()
@@ -198,12 +155,10 @@ struct MenuContent: View {
             .keyboardShortcut("q")
     }
 
-    private var languageTitle: String {
-        switch settings.language {
-        case "ru": return "Русский"
-        case "en": return "English"
-        default:   return "Авто"
-        }
+    /// Короткое имя модели чата — в строке меню длинное не помещается.
+    private var shortModelTitle: String {
+        let full = AIModelCatalog.title(for: AIModelCatalog.resolved(for: .chat))
+        return full.split(separator: "·").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }
 
     private var statusLine: String {
@@ -258,9 +213,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // ⎋ отменяет запись, если система дала права на слежение за клавишами.
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.keyDown]) { event in
-            if event.keyCode == UInt16(kVK_Escape),
-               DictationController.shared.state == .recording {
-                DispatchQueue.main.async { DictationController.shared.cancel() }
+            guard event.keyCode == UInt16(kVK_Escape) else { return }
+            let controller = DictationController.shared
+            if controller.state == .recording {
+                DispatchQueue.main.async { controller.cancel() }
+            } else if controller.canSkipAIStage {
+                // Причёсывание уже идёт — отдаём то, что распознал Whisper,
+                // вместо того чтобы ждать модель до конца таймаута.
+                DispatchQueue.main.async { controller.skipAIAndInsert() }
             }
         }
 

@@ -54,6 +54,17 @@ final class DictationController: ObservableObject {
     private let recentAnswersLimit = 5
     /// Вопрос, на который сейчас отвечает модель.
     private var pendingQuestion: String = ""
+    /// Прервать ИИ-этап и вставить исходный текст. Живёт только пока идёт
+    /// причёсывание.
+    private var skipAIStage: (() -> Void)?
+
+    /// Есть ли что прерывать прямо сейчас.
+    var canSkipAIStage: Bool { skipAIStage != nil }
+
+    func skipAIAndInsert() {
+        skipAIStage?()
+        skipAIStage = nil
+    }
 
     private var pendingTimer: Timer?
 
@@ -452,11 +463,15 @@ final class DictationController: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, !settled else { return }
                 settled = true
+                self.skipAIStage = nil
                 self.state = .idle
                 self.indicator.hide()
                 self.finishRouting(text: self.postProcess(result), seconds: seconds, latencyMs: latencyMs)
             }
         }
+        // ⎋ во время причёсывания вставляет то, что распознал Whisper,
+        // не дожидаясь модели: иногда сырой текст нужен прямо сейчас.
+        skipAIStage = { settle(text) }
 
         // Плохая сеть или медленная модель не должны подвешивать диктовку —
         // по истечении таймаута отдаём исходный текст как есть. Сколько ждать,

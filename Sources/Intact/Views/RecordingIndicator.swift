@@ -105,9 +105,18 @@ struct IndicatorView: View {
                 ThinkingDots(size: 14)
                     .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                Text(L10n.hudProcessingAI)
+                // Имя модели и выход из ожидания: с крупной моделью пауза
+                // длится секунды, и без этих двух подписей непонятно, кто
+                // держит текст и можно ли не ждать.
+                Text(modelName(for: .cleanup))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                    .lineLimit(1)
+                    .fixedSize()
+
+                Text("⎋ как есть")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
                     .lineLimit(1)
                     .fixedSize()
 
@@ -115,7 +124,7 @@ struct IndicatorView: View {
                 ThinkingDots(size: 14)
                     .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                Text(L10n.hudAnsweringAI)
+                Text(modelName(for: .quickAnswer))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                     .lineLimit(1)
@@ -222,6 +231,13 @@ struct IndicatorView: View {
             }
             .frame(height: 30)
         }
+    }
+
+    /// Короткое имя работающей модели: в пилюле фиксированной ширины
+    /// «Claude Haiku 4.5» помещается, а «Qwen3.5 9B · Q8_0» — уже нет.
+    private func modelName(for role: AIRole) -> String {
+        let full = AIModelCatalog.title(for: AIModelCatalog.resolved(for: role))
+        return full.split(separator: "·").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }
 
     private func wordsCountLabel(_ count: Int) -> String {
