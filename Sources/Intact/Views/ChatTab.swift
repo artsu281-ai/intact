@@ -80,6 +80,12 @@ struct ChatTab: View {
 
     private var hasConversation: Bool { !chat.messages.isEmpty || chat.isGenerating }
 
+    /// Чат — единственный раздел, где наружу уходит не только надиктованная
+    /// фраза, но и заметки, напоминания и файлы. Об этом стоит говорить прямо.
+    private var isCloudChat: Bool {
+        AIRouter.shared.routing(for: .chat)?.isCloud == true
+    }
+
     /// Заголовок страницы: имя активной ветки важнее слова «Чат» — оно и так
     /// написано в боковом меню.
     private var pageTitle: String {
@@ -220,6 +226,19 @@ struct ChatTab: View {
                 onOpenSettings: { onOpenSection?(.settings) },
                 onOpenModels:   { onOpenSection?(.models) }
             )
+
+            if isCloudChat {
+                HStack(spacing: 4) {
+                    IntactIcon(kind: .lock, size: 10)
+                    Text("уходит в облако")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(Palette.iconWarning)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Palette.iconWarning.opacity(0.12)))
+                .help("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Anthropic")
+            }
 
             Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
 

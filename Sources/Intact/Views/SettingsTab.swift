@@ -7,6 +7,7 @@ struct SettingsTab: View {
     @ObservedObject var settings: AppSettings
     var onOpenModels: (() -> Void)? = nil
 
+    @ObservedObject private var usage = UsageTracker.shared
     @State private var apiKeyText: String = ""
     @State private var apiKeySaved = false
 
@@ -148,9 +149,56 @@ struct SettingsTab: View {
                               onOpenModels: { onOpenModels?() })
                 }
             }
+
+            cloudSpendCard
         }
         .onAppear {
             apiKeyText = KeychainHelper.get(service: CloudAIProvider.keychainService) ?? ""
+        }
+    }
+
+    // MARK: - Расход облака
+
+    /// Причёсывание срабатывает на каждую диктовку, и при полутора сотнях
+    /// диктовок за день выбор крупной модели в этой роли — решение с ценой.
+    /// Раньше её нельзя было увидеть нигде, кроме счёта в конце месяца.
+    private var cloudSpendCard: some View {
+        let byRole = usage.todayByRole()
+        return Card(header: "РАСХОД ОБЛАКА") {
+            Row(title: "Сегодня",
+                subtitle: byRole.isEmpty
+                    ? "Облачных запросов сегодня не было. Локальные модели не считаются — они бесплатны."
+                    : "Оценка сверху: чтение кэша на самом деле дешевле, чем считает этот счётчик.",
+                first: true) {
+                HStack(spacing: 10) {
+                    Text(UsageTracker.money(usage.todayCost))
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(UsageTracker.tokensShort(usage.todayTokens) + " ток.")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Palette.textTertiary)
+                }
+            }
+
+            ForEach(byRole, id: \.role.id) { item in
+                Row(title: item.role.title,
+                    subtitle: "\(item.requests) запросов · \(UsageTracker.tokensShort(item.tokens)) токенов") {
+                    Text(UsageTracker.money(item.cost))
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            }
+
+            if usage.weekCost > 0 {
+                Row(title: "За последние 7 дней") {
+                    HStack(spacing: 10) {
+                        Text(UsageTracker.money(usage.weekCost))
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundStyle(Palette.textSecondary)
+                        PillButton(title: "Сбросить", icon: .clearAll) { usage.clear() }
+                    }
+                }
+            }
         }
     }
 

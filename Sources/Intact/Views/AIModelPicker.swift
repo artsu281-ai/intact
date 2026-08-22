@@ -18,6 +18,8 @@ struct AIModelPicker: View {
     @ObservedObject private var llmModels = LLMModelManager.shared
     @State private var isOpen = false
     @State private var hovering = false
+    /// Выбор, ждущий подтверждения «да, я понимаю, что текст уйдёт наружу».
+    @State private var pendingCloudChoice: AIModelChoice? = nil
 
     private var current: AIModelChoice {
         role.map { AIModelCatalog.resolved(for: $0) } ?? AIModelCatalog.current
@@ -78,6 +80,33 @@ struct AIModelPicker: View {
         .onHover { hovering = $0 }
         .help(role.map { "Модель для раздела «\($0.title)»" } ?? "Сменить версию ИИ")
         .popover(isPresented: $isOpen, arrowEdge: .bottom) { picker }
+        .alert("Текст будет уходить в облако",
+               isPresented: Binding(get: { pendingCloudChoice != nil },
+                                    set: { if !$0 { pendingCloudChoice = nil } })) {
+            Button("Отмена", role: .cancel) { pendingCloudChoice = nil }
+            Button("Понимаю, включить") {
+                if let choice = pendingCloudChoice {
+                    settings.cloudConsentGiven = true
+                    commit(choice)
+                }
+                pendingCloudChoice = nil
+            }
+        } message: {
+            Text("С локальной моделью звук и текст не покидают этот Mac. "
+                 + "Облачная модель работает иначе: распознанный текст, а в чате — ещё "
+                 + "и заметки, напоминания и содержимое прикреплённых файлов "
+                 + "отправляются на серверы Anthropic.\n\n"
+                 + "Спрашиваем один раз. Вернуться к локальной модели можно в любой момент.")
+        }
+    }
+
+    /// Применяет выбор — к роли или к общей настройке.
+    private func commit(_ choice: AIModelChoice) {
+        if let role {
+            AIModelCatalog.apply(choice, to: role)
+        } else {
+            AIModelCatalog.apply(choice)
+        }
     }
 
     // MARK: - Список
@@ -168,12 +197,14 @@ struct AIModelPicker: View {
             isSelected: current == choice && !inherits,
             action: {
                 guard enabled else { return }
-                if let role {
-                    AIModelCatalog.apply(choice, to: role)
-                } else {
-                    AIModelCatalog.apply(choice)
-                }
                 isOpen = false
+                // Переход на облако — это изменение того, что происходит
+                // с текстом пользователя. Один раз об этом стоит спросить.
+                if case .cloud = choice, !settings.cloudConsentGiven {
+                    pendingCloudChoice = choice
+                    return
+                }
+                commit(choice)
             }
         ) {
             VStack(alignment: .leading, spacing: 2) {
@@ -260,13 +291,34 @@ struct AIRoleRow: View {
         }
     }
 
+    /// Куда уходит текст этой задачи. Слова «Облако» в маленькой пилюле
+    /// недостаточно: приложение обещает приватность, и место, где это
+    /// обещание перестаёт действовать, должно называться прямо.
+    private var privacy: (text: String, cloud: Bool)? {
+        switch choice {
+        case .disabled: return nil
+        case .local:    return ("Не покидает этот Mac", false)
+        case .cloud:    return ("Текст этой задачи отправляется в облако Anthropic", true)
+        }
+    }
+
     var body: some View {
         Row(title: role.title,
             subtitle: problem ?? role.subtitle,
             first: first) {
-            AIModelPicker(role: role,
-                          onOpenSettings: onOpenSettings,
-                          onOpenModels: onOpenModels)
+            VStack(alignment: .trailing, spacing: 6) {
+                AIModelPicker(role: role,
+                              onOpenSettings: onOpenSettings,
+                              onOpenModels: onOpenModels)
+                if let privacy {
+                    HStack(spacing: 5) {
+                        IntactIcon(kind: .lock, size: 11)
+                        Text(privacy.text)
+                            .font(.system(size: 11))
+                    }
+                    .foregroundStyle(privacy.cloud ? Palette.iconWarning : Palette.textTertiary)
+                }
+            }
         }
     }
 }

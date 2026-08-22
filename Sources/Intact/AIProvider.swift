@@ -67,6 +67,9 @@ struct AIRequest {
     var maxTokens: Int
     /// Идентификатор облачной модели либо путь к локальному GGUF-файлу.
     var model: String
+    /// Чья это задача — нужно счётчику расхода, чтобы показать, какой
+    /// раздел приложения сколько тратит.
+    var role: AIRole? = nil
     /// Глубина рассуждения (`output_config.effort`), только для облака.
     var effort: String? = nil
     /// Разрешить модели искать в интернете.
@@ -143,6 +146,7 @@ extension AIProvider {
 /// Куда и с какими параметрами уходит запрос конкретной роли.
 struct AIRouting {
     let choice: AIModelChoice
+    let role: AIRole
     let isCloud: Bool
     /// Идентификатор облачной модели либо путь к локальному файлу.
     let model: String
@@ -186,6 +190,7 @@ final class AIRouter {
             guard let model = AIModelCatalog.cloudModel(id: id) else { return nil }
             return AIRouting(
                 choice: choice,
+                role: role,
                 isCloud: true,
                 model: id,
                 maxTokens: role.maxTokens(cloud: true),
@@ -198,6 +203,7 @@ final class AIRouter {
                   FileManager.default.fileExists(atPath: path) else { return nil }
             return AIRouting(
                 choice: choice,
+                role: role,
                 isCloud: false,
                 model: path,
                 maxTokens: role.maxTokens(cloud: false),
@@ -211,6 +217,7 @@ final class AIRouter {
         AIRequest(messages: messages,
                   maxTokens: routing.maxTokens,
                   model: routing.model,
+                  role: routing.role,
                   effort: routing.effort,
                   webSearch: routing.webSearchTool != nil,
                   timeout: routing.timeout)

@@ -133,6 +133,7 @@ final class CloudAIProvider: AIProvider {
             req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
             let collector = AnthropicSSECollector(onDelta: onDelta,
                                                   onRetryableFailure: retryPlain,
+                                                  onUsage: { usage in Self.recordUsage(usage, request: request) },
                                                   completion: completion)
             let config = URLSessionConfiguration.ephemeral
             // Таймер простоя, а не общий срок: пока идут токены, он сбрасывается.
@@ -187,6 +188,8 @@ final class CloudAIProvider: AIProvider {
                 completion(.failure(.badResponse))
                 return
             }
+            Self.recordUsage(json["usage"] as? [String: Any], request: request)
+
             let text = content
                 .filter { $0["type"] as? String == "text" }
                 .compactMap { $0["text"] as? String }
@@ -199,6 +202,18 @@ final class CloudAIProvider: AIProvider {
         }
         token.task = task
         task.resume()
+    }
+
+    /// Складывает расход в счётчик. Чтение и запись кэша считаем как вход:
+    /// точных множителей у нас нет, а завышенная оценка честнее заниженной.
+    private static func recordUsage(_ usage: [String: Any]?, request: AIRequest) {
+        guard let usage else { return }
+        let input = (usage["input_tokens"] as? Int ?? 0)
+            + (usage["cache_read_input_tokens"] as? Int ?? 0)
+            + (usage["cache_creation_input_tokens"] as? Int ?? 0)
+        let output = usage["output_tokens"] as? Int ?? 0
+        UsageTracker.shared.record(model: request.model, role: request.role,
+                                   input: input, output: output)
     }
 
     // MARK: - Тело запроса
@@ -310,6 +325,8 @@ private final class AnthropicSSECollector: NSObject, URLSessionDataDelegate {
     private let onDelta: (String) -> Void
     /// Возвращает true, если ошибку взяли на повтор и завершать поток не надо.
     private let onRetryableFailure: (Int, String) -> Bool
+    /// Расход приходит в потоке дважды: вход в message_start, выход в message_delta.
+    private let onUsage: ([String: Any]) -> Void
     private let completion: (Result<String, AIError>) -> Void
 
     private var buffer = Data()
@@ -323,9 +340,11 @@ private final class AnthropicSSECollector: NSObject, URLSessionDataDelegate {
 
     init(onDelta: @escaping (String) -> Void,
          onRetryableFailure: @escaping (Int, String) -> Bool,
+         onUsage: @escaping ([String: Any]) -> Void,
          completion: @escaping (Result<String, AIError>) -> Void) {
         self.onDelta = onDelta
         self.onRetryableFailure = onRetryableFailure
+        self.onUsage = onUsage
         self.completion = completion
     }
 
@@ -362,6 +381,12 @@ private final class AnthropicSSECollector: NSObject, URLSessionDataDelegate {
               let type = json["type"] as? String else { return }
 
         switch type {
+        case "message_start":
+            if let message = json["message"] as? [String: Any],
+               let usage = message["usage"] as? [String: Any] {
+                onUsage(usage)
+            }
+
         case "content_block_delta":
             // Блоки рассуждения и аргументы серверных инструментов приходят
             // своими типами дельт — в ответ идёт только текст.
@@ -373,6 +398,7 @@ private final class AnthropicSSECollector: NSObject, URLSessionDataDelegate {
             onDelta(piece)
 
         case "message_delta":
+            if let usage = json["usage"] as? [String: Any] { onUsage(usage) }
             guard let delta = json["delta"] as? [String: Any] else { return }
             if delta["stop_reason"] as? String == "refusal" {
                 sawRefusal = true

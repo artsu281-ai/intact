@@ -10,6 +10,7 @@ struct HomeTab: View {
     @ObservedObject private var history = History.shared
     @ObservedObject private var chat = AIChatService.shared
     @ObservedObject private var models = ModelManager.shared
+    @ObservedObject private var usage = UsageTracker.shared
 
     private var todayEntries: [HistoryEntry] {
         let cal = Calendar.current
@@ -154,7 +155,7 @@ struct HomeTab: View {
         HStack(spacing: 0) {
             statItem(label: "диктовок сегодня") { statNumber("\(todayEntries.count)") }
             divider()
-            statItem(label: "сообщений ИИ") { statNumber("\(chat.messages.count)") }
+            statItem(label: spendLabel) { statNumber(spendValue) }
             divider()
             statItem(label: "статус движка") {
                 HStack(spacing: 7) {
@@ -191,6 +192,24 @@ struct HomeTab: View {
                 .foregroundStyle(Palette.textTertiary)
         }
         .padding(.horizontal, 18)
+    }
+
+    /// Пока облако не настроено, показывать нули бессмысленно — тогда
+    /// в этой ячейке живёт число разговоров за сегодня.
+    private var usesCloud: Bool {
+        AIRole.allCases.contains { routing in
+            AIRouter.shared.routing(for: routing)?.isCloud == true
+        }
+    }
+
+    private var spendLabel: String { usesCloud ? "расход облака сегодня" : "разговоров сегодня" }
+
+    private var spendValue: String {
+        guard usesCloud else {
+            let today = chat.threads.filter { Calendar.current.isDateInToday($0.updatedAt) && !$0.isEmpty }
+            return "\(today.count)"
+        }
+        return UsageTracker.money(usage.todayCost)
     }
 
     private func statNumber(_ text: String) -> some View {
