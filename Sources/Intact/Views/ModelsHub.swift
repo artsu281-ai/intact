@@ -152,6 +152,9 @@ struct ModelsHub: View {
     @StateObject private var audioModels = GemmaAudioModelManager.shared
     @ObservedObject private var controller = DictationController.shared
     @State private var advanced = false
+    /// Прятать модели, которые не влезут в память этой машины.
+    /// Переживает перезапуск: у машины память не меняется от сессии к сессии.
+    @AppStorage("modelsFitOnly") private var fitOnly = false
 
     private var totalInstalledGB: Double {
         let mb = whisperModels.installed.reduce(0) { $0 + $1.sizeMB }
@@ -206,6 +209,22 @@ struct ModelsHub: View {
                     .foregroundStyle(Palette.textSecondary)
             }
             Spacer()
+            Button {
+                fitOnly.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    IntactIcon(kind: fitOnly ? .radioOn : .radioOff, size: 13)
+                    Text("Только то, что влезет")
+                        .font(.system(size: 12.5, weight: .medium))
+                }
+                .foregroundStyle(fitOnly ? Palette.accent : Palette.textSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5.5)
+                .background(Capsule().fill(fitOnly ? Palette.accent.opacity(0.10) : Palette.pill))
+            }
+            .buttonStyle(.plain)
+            .help("Скрыть модели, которые не поместятся в \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ памяти")
+
             PillButton(title: "Папки", icon: .folder) {
                 NSWorkspace.shared.open(ModelManager.directory)
                 NSWorkspace.shared.open(LLMModelManager.directory)
@@ -294,7 +313,7 @@ struct ModelsHub: View {
 
     private var llmCard: some View {
         VStack(alignment: .leading, spacing: 22) {
-            ForEach(Array(LLMTier.allCases.enumerated()), id: \.offset) { _, tier in
+            ForEach(visibleTiers, id: \.self) { tier in
                 VStack(alignment: .leading, spacing: 10) {
                     llmGroup(tier, header: header(for: tier))
 
@@ -309,6 +328,17 @@ struct ModelsHub: View {
 
             if let err = llmModels.lastError {
                 Text(err).font(.system(size: 12)).foregroundStyle(Palette.iconDanger).padding(.leading, 4)
+            }
+        }
+    }
+
+    /// Ярусы, в которых после фильтра что-то осталось: пустая карточка
+    /// с заголовком «очень крупные» на машине, которая их не тянет, —
+    /// это шум, а не информация.
+    private var visibleTiers: [LLMTier] {
+        LLMTier.allCases.filter { tier in
+            !fitOnly || LLMModel.catalog(tier).contains { model in
+                model.quantOptions.contains { model.fitsInMemory($0) }
             }
         }
     }
@@ -337,7 +367,9 @@ struct ModelsHub: View {
     }
 
     private func llmGroup(_ tier: LLMTier, header: String) -> some View {
-        let models = LLMModel.catalog(tier)
+        let models = LLMModel.catalog(tier).filter { model in
+            !fitOnly || model.quantOptions.contains { model.fitsInMemory($0) }
+        }
         return Card(header: header) {
             ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
                 LLMQuantRow(model: model, settings: settings, models: llmModels, first: index == 0)
@@ -485,6 +517,22 @@ struct LLMQuantRow: View {
     private var isInstalled: Bool { model.isInstalled(selectedQuant) }
     private var isActive: Bool { settings.aiLocalModelPath == model.localURL(for: selectedQuant).path }
     private var isDownloading: Bool { models.downloading == selectedQuant.filename }
+    /// Сколько уже лежит в недокачанном файле.
+    private var partial: Int64 { isInstalled ? 0 : models.partialBytes(model, selectedQuant) }
+    /// Модель прямо сейчас держится в памяти пулом llama-server.
+    private var isLoadedInMemory: Bool {
+        LocalAIProvider.shared.loadedModelPaths.contains(model.localURL(for: selectedQuant).path)
+    }
+
+    private func gb(_ bytes: Int64) -> String {
+        String(format: "%.1f ГБ", Double(bytes) / 1_000_000_000)
+    }
+
+    private var progressCaption: String {
+        let done = gb(models.downloadedBytes)
+        let total = models.totalBytes > 0 ? gb(models.totalBytes) : sizeText
+        return models.resumed ? "\(done) из \(total) · продолжено" : "\(done) из \(total)"
+    }
 
     /// Честное предупреждение до скачивания десяти гигабайт: без запаса памяти
     /// llama-server уйдёт в своп и будет отвечать минутами вместо секунд.
@@ -520,6 +568,18 @@ struct LLMQuantRow: View {
                         WisprDropdown(selection: $selectedQuant, options: model.quantOptions) { q in
                             Text(q.quant)
                         }
+                        if isLoadedInMemory {
+                            HStack(spacing: 4) {
+                                Circle().fill(Palette.iconSuccess).frame(width: 5, height: 5)
+                                Text("в памяти")
+                                    .font(.system(size: 10.5, weight: .medium))
+                            }
+                            .foregroundStyle(Palette.iconSuccess)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Palette.iconSuccess.opacity(0.12)))
+                            .help("Модель загружена в память и отвечает без задержки на старт")
+                        }
                     }
                     Text(model.note)
                         .font(.system(size: 13))
@@ -537,22 +597,46 @@ struct LLMQuantRow: View {
                         .padding(.top, 2)
                     }
                     if isDownloading {
-                        ProgressView(value: models.progress)
-                            .progressViewStyle(.linear)
-                            .frame(maxWidth: 280)
-                            .padding(.top, 4)
+                        VStack(alignment: .leading, spacing: 3) {
+                            ProgressView(value: models.progress)
+                                .progressViewStyle(.linear)
+                                .frame(maxWidth: 280)
+                            Text(progressCaption)
+                                .font(.system(size: 11.5, design: .monospaced))
+                                .foregroundStyle(Palette.textTertiary)
+                        }
+                        .padding(.top, 4)
+                    } else if partial > 0 {
+                        Text("Скачано \(gb(partial)) из \(sizeText) — можно продолжить")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Palette.accent)
+                            .padding(.top, 2)
                     }
                 }
 
                 Spacer(minLength: 12)
 
                 if isDownloading {
-                    Text("\(Int(models.progress * 100))%")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(Palette.textSecondary)
+                    HStack(spacing: 8) {
+                        Text("\(Int(models.progress * 100))%")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(Palette.textSecondary)
+                        PillButton(title: "Пауза", icon: .stop) { models.pauseDownload() }
+                    }
                 } else if !isInstalled {
-                    PillButton(title: "Скачать", icon: .download) {
-                        models.download(model, selectedQuant)
+                    HStack(spacing: 8) {
+                        if partial > 0 {
+                            PillButton(title: "Продолжить", icon: .download) {
+                                models.download(model, selectedQuant)
+                            }
+                            PillButton(title: "Сбросить", icon: .clearAll, tone: .danger) {
+                                models.discardPartial(selectedQuant)
+                            }
+                        } else {
+                            PillButton(title: "Скачать", icon: .download) {
+                                models.download(model, selectedQuant)
+                            }
+                        }
                     }
                 } else if hovering, !isActive {
                     PillButton(title: "Удалить", icon: .clearAll, tone: .danger) {

@@ -296,7 +296,16 @@ struct LLMModel: Identifiable, Hashable {
 /// Скачивание и хранение локальных LLM-моделей — по образцу ModelManager для Whisper.
 /// Оперирует конкретными файлами кванта (LLMQuantOption), а не семьями моделей:
 /// одна и та же модель в разных квантах — это разные файлы на диске одновременно.
-final class LLMModelManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
+/// Скачивание и хранение локальных LLM-моделей — по образцу ModelManager для Whisper.
+/// Оперирует конкретными файлами кванта (LLMQuantOption), а не семьями моделей:
+/// одна и та же модель в разных квантах — это разные файлы на диске одновременно.
+///
+/// Качает с докачкой. Двадцать гигабайт по домашнему интернету — это десятки
+/// минут, за которые сеть успевает моргнуть; раньше любой обрыв означал
+/// «начинай сначала», потому что незавершённый файл просто выбрасывался.
+/// Теперь загрузка идёт в файл `.part`, а повторный запуск дописывает его
+/// с того места, где остановился, через заголовок `Range`.
+final class LLMModelManager: NSObject, ObservableObject, URLSessionDataDelegate {
     static let shared = LLMModelManager()
 
     static var directory: URL {
@@ -306,8 +315,14 @@ final class LLMModelManager: NSObject, ObservableObject, URLSessionDownloadDeleg
     }
 
     @Published var downloading: String? = nil
+    /// Заголовок для показа снаружи каталога — в строке меню, например.
+    @Published var downloadingTitle: String? = nil
     @Published var progress: Double = 0
+    @Published var downloadedBytes: Int64 = 0
+    @Published var totalBytes: Int64 = 0
     @Published var lastError: String? = nil
+    /// Загрузка продолжена с уже скачанного места, а не начата заново.
+    @Published var resumed = false
 
     /// Все установленные пары (модель, квант) по всему каталогу — считается заново
     /// из состояния диска на каждое обращение, отдельно не кэшируется.
@@ -317,31 +332,96 @@ final class LLMModelManager: NSObject, ObservableObject, URLSessionDownloadDeleg
         }
     }
 
+    /// Сколько уже лежит в недокачанном файле — чтобы предложить «продолжить»
+    /// вместо «скачать» и назвать оставшийся объём.
+    func partialBytes(_ model: LLMModel, _ quant: LLMQuantOption) -> Int64 {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: Self.partURL(for: quant).path)
+        return (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    private static func partURL(for quant: LLMQuantOption) -> URL {
+        directory.appendingPathComponent(quant.filename + ".part")
+    }
+
     private var session: URLSession!
     private var targetModel: LLMModel?
     private var targetQuant: LLMQuantOption?
+    private var handle: FileHandle?
+    private var receivedBytes: Int64 = 0
+    private var expectedTotal: Int64 = 0
+    private var currentTask: URLSessionDataTask?
 
     override init() {
         super.init()
-        session = URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let config = URLSessionConfiguration.default
+        // Двадцать гигабайт по медленному каналу — это часы; общий срок
+        // ресурса не должен обрывать такую загрузку.
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 24 * 3600
+        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }
 
     func download(_ model: LLMModel, _ quant: LLMQuantOption) {
         guard downloading == nil else { return }
         targetModel = model
         targetQuant = quant
+
+        let partURL = Self.partURL(for: quant)
+        let already = partialBytes(model, quant)
+        receivedBytes = already
+        expectedTotal = Int64(quant.sizeMB) * 1_000_000
+
+        var request = URLRequest(url: model.remoteURL(for: quant))
+        if already > 0 {
+            request.setValue("bytes=\(already)-", forHTTPHeaderField: "Range")
+        }
+
         DispatchQueue.main.async {
             self.downloading = quant.filename
-            self.progress = 0
+            self.downloadingTitle = LLMModel.displayName(model: model, quant: quant)
+            self.progress = self.expectedTotal > 0 ? Double(already) / Double(self.expectedTotal) : 0
+            self.downloadedBytes = already
+            self.totalBytes = self.expectedTotal
+            self.resumed = already > 0
             self.lastError = nil
         }
-        session.downloadTask(with: model.remoteURL(for: quant)).resume()
+
+        if !FileManager.default.fileExists(atPath: partURL.path) {
+            FileManager.default.createFile(atPath: partURL.path, contents: nil)
+        }
+        handle = try? FileHandle(forWritingTo: partURL)
+        try? handle?.seekToEnd()
+
+        currentTask = session.dataTask(with: request)
+        currentTask?.resume()
+    }
+
+    /// Останавливает загрузку, не удаляя уже скачанное: следующий запуск
+    /// продолжит с этого места.
+    func pauseDownload() {
+        currentTask?.cancel()
+        currentTask = nil
+        try? handle?.close()
+        handle = nil
+        DispatchQueue.main.async {
+            self.downloading = nil
+            self.downloadingTitle = nil
+            self.progress = 0
+        }
+    }
+
+    /// Выбрасывает недокачанный кусок — когда файл на сервере изменился
+    /// и докачка бессмысленна.
+    func discardPartial(_ quant: LLMQuantOption) {
+        try? FileManager.default.removeItem(at: Self.partURL(for: quant))
+        objectWillChange.send()
     }
 
     func delete(_ model: LLMModel, _ quant: LLMQuantOption) {
         let url = model.localURL(for: quant)
         let path = url.path
         try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: Self.partURL(for: quant))
         // Останавливаем только этот сервер: остальные модели остаются
         // загруженными и продолжают обслуживать свои разделы.
         LocalAIProvider.shared.stop(modelPath: path)
@@ -363,36 +443,112 @@ final class LLMModelManager: NSObject, ObservableObject, URLSessionDownloadDeleg
 
     // MARK: - URLSession Delegate
 
-    func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask,
-                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64,
-                    totalBytesExpectedToWrite total: Int64) {
-        guard total > 0 else { return }
-        let p = Double(totalBytesWritten) / Double(total)
-        DispatchQueue.main.async { self.progress = p }
+    func urlSession(_ s: URLSession, dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard let http = response as? HTTPURLResponse else {
+            completionHandler(.cancel)
+            return
+        }
+
+        switch http.statusCode {
+        case 206:
+            // Сервер согласился продолжить — дописываем.
+            if let range = http.value(forHTTPHeaderField: "Content-Range"),
+               let totalPart = range.split(separator: "/").last,
+               let total = Int64(totalPart) {
+                expectedTotal = total
+            }
+        case 200:
+            // Докачка не поддержана или файл изменился — начинаем заново.
+            if receivedBytes > 0, let quant = targetQuant {
+                try? handle?.close()
+                try? FileManager.default.removeItem(at: Self.partURL(for: quant))
+                FileManager.default.createFile(atPath: Self.partURL(for: quant).path, contents: nil)
+                handle = try? FileHandle(forWritingTo: Self.partURL(for: quant))
+                receivedBytes = 0
+            }
+            if http.expectedContentLength > 0 { expectedTotal = http.expectedContentLength }
+        default:
+            fail("Сервер ответил \(http.statusCode). Попробуйте позже.")
+            completionHandler(.cancel)
+            return
+        }
+
+        let total = expectedTotal
+        let received = receivedBytes
+        DispatchQueue.main.async {
+            self.totalBytes = total
+            self.downloadedBytes = received
+            self.resumed = received > 0
+        }
+        completionHandler(.allow)
     }
 
-    func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+    func urlSession(_ s: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        handle?.write(data)
+        receivedBytes += Int64(data.count)
+        let received = receivedBytes
+        let total = expectedTotal
+        guard total > 0 else { return }
+        let p = min(1, Double(received) / Double(total))
+        DispatchQueue.main.async {
+            self.progress = p
+            self.downloadedBytes = received
+        }
+    }
+
+    func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        try? handle?.close()
+        handle = nil
+        currentTask = nil
+
+        if let error {
+            // Отмена — это пауза, а не сбой: `.part` остаётся на диске.
+            if (error as NSError).code == NSURLErrorCancelled { return }
+            fail(error.localizedDescription)
+            return
+        }
         guard let model = targetModel, let quant = targetQuant else { return }
+
+        let partURL = Self.partURL(for: quant)
+        let onDisk = (try? FileManager.default.attributesOfItem(atPath: partURL.path))
+            .flatMap { ($0[.size] as? NSNumber)?.int64Value } ?? 0
+
+        // Проверка размера: оборванная на середине загрузка внешне выглядит
+        // как успешная, а llama-server на битом файле падает с невнятной
+        // ошибкой уже сильно позже, при первой попытке что-то спросить.
+        if expectedTotal > 0, onDisk < expectedTotal {
+            fail("Файл докачан не полностью (\(onDisk / 1_000_000) из \(expectedTotal / 1_000_000) МБ). Нажмите «Продолжить».")
+            return
+        }
+
         do {
             try? FileManager.default.removeItem(at: model.localURL(for: quant))
-            try FileManager.default.moveItem(at: location, to: model.localURL(for: quant))
+            try FileManager.default.moveItem(at: partURL, to: model.localURL(for: quant))
         } catch {
-            DispatchQueue.main.async { self.lastError = error.localizedDescription }
+            fail(error.localizedDescription)
+            return
         }
 
         DispatchQueue.main.async {
             self.downloading = nil
+            self.downloadingTitle = nil
             self.progress = 0
+            self.downloadedBytes = 0
+            self.totalBytes = 0
+            self.resumed = false
             self.objectWillChange.send()
             AppSettings.shared.aiLocalModelPath = model.localURL(for: quant).path
         }
     }
 
-    func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error else { return }
+    private func fail(_ message: String) {
         DispatchQueue.main.async {
-            self.lastError = error.localizedDescription
+            self.lastError = message
             self.downloading = nil
+            self.downloadingTitle = nil
+            self.progress = 0
         }
     }
 }

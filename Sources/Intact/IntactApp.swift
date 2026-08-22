@@ -42,9 +42,18 @@ struct MenuContent: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var history = History.shared
     @ObservedObject private var modelManager = ModelManager.shared
+    @ObservedObject private var llmManager = LLMModelManager.shared
 
     var body: some View {
         Text(statusLine)
+
+        // Скачивание модели идёт десятками минут, и всё это время окно
+        // приложения обычно закрыто — прогресс должен быть виден отсюда.
+        if let title = llmManager.downloadingTitle {
+            Text("↓ \(title) — \(Int(llmManager.progress * 100))%")
+        } else if let file = modelManager.downloading {
+            Text("↓ \(file) — \(Int(modelManager.progress * 100))%")
+        }
 
         if controller.lastLatencyMs > 0 && !controller.lastResult.isEmpty {
             Text("Скорость: \(controller.lastLatencyMs) мс")
