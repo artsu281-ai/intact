@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Экран «Спросите ИИ»: второй, независимый от диктовки хоткей — держишь клавишу,
@@ -6,6 +7,9 @@ import SwiftUI
 struct AskAITab: View {
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
+
+    @ObservedObject private var controller = DictationController.shared
+    @State private var copiedID: UUID? = nil
 
     private var aiReady: Bool { AIRouter.shared.isReady(for: .quickAnswer) }
 
@@ -71,6 +75,10 @@ struct AskAITab: View {
                 }
             }
 
+            if !controller.recentAnswers.isEmpty {
+                recentCard
+            }
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("НАПРИМЕР")
                     .font(.system(size: 11, weight: .semibold))
@@ -84,6 +92,42 @@ struct AskAITab: View {
                 }
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.textSecondary)
+            }
+        }
+    }
+
+    // MARK: - Последние ответы
+
+    /// Ответ вставляется под курсор и исчезает. Если поле оказалось не тем —
+    /// или ответ хочется перепроверить моделью посильнее — доставать его
+    /// было неоткуда.
+    private var recentCard: some View {
+        Card(header: "ПОСЛЕДНИЕ ОТВЕТЫ") {
+            ForEach(Array(controller.recentAnswers.prefix(3).enumerated()), id: \.element.id) { index, item in
+                Row(title: item.question,
+                    subtitle: item.answer,
+                    first: index == 0) {
+                    HStack(spacing: 8) {
+                        Text(item.model)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Palette.textTertiary)
+                        PillButton(title: copiedID == item.id ? "Скопировано" : "Копировать",
+                                   icon: copiedID == item.id ? .copied : .copy,
+                                   tone: copiedID == item.id ? .success : nil) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(item.answer, forType: .string)
+                            copiedID = item.id
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                if copiedID == item.id { copiedID = nil }
+                            }
+                        }
+                        PillButton(title: "Переспросить", icon: .refresh) {
+                            controller.askAgain(item.question)
+                        }
+                        .disabled(controller.state != .idle)
+                        .opacity(controller.state == .idle ? 1 : 0.45)
+                    }
+                }
             }
         }
     }

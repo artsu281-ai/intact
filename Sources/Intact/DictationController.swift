@@ -6,6 +6,15 @@ enum DictationState: Equatable {
     case idle, recording, transcribing, processingAI, answeringAI
 }
 
+/// Пара «вопрос — ответ» из хоткея «Спросите ИИ».
+struct QuickAnswer: Identifiable, Hashable {
+    let id = UUID()
+    let question: String
+    let answer: String
+    let model: String
+    let date: Date
+}
+
 /// Склеивает всё вместе: клавиша → запись → whisper → вставка текста.
 ///
 /// Ключевая идея: пока человек говорит, в фоне уже считаются черновики.
@@ -35,6 +44,16 @@ final class DictationController: ObservableObject {
     @Published var reminderSavedText: String? = nil
     /// Секунды до авто-закрытия карточки копирования.
     @Published var pendingRemainingSeconds: Int = 0
+
+    /// Последние ответы по хоткею «Спросите ИИ».
+    ///
+    /// Ответ вставляется под курсор и исчезает: если поле оказалось не тем,
+    /// вернуть его было неоткуда. Держим несколько последних в памяти —
+    /// на диск не пишем, это не история, а «то, что только что было».
+    @Published private(set) var recentAnswers: [QuickAnswer] = []
+    private let recentAnswersLimit = 5
+    /// Вопрос, на который сейчас отвечает модель.
+    private var pendingQuestion: String = ""
 
     private var pendingTimer: Timer?
 
@@ -495,6 +514,7 @@ final class DictationController: ObservableObject {
         }
 
         state = .answeringAI
+        pendingQuestion = text
         if settings.showIndicator { indicator.show(controller: self) }
 
         var settled = false
@@ -533,11 +553,53 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Спросить то же самое ещё раз — обычно уже другой моделью.
+    /// Ответ не вставляется, а ложится в список: переспрашивают, сидя
+    /// в окне приложения, а не в поле ввода чужой программы.
+    func askAgain(_ question: String) {
+        guard state == .idle, AIRouter.shared.isReady(for: .quickAnswer) else { return }
+        state = .answeringAI
+        pendingQuestion = question
+        let model = AIModelCatalog.title(for: AIModelCatalog.resolved(for: .quickAnswer))
+
+        AIRouter.shared.complete(role: .quickAnswer, system: Self.aiAnswerSystemPrompt, user: question) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.state = .idle
+                self.pendingQuestion = ""
+                switch result {
+                case .success(let answer):
+                    let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    self.recentAnswers.insert(QuickAnswer(question: question, answer: trimmed,
+                                                          model: model, date: Date()), at: 0)
+                    if self.recentAnswers.count > self.recentAnswersLimit {
+                        self.recentAnswers.removeLast(self.recentAnswers.count - self.recentAnswersLimit)
+                    }
+                case .failure(let error):
+                    self.lastError = error.shortMessage
+                }
+            }
+        }
+    }
+
     private func finishAIAnswer(_ rawAnswer: String, seconds: TimeInterval, latencyMs: Int) {
         // Ответ вставляется в то же поле и теми же правилами, что и обычная
         // диктовка, — значит и настройки форматирования к нему применимы.
         let answer = postProcess(rawAnswer)
         lastResult = answer.trimmingCharacters(in: .whitespaces)
+
+        if !pendingQuestion.isEmpty {
+            let entry = QuickAnswer(question: pendingQuestion,
+                                    answer: lastResult,
+                                    model: AIModelCatalog.title(for: AIModelCatalog.resolved(for: .quickAnswer)),
+                                    date: Date())
+            recentAnswers.insert(entry, at: 0)
+            if recentAnswers.count > recentAnswersLimit {
+                recentAnswers.removeLast(recentAnswers.count - recentAnswersLimit)
+            }
+            pendingQuestion = ""
+        }
 
         let insertable = FocusInspector.canInsertText
         if !insertable && settings.outputMode != .clipboard {

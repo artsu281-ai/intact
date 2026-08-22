@@ -658,3 +658,73 @@ struct SearchableLanguageDropdown: View {
         .padding(.horizontal, 6)
     }
 }
+
+/// Ряд удаляемых меток, переносящийся по строкам.
+///
+/// Нужен там, где список короткий и растёт по одному элементу — например,
+/// словарь терминов диктовки. `LazyVGrid` тут не подходит: ширина меток
+/// разная, а фиксированная сетка оставляет дыры.
+struct FlowTags: View {
+    let items: [String]
+    let onRemove: (String) -> Void
+
+    var body: some View {
+        TagFlowLayout(spacing: 7) {
+            ForEach(items, id: \.self) { item in
+                HStack(spacing: 6) {
+                    Text(item)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Palette.textPrimary)
+                    Button { onRemove(item) } label: {
+                        IntactIcon(kind: .close, size: 9)
+                            .foregroundStyle(Palette.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Убрать «\(item)» из словаря")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Palette.pill))
+            }
+        }
+    }
+}
+
+/// Простая раскладка «в строку с переносом».
+///
+/// Имя с префиксом Tag — в проекте уже есть свой `enum Layout` с ширинами
+/// колонок, и `struct X: Layout` разрешался бы в него, а не в протокол SwiftUI.
+struct TagFlowLayout: SwiftUI.Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? x, height: y + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, lineHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += lineHeight + spacing
+                lineHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
