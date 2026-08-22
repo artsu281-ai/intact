@@ -195,6 +195,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.onHotKeyChange = { [weak self] in self?.applyActivation() }
         settings.onEngineChange = { DictationController.shared.restartEngine() }
         settings.onAIProviderChange = { DictationController.shared.warmUpLocalAI() }
+        // Прибираем за прошлым запуском до того, как поднимем свои серверы.
+        //
+        // Пул llama-server сам по себе этого не делает — и не должен: он
+        // не может отличить чужой осиротевший процесс от собственного.
+        // А завершение приложения не всегда успевает выполнить atexit
+        // (pkill при пересборке, kill -9, падение), и тогда предыдущая
+        // модель остаётся висеть в памяти целиком. На 27B это 17 ГБ,
+        // которые никто больше не использует.
+        WhisperServer.killAllOrphanedServers()
+        LocalAIProvider.killAllOrphanedServers()
+
         applyActivation()
         DictationController.shared.warmUp()
         BriefService.shared.startScheduler()
