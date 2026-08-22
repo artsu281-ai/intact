@@ -125,7 +125,8 @@ struct HomeTab: View {
 
     private var dayHeaderRow: some View {
         HStack(alignment: .center, spacing: 18) {
-            stat(value: "\(todayEntries.count)", label: "записей")
+            stat(value: "\(todayEntries.count)",
+                 label: Plural.form(todayEntries.count, "запись", "записи", "записей"))
             divider()
             stat(value: spokenText, label: "речи")
             if usage.todayCost > 0 {

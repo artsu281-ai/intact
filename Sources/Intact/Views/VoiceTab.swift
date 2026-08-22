@@ -365,7 +365,7 @@ struct VoiceTab: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 } else {
-                    Text("Уходит в модель как подсказка: \(dictionaryTerms.count) термин\(pluralSuffix(dictionaryTerms.count))")
+                    Text("Уходит в модель как подсказка: \(dictionaryTerms.count) \(Plural.form(dictionaryTerms.count, "термин", "термина", "терминов"))")
                         .font(.system(size: 12))
                         .foregroundStyle(Palette.textTertiary)
                 }
@@ -392,13 +392,6 @@ struct VoiceTab: View {
 
     private func removeTerm(_ term: String) {
         settings.initialPrompt = dictionaryTerms.filter { $0 != term }.joined(separator: ", ")
-    }
-
-    private func pluralSuffix(_ count: Int) -> String {
-        let mod10 = count % 10, mod100 = count % 100
-        if mod10 == 1 && mod100 != 11 { return "" }
-        if (2...4).contains(mod10) && !(12...14).contains(mod100) { return "а" }
-        return "ов"
     }
 
     private var activationSubtitle: String {

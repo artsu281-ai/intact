@@ -279,3 +279,21 @@ enum L10n {
         : "All audio recording and transcription happens 100% locally on your Mac. No voice recordings or text ever leave your computer or get sent to remote servers."
     }
 }
+
+/// Русские числовые формы: «1 запись», «3 записи», «143 записи», «5 записей».
+///
+/// Интерфейс показывает счётчики на каждом экране, и «143 записей» бросается
+/// в глаза сильнее, чем кажется при написании кода.
+enum Plural {
+    /// - Parameters:
+    ///   - one: форма для 1 («запись»)
+    ///   - few: форма для 2–4 («записи»)
+    ///   - many: форма для 5–20 и остальных («записей»)
+    static func form(_ count: Int, _ one: String, _ few: String, _ many: String) -> String {
+        let mod10 = abs(count) % 10
+        let mod100 = abs(count) % 100
+        if mod10 == 1 && mod100 != 11 { return one }
+        if (2...4).contains(mod10) && !(12...14).contains(mod100) { return few }
+        return many
+    }
+}

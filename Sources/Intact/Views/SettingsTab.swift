@@ -232,7 +232,7 @@ struct SettingsTab: View {
 
             ForEach(byRole, id: \.role.id) { item in
                 Row(title: item.role.title,
-                    subtitle: "\(item.requests) запросов · \(UsageTracker.tokensShort(item.tokens)) токенов") {
+                    subtitle: "\(item.requests) \(Plural.form(item.requests, "запрос", "запроса", "запросов")) · \(UsageTracker.tokensShort(item.tokens)) токенов") {
                     Text(UsageTracker.money(item.cost))
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(Palette.textSecondary)
