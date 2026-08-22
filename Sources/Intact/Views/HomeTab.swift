@@ -1,79 +1,66 @@
 import SwiftUI
 import AppKit
 
-/// Домашний экран Intact — три столпа + активность за сегодня + последние записи.
+/// Главная — это «сегодня».
+///
+/// Раньше здесь были три карточки-ярлыка на разделы, которые и так есть
+/// в боковике, и три счётчика, один из которых считал сообщения активной
+/// ветки чата. Вернуться сюда было незачем. Теперь это лента дня: что
+/// наговорено, что из этого стало заметкой или напоминанием, и одна
+/// кнопка — собрать из всего этого бриф.
 struct HomeTab: View {
     @ObservedObject var settings: AppSettings
     var onOpenSection: (SettingsSection) -> Void
 
-    @ObservedObject private var controller = DictationController.shared
     @ObservedObject private var history = History.shared
-    @ObservedObject private var chat = AIChatService.shared
     @ObservedObject private var models = ModelManager.shared
+    @ObservedObject private var briefs = BriefService.shared
     @ObservedObject private var usage = UsageTracker.shared
 
     private var todayEntries: [HistoryEntry] {
-        let cal = Calendar.current
-        return history.entries.filter { cal.isDateInToday($0.date) }
+        history.entries.filter { Calendar.current.isDateInToday($0.date) }
+    }
+
+    private var todayBrief: Brief? {
+        briefs.briefs.first { Calendar.current.isDateInToday($0.createdAt) && $0.kind == .day }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Заголовок ───────────────────────────────────────────────
             ContentColumn(maxWidth: Layout.wide) {
-                Text("Intact")
-                    .font(.system(size: 32, weight: .regular, design: .serif))
-                    .foregroundStyle(Palette.textPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Intact")
+                        .font(.system(size: 32, weight: .regular, design: .serif))
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(todayText)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.textTertiary)
+                }
             }
             .padding(.top, 46)
-            .padding(.bottom, 24)
+            .padding(.bottom, 22)
 
-            // ── Прокручиваемое тело ──────────────────────────────────────
             ScrollView {
                 ContentColumn(maxWidth: Layout.wide) {
-                  VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 22) {
+                        // Статус — только когда он ненормальный. Зелёная плашка
+                        // «всё хорошо» на каждом открытии не несёт информации.
+                        if let attention { attentionBanner(attention) }
 
-                    // ── Три карточки-кита ────────────────────────────────
-                    HStack(alignment: .top, spacing: 14) {
-                        featureCard(
-                            icon: .voice,
-                            title: "Голос",
-                            description: "Удержи \(settings.triggerKey.symbol) и говори — текст появится там, где курсор",
-                            status: voiceStatus,
-                            statusColor: voiceStatusColor,
-                            action: { onOpenSection(.voice) },
-                            actionLabel: "Настроить"
-                        )
-                        featureCard(
-                            icon: .aiStar,
-                            title: "ИИ-Ассистент",
-                            description: "Задай вопрос, проанализируй диктовки, получи сводку за день",
-                            status: aiStatus,
-                            statusColor: aiStatusColor,
-                            action: { onOpenSection(.chat) },
-                            actionLabel: "Открыть чат"
-                        )
-                        featureCard(
-                            icon: .briefs,
-                            title: "Брифы и заметки",
-                            description: "Сводки, задачи, Apple Notes и Reminders прямо из голоса",
-                            status: briefsStatus,
-                            statusColor: briefsStatusColor,
-                            action: { onOpenSection(.briefs) },
-                            actionLabel: "Открыть"
-                        )
+                        dayHeaderRow
+
+                        if todayEntries.isEmpty {
+                            emptyDayBanner
+                        } else {
+                            dayTimeline
+                        }
+
+                        if let brief = todayBrief {
+                            briefCard(brief)
+                        }
+
+                        shortcutsRow
                     }
-
-                    // ── Статус сегодня ───────────────────────────────────
-                    todayStatsBar
-
-                    // ── Последние записи ─────────────────────────────────
-                    if !history.entries.isEmpty {
-                        recentEntriesSection
-                    } else {
-                        emptyHistoryBanner
-                    }
-                  }
                 }
                 .padding(.bottom, 40)
             }
@@ -82,92 +69,105 @@ struct HomeTab: View {
         .background(Palette.page)
     }
 
-    // MARK: - Feature Card
+    private var todayText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "EEEE, d MMMM"
+        return formatter.string(from: Date()).capitalizedFirst
+    }
 
-    private func featureCard(
-        icon: IntactIconKind,
-        title: String,
-        description: String,
-        status: String,
-        statusColor: Color,
-        action: @escaping () -> Void,
-        actionLabel: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            IconTile(kind: icon, tone: .active, side: 48)
+    // MARK: - Требует внимания
 
-            // Текст
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.system(size: 16.5, weight: .semibold))
-                    .foregroundStyle(Palette.textPrimary)
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Palette.textSecondary)
-                    .lineSpacing(2.5)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private struct Attention {
+        let text: String
+        let action: String
+        let section: SettingsSection
+    }
 
-            Spacer()
-
-            // Статус + кнопка
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 5) {
-                    Circle().fill(statusColor).frame(width: 6, height: 6)
-                    Text(status)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(Palette.textTertiary)
-                }
-                Button(action: action) {
-                    Text(actionLabel)
-                        .font(.system(size: 13.5, weight: .medium))
-                        .foregroundStyle(Palette.accent)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7.5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(Palette.accent.opacity(0.10))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                        .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
-                                )
-                        )
-                }
-                .buttonStyle(.plain)
-            }
+    private var attention: Attention? {
+        if !models.hasAnyModelInstalled {
+            return Attention(text: "Модель распознавания не установлена — диктовка не заработает",
+                             action: "Скачать модель", section: .models)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, minHeight: 204, alignment: .topLeading)
+        if let missing = Permissions.missingDescription {
+            return Attention(text: missing, action: "Выдать доступ", section: .voice)
+        }
+        if settings.enableAICleanup, !AIRouter.shared.isReady(for: .cleanup) {
+            return Attention(text: "Причёсывание включено, но модель для него не готова",
+                             action: "Выбрать модель", section: .voice)
+        }
+        return nil
+    }
+
+    private func attentionBanner(_ item: Attention) -> some View {
+        HStack(spacing: 12) {
+            IntactIcon(kind: .warning, size: 17)
+                .foregroundStyle(Palette.iconWarning)
+            Text(item.text)
+                .font(.system(size: 13.5))
+                .foregroundStyle(Palette.textPrimary)
+            Spacer(minLength: 12)
+            PillButton(title: item.action, icon: .chevronRight) { onOpenSection(item.section) }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Palette.card)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Palette.iconWarning.opacity(0.10))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Palette.iconWarning.opacity(0.28), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.04), radius: 8, y: 2)
         )
     }
 
-    // MARK: - Stats Bar
+    // MARK: - Шапка дня
 
-    private var todayStatsBar: some View {
-        HStack(spacing: 0) {
-            statItem(label: "диктовок сегодня") { statNumber("\(todayEntries.count)") }
+    private var dayHeaderRow: some View {
+        HStack(alignment: .center, spacing: 18) {
+            stat(value: "\(todayEntries.count)", label: "записей")
             divider()
-            statItem(label: spendLabel) { statNumber(spendValue) }
-            divider()
-            statItem(label: "статус движка") {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(models.hasAnyModelInstalled ? Palette.iconSuccess : Palette.iconWarning)
-                        .frame(width: 8, height: 8)
-                    Text(models.hasAnyModelInstalled ? "Готов" : "Нет модели")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Palette.textPrimary)
-                }
+            stat(value: spokenText, label: "речи")
+            if usage.todayCost > 0 {
+                divider()
+                stat(value: UsageTracker.money(usage.todayCost), label: "облако")
             }
+
             Spacer()
+
+            if briefs.generating == .day {
+                HStack(spacing: 8) {
+                    ThinkingDots(size: 15, tone: .process)
+                    Text("Собираю бриф…")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Palette.textSecondary)
+                }
+            } else {
+                Button {
+                    briefs.generate(.day)
+                    onOpenSection(.briefs)
+                } label: {
+                    HStack(spacing: 7) {
+                        IntactIcon(kind: .quickSummary, size: 14)
+                        Text(todayBrief == nil ? "Собрать бриф за день" : "Пересобрать бриф")
+                            .font(.system(size: 13.5, weight: .medium))
+                    }
+                    .foregroundStyle(Palette.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Palette.accent.opacity(0.10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Palette.accent.opacity(0.22), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(todayEntries.isEmpty || briefs.generating != nil)
+                .opacity(todayEntries.isEmpty ? 0.45 : 1)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -181,63 +181,45 @@ struct HomeTab: View {
         )
     }
 
-    /// Фиксированная высота строки значения выравнивает подписи между собой,
-    /// хотя число набрано крупно, а статус — обычным текстом.
-    private func statItem<Value: View>(label: String, @ViewBuilder value: () -> Value) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            value()
-                .frame(height: 26, alignment: .leading)
+    /// Сколько сегодня наговорено — величина, которую больше нигде не видно,
+    /// а она честнее числа записей: одна запись бывает и на пять секунд,
+    /// и на пять минут.
+    private var spokenText: String {
+        let total = todayEntries.reduce(0) { $0 + $1.seconds }
+        if total < 60 { return "\(Int(total)) с" }
+        return "\(Int(total / 60)) мин"
+    }
+
+    private func stat(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .foregroundStyle(Palette.textPrimary)
             Text(label)
-                .font(.system(size: 12))
+                .font(.system(size: 11.5))
                 .foregroundStyle(Palette.textTertiary)
         }
-        .padding(.horizontal, 18)
-    }
-
-    /// Пока облако не настроено, показывать нули бессмысленно — тогда
-    /// в этой ячейке живёт число разговоров за сегодня.
-    private var usesCloud: Bool {
-        AIRole.allCases.contains { routing in
-            AIRouter.shared.routing(for: routing)?.isCloud == true
-        }
-    }
-
-    private var spendLabel: String { usesCloud ? "расход облака сегодня" : "разговоров сегодня" }
-
-    private var spendValue: String {
-        guard usesCloud else {
-            let today = chat.threads.filter { Calendar.current.isDateInToday($0.updatedAt) && !$0.isEmpty }
-            return "\(today.count)"
-        }
-        return UsageTracker.money(usage.todayCost)
-    }
-
-    private func statNumber(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 22, weight: .semibold, design: .rounded))
-            .foregroundStyle(Palette.textPrimary)
     }
 
     private func divider() -> some View {
-        Rectangle()
-            .fill(Palette.hairline)
-            .frame(width: 1, height: 36)
+        Rectangle().fill(Palette.hairline).frame(width: 1, height: 32)
     }
 
-    // MARK: - Recent Entries
+    // MARK: - Лента дня
 
-    private var recentEntriesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("ПОСЛЕДНИЕ ЗАПИСИ")
+    private var dayTimeline: some View {
+        let shown = Array(todayEntries.prefix(12))
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("СЕГОДНЯ")
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(Palette.textTertiary)
                 .kerning(0.8)
 
             VStack(spacing: 0) {
-                ForEach(history.entries.prefix(6)) { entry in
-                    RecentEntryRow(entry: entry,
-                                   time: timeString(from: entry.date),
-                                   isLast: history.entries.prefix(6).last?.id == entry.id)
+                ForEach(Array(shown.enumerated()), id: \.element.id) { index, entry in
+                    DayEntryRow(entry: entry,
+                                time: timeString(from: entry.date),
+                                isLast: index == shown.count - 1)
                 }
             }
             .background(
@@ -249,28 +231,28 @@ struct HomeTab: View {
                     )
             )
 
-            Button {
-                onOpenSection(.history)
-            } label: {
-                HStack(spacing: 5) {
-                    Text("Вся история")
-                        .font(.system(size: 13, weight: .medium))
-                    IntactIcon(kind: .chevronRight, size: 11, weight: .medium)
+            if todayEntries.count > shown.count {
+                Button { onOpenSection(.history) } label: {
+                    HStack(spacing: 5) {
+                        Text("Ещё \(todayEntries.count - shown.count) за сегодня — вся история")
+                            .font(.system(size: 13, weight: .medium))
+                        IntactIcon(kind: .chevronRight, size: 11, weight: .medium)
+                    }
+                    .foregroundStyle(Palette.accent)
                 }
-                .foregroundStyle(Palette.accent)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 
-    private var emptyHistoryBanner: some View {
+    private var emptyDayBanner: some View {
         HStack(spacing: 12) {
             SidebarIntactIcon(kind: .voice, selected: false, size: 20)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Начни диктовку")
+                Text("Сегодня ещё тихо")
                     .font(.system(size: 13.5, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
-                Text("Удержи \(settings.triggerKey.symbol) и скажи что-нибудь — здесь появятся твои записи")
+                Text("Удержи \(settings.triggerKey.symbol) и скажи что-нибудь — записи появятся здесь")
                     .font(.system(size: 12.5))
                     .foregroundStyle(Palette.textSecondary)
             }
@@ -287,48 +269,85 @@ struct HomeTab: View {
         )
     }
 
-    // MARK: - Status helpers
+    // MARK: - Бриф дня
 
-    private var voiceStatus: String {
-        if !models.hasAnyModelInstalled { return "Нет модели Whisper" }
-        switch controller.state {
-        case .idle:         return "Готов к диктовке"
-        case .recording:    return "Запись…"
-        case .transcribing: return "Распознаётся…"
-        case .processingAI: return "ИИ обрабатывает…"
-        case .answeringAI:  return "ИИ отвечает…"
+    private func briefCard(_ brief: Brief) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                IntactIcon(kind: .quickSummary, size: 14)
+                    .foregroundStyle(Palette.accent)
+                Text(brief.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                Spacer()
+                Button { onOpenSection(.briefs) } label: {
+                    Text("Все брифы")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Palette.accent)
+                }
+                .buttonStyle(.plain)
+            }
+            MarkdownMessage(text: brief.text)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Palette.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Куда дальше
+
+    /// Компактные ссылки вместо трёх больших карточек: разделы и так есть
+    /// в боковике, дублировать их плитками во весь экран незачем.
+    private var shortcutsRow: some View {
+        HStack(spacing: 10) {
+            shortcut(icon: .chat, title: "Чат с ИИ", subtitle: modelSubtitle) { onOpenSection(.chat) }
+            shortcut(icon: .aiStar, title: "Спросите ИИ",
+                     subtitle: settings.enableAIHotkey ? settings.aiTriggerKey.symbol : "выключено") { onOpenSection(.askAI) }
+            shortcut(icon: .voice, title: "Диктовка",
+                     subtitle: settings.triggerKey.symbol) { onOpenSection(.voice) }
         }
     }
 
-    private var voiceStatusColor: Color {
-        if !models.hasAnyModelInstalled { return Palette.iconWarning }
-        return controller.state == .idle ? Palette.iconSuccess : Palette.accent
+    private var modelSubtitle: String {
+        AIModelCatalog.title(for: AIModelCatalog.resolved(for: .chat))
     }
 
-    /// Статус берётся у роли чата — именно её открывает кнопка карточки.
-    private var aiStatus: String {
-        let choice = AIModelCatalog.resolved(for: .chat)
-        guard let placement = AIModelCatalog.placement(for: choice) else { return "ИИ не настроен" }
-        return "\(placement) · \(AIModelCatalog.title(for: choice))"
-    }
-
-    private var aiStatusColor: Color {
-        AIRouter.shared.isReady(for: .chat) ? Palette.iconSuccess : Palette.iconWarning
-    }
-
-    private var briefsStatus: String {
-        switch (settings.enableVoiceNotes, settings.enableVoiceReminders) {
-        case (true, true):   return "Заметки и напоминания включены"
-        case (true, false):  return "Заметки включены"
-        case (false, true):  return "Напоминания включены"
-        case (false, false): return "Интеграции выключены"
+    private func shortcut(icon: IntactIconKind, title: String, subtitle: String,
+                          action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                IconTile(kind: icon, tone: .idle, side: 34)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Palette.textPrimary)
+                    Text(subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Palette.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Palette.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Palette.hairline, lineWidth: 1)
+                    )
+            )
         }
-    }
-
-    private var briefsStatusColor: Color {
-        settings.enableVoiceNotes || settings.enableVoiceReminders
-            ? Palette.iconSuccess
-            : Palette.iconMuted
+        .buttonStyle(.plain)
     }
 
     private func timeString(from date: Date) -> String {
@@ -338,12 +357,17 @@ struct HomeTab: View {
     }
 }
 
-/// Строка «последней записи» на Главной.
-///
-/// Вынесена в отдельный тип ради собственного состояния: кнопка копирования
-/// проявляется по наведению и подтверждает результат — ровно так же, как
-/// такая же кнопка в разделе «История».
-private struct RecentEntryRow: View {
+extension String {
+    /// «Суббота, 22 августа» — DateFormatter отдаёт день недели со строчной.
+    var capitalizedFirst: String {
+        guard let first else { return self }
+        return String(first).uppercased() + dropFirst()
+    }
+}
+
+/// Строка ленты дня. Отдельный тип ради собственного состояния: кнопка
+/// копирования проявляется по наведению и подтверждает результат.
+private struct DayEntryRow: View {
     let entry: HistoryEntry
     let time: String
     let isLast: Bool
@@ -357,12 +381,12 @@ private struct RecentEntryRow: View {
                 .font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(Palette.textTertiary)
                 .frame(width: 42, alignment: .trailing)
-            Rectangle()
-                .fill(Palette.hairline)
-                .frame(width: 1, height: 22)
+
             IntactIcon(kind: entry.kind.icon, size: 13)
                 .foregroundStyle(entry.kind == .dictation ? Palette.iconMuted : Palette.accent)
+                .frame(width: 16)
                 .help(entry.kind.title)
+
             Text(entry.text)
                 .font(.system(size: 13.5))
                 .foregroundStyle(Palette.textPrimary)
