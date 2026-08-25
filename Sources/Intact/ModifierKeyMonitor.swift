@@ -2,29 +2,33 @@ import AppKit
 import Carbon.HIToolbox
 
 /// Клавиша-модификатор, удержание которой запускает диктовку.
-enum TriggerKey: String, CaseIterable, Identifiable {
-    case leftOption, rightOption, anyOption, fn, rightCommand, rightControl
-    var id: String { rawValue }
+public enum TriggerKey: String, Codable, CaseIterable, Identifiable {
+    case leftOption, rightOption, anyOption, fn, rightCommand, leftCommand, anyCommand, rightControl
+    public var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .leftOption:   return "Левый ⌥ Option"
-        case .rightOption:  return "Правый ⌥ Option"
-        case .anyOption:    return "Любой ⌥ Option"
+        case .leftOption:   return T("Левый ⌥ Option", "Left ⌥ Option")
+        case .rightOption:  return T("Правый ⌥ Option", "Right ⌥ Option")
+        case .anyOption:    return T("Любой ⌥ Option", "Either ⌥ Option")
         case .fn:           return "Fn (Globe)"
-        case .rightCommand: return "Правый ⌘ Command"
-        case .rightControl: return "Правый ⌃ Control"
+        case .rightCommand: return T("Правый ⌘ Command", "Right ⌘ Command")
+        case .leftCommand:  return T("Левый ⌘ Command", "Left ⌘ Command")
+        case .anyCommand:   return T("Любой ⌘ Command", "Either ⌘ Command")
+        case .rightControl: return T("Правый ⌃ Control", "Right ⌃ Control")
         }
     }
 
     var symbol: String {
         switch self {
-        case .leftOption:   return "⌥ (левый)"
-        case .rightOption:  return "⌥ (правый)"
+        case .leftOption:   return T("⌥ (левый)", "⌥ (left)")
+        case .rightOption:  return T("⌥ (правый)", "⌥ (right)")
         case .anyOption:    return "⌥"
         case .fn:           return "Fn"
-        case .rightCommand: return "⌘ (правый)"
-        case .rightControl: return "⌃ (правый)"
+        case .rightCommand: return T("⌘ (правый)", "⌘ (right)")
+        case .leftCommand:  return T("⌘ (левый)", "⌘ (left)")
+        case .anyCommand:   return "⌘"
+        case .rightControl: return T("⌃ (правый)", "⌃ (right)")
         }
     }
 
@@ -36,6 +40,8 @@ enum TriggerKey: String, CaseIterable, Identifiable {
         case .anyOption:    return [58, 61]
         case .fn:           return [63]
         case .rightCommand: return [54]
+        case .leftCommand:  return [55]
+        case .anyCommand:   return [54, 55]
         case .rightControl: return [62]
         }
     }
@@ -44,7 +50,7 @@ enum TriggerKey: String, CaseIterable, Identifiable {
         switch self {
         case .leftOption, .rightOption, .anyOption: return .maskAlternate
         case .fn:                                   return .maskSecondaryFn
-        case .rightCommand:                         return .maskCommand
+        case .rightCommand, .leftCommand, .anyCommand: return .maskCommand
         case .rightControl:                         return .maskControl
         }
     }

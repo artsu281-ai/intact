@@ -15,7 +15,6 @@ struct HomeTab: View {
     @ObservedObject private var history = History.shared
     @ObservedObject private var models = ModelManager.shared
     @ObservedObject private var briefs = BriefService.shared
-    @ObservedObject private var usage = UsageTracker.shared
 
     private var todayEntries: [HistoryEntry] {
         history.entries.filter { Calendar.current.isDateInToday($0.date) }
@@ -129,10 +128,6 @@ struct HomeTab: View {
                  label: Plural.form(todayEntries.count, T("запись", "record"), T("записи", "records"), T("записей", "records")))
             divider()
             stat(value: spokenText, label: T("речи", "of speech"))
-            if usage.todayCost > 0 {
-                divider()
-                stat(value: UsageTracker.money(usage.todayCost), label: T("облако", "cloud"))
-            }
 
             Spacer()
 
@@ -310,14 +305,34 @@ struct HomeTab: View {
         HStack(spacing: 10) {
             shortcut(icon: .chat, title: T("Чат с ИИ", "AI Chat"), subtitle: modelSubtitle) { onOpenSection(.chat) }
             shortcut(icon: .aiStar, title: T("Спросите ИИ", "Ask AI"),
-                     subtitle: settings.enableAIHotkey ? settings.aiTriggerKey.symbol : T("выключено", "off")) { onOpenSection(.askAI) }
+                     subtitle: askAISubtitle) { onOpenSection(.askAI) }
             shortcut(icon: .voice, title: T("Диктовка", "Dictation"),
-                     subtitle: settings.triggerKey.symbol) { onOpenSection(.voice) }
+                     subtitle: dictationSubtitle) { onOpenSection(.voice) }
         }
     }
 
     private var modelSubtitle: String {
         AIModelCatalog.title(for: AIModelCatalog.resolved(for: .chat))
+    }
+
+    /// Клавишу показываем ту, что реально привязана к пайплайну «вопрос к ИИ»,
+    /// а не старую настройку хоткея: перехватом клавиш теперь занимаются пайплайны.
+    private var askAISubtitle: String {
+        guard let pipeline = PipelineManager.shared.pipelines.first(where: {
+            $0.enabled && $0.postProcessing == .promptAnswer
+        }) else {
+            return T("выключено", "off")
+        }
+        return pipeline.trigger.title
+    }
+
+    private var dictationSubtitle: String {
+        if let pipeline = PipelineManager.shared.pipelines.first(where: {
+            $0.enabled && $0.postProcessing != .promptAnswer && $0.sttEngine == .whisperLocal
+        }) {
+            return pipeline.trigger.title
+        }
+        return settings.triggerKey.symbol
     }
 
     private func shortcut(icon: IntactIconKind, title: String, subtitle: String,

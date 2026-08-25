@@ -45,9 +45,12 @@ enum Permissions {
     static var missingDescription: String? {
         switch (inputMonitoring, accessibility) {
         case (true, true):   return nil
-        case (false, true):  return "Нет «Мониторинга ввода» — клавиша ⌥ не читается"
-        case (true, false):  return "Нет «Универсального доступа» — текст не вставляется"
-        case (false, false): return "Нет доступа к клавиатуре — ни ⌥, ни вставка не работают"
+        case (false, true):  return T("Нет «Мониторинга ввода» — клавиша ⌥ не читается",
+                                       "No “Input Monitoring” — the ⌥ key isn't read")
+        case (true, false):  return T("Нет «Универсального доступа» — текст не вставляется",
+                                       "No “Accessibility” access — text isn't inserted")
+        case (false, false): return T("Нет доступа к клавиатуре — ни ⌥, ни вставка не работают",
+                                       "No keyboard access — neither ⌥ nor pasting works")
         }
     }
 

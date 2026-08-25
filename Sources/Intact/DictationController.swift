@@ -23,14 +23,26 @@ struct QuickAnswer: Identifiable, Hashable {
 final class DictationController: ObservableObject {
     static let shared = DictationController()
 
-    @Published var state: DictationState = .idle
+    @Published var state: DictationState = .idle {
+        didSet {
+            if settings.showIndicator {
+                indicator.update(controller: self)
+            }
+        }
+    }
     @Published var level: Float = 0
     /// Последние уровни сигнала — из них рисуется бегущая волна.
     @Published private(set) var waveform: [Float] = []
     private let waveformLength = 64
     @Published var elapsedText = "0:00"
     @Published var blink = false
-    @Published var draftText: String = ""
+    @Published var draftText: String = "" {
+        didSet {
+            if settings.showIndicator && !draftText.isEmpty {
+                indicator.update(controller: self)
+            }
+        }
+    }
     @Published var lastResult: String = ""
     @Published var lastError: String? = nil
     @Published var lastLatencyMs: Int = 0
@@ -42,6 +54,13 @@ final class DictationController: ObservableObject {
     @Published var noteSavedText: String? = nil
     /// Текст сохраненного напоминания для всплывающего статуса.
     @Published var reminderSavedText: String? = nil
+    /// Текст запроса, отправленного в приложение Gemini на Mac.
+    @Published var geminiSentText: String? = nil
+    /// Активный голосовой пайплайн
+    @Published var activePipeline: VoicePipeline? = nil
+
+    /// Показывать ли живой черновик в пилюле.
+    var showsLiveDraft: Bool { true }
     /// Секунды до авто-закрытия карточки копирования.
     @Published var pendingRemainingSeconds: Int = 0
 
@@ -83,7 +102,27 @@ final class DictationController: ObservableObject {
     private var inFlight = false
     /// Клавишу уже отпустили, и мы ждём завершения последнего запроса.
     private var awaitingFinish = false
+    /// Отмену попросили, пока старт ещё ждал разрешение микрофона. Без этого флага
+    /// abort()/cancel() в этом окне молча терялись (у них guard state == .recording),
+    /// запись стартовала уже без хозяина и висела до перезапуска — а из-за
+    /// guard state == .idle все следующие нажатия любых клавиш просто ничего не делали.
+    private var abortRequestedDuringStart = false
+    /// Поколение записи: отменённая/прерванная попытка запускает новое поколение,
+    /// и черновик, который досчитывается в фоне уже после отмены, узнаёт об этом
+    /// по несовпадению номеров и не перезаписывает состояние следующей диктовки.
+    private var recordingGeneration = 0
     private var releaseTime = Date()
+    /// Запуск уже идёт: `state` становится `.recording` только после ответа системы
+    /// на запрос микрофона, и до этого момента проверки `state == .idle` мало.
+    private var isStartingSession = false
+    private var targetApp: NSRunningApplication?
+
+    private func captureTargetApp() {
+        let front = NSWorkspace.shared.frontmostApplication
+        if let front, front.bundleIdentifier != Bundle.main.bundleIdentifier {
+            self.targetApp = front
+        }
+    }
 
     private let queue = DispatchQueue(label: "intact.transcribe", qos: .userInitiated)
 
@@ -150,18 +189,28 @@ final class DictationController: ObservableObject {
     }
 
     func start() {
-        guard state == .idle else { return }
-        guard ModelManager.shared.hasAnyModelInstalled else {
+        guard state == .idle, !isStartingSession else { return }
+        captureTargetApp()
+        if settings.sttEngine == .whisperLocal && !ModelManager.shared.hasAnyModelInstalled {
             Log.write("start() отклонён: модель Whisper не установлена, открываю настройки")
             DispatchQueue.main.async {
                 SettingsWindow.shared.show()
             }
             return
         }
+        isStartingSession = true
+        abortRequestedDuringStart = false
         ensureMicPermission { [weak self] granted in
             guard let self else { return }
+            self.isStartingSession = false
             guard granted else {
                 self.fail(T("Нет доступа к микрофону. Разреши его в «Настройки → Конфиденциальность и безопасность → Микрофон».", "No access to the microphone. Allow it in System Settings → Privacy & Security → Microphone."))
+                return
+            }
+            // Клавишу успели отпустить/прервать, пока спрашивали разрешение.
+            guard !self.abortRequestedDuringStart else {
+                self.abortRequestedDuringStart = false
+                Log.write("Старт отменён: клавишу отпустили, пока запрашивалось разрешение микрофона")
                 return
             }
             do {
@@ -173,6 +222,7 @@ final class DictationController: ObservableObject {
                 self.draftCoverage = 0
                 self.inFlightCoverage = -1
                 self.awaitingFinish = false
+                self.recordingGeneration += 1
                 self.elapsedText = "0:00"
                 self.pendingText = nil
                 self.pendingTimer?.invalidate()
@@ -181,6 +231,7 @@ final class DictationController: ObservableObject {
                 MediaController.shared.begin(muteAudio: self.settings.muteAudioWhileDictating,
                                              pauseMedia: self.settings.pauseMediaWhileDictating)
                 self.startTicker()
+
                 self.startDrafting()
             } catch {
                 self.fail(error.localizedDescription)
@@ -189,15 +240,27 @@ final class DictationController: ObservableObject {
     }
 
     func stop() {
+        if isStartingSession { abortRequestedDuringStart = true }
         guard state == .recording else { return }
+
+        // Пайплайн останавливает запись сам. Раньше управление уходило к нему уже после
+        // recorder.stop(), и второй вызов внутри возвращал 0 — в историю попадали
+        // диктовки длиной «0 секунд».
+        if let pipeline = activePipeline {
+            stopPipeline(pipeline)
+            return
+        }
+
+        stopTicker()
+        stopDrafting()
+        releaseTime = Date()
+        state = .transcribing
+        if settings.showIndicator { indicator.show(controller: self) }
 
         MediaController.shared.end()
         let heldMs = Date().timeIntervalSince(startedAt) * 1000
         let duration = recorder.stop()
         let lastSpeech = recorder.lastSpeechTime
-        stopTicker()
-        stopDrafting()
-        releaseTime = Date()
 
         // Случайный чирк по клавише — не диктовка (менее 0.25 сек).
         if heldMs < Double(settings.minHoldMs) || duration < 0.25 {
@@ -229,9 +292,15 @@ final class DictationController: ObservableObject {
     }
 
     func cancel() {
+        // Старт ещё в полёте (ждём разрешение микрофона) — запомним отмену,
+        // иначе она потеряется и запись останется висеть без хозяина.
+        if isStartingSession { abortRequestedDuringStart = true }
         guard state == .recording else { return }
         customResultHandler = nil
         isAIAnswerMode = false
+        // Пайплайн снимаем здесь же: иначе следующая обычная диктовка попадёт
+        // в постобработку от прошлого, уже отменённого пайплайна.
+        activePipeline = nil
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -239,14 +308,20 @@ final class DictationController: ObservableObject {
         indicator.hide()
         state = .idle
         draftText = ""
+        draftCoverage = 0
+        // Черновик этой попытки мог уже уйти в фоновое распознавание — его
+        // результат не должен всплыть в следующей диктовке.
+        recordingGeneration += 1
         if settings.playSounds { NSSound(named: "Basso")?.play() }
     }
 
     /// Пользователь нажал что-то ещё, пока держал триггер, — молча свернуться.
     func abort() {
+        if isStartingSession { abortRequestedDuringStart = true }
         guard state == .recording else { return }
         customResultHandler = nil
         isAIAnswerMode = false
+        activePipeline = nil
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -254,6 +329,8 @@ final class DictationController: ObservableObject {
         indicator.hide()
         state = .idle
         draftText = ""
+        draftCoverage = 0
+        recordingGeneration += 1
     }
 
     // MARK: - Черновики во время речи
@@ -281,6 +358,7 @@ final class DictationController: ObservableObject {
         inFlight = true
         inFlightCoverage = coverage
         let started = Date()
+        let myGeneration = recordingGeneration
 
         queue.async { [weak self] in
             guard let self else { return }
@@ -288,6 +366,9 @@ final class DictationController: ObservableObject {
             let ms = Int(Date().timeIntervalSince(started) * 1000)
             DispatchQueue.main.async {
                 self.inFlight = false
+                // Пока считали, диктовку успели отменить (или уже началась новая) —
+                // результат чужого поколения не должен попасть в текущее состояние.
+                guard self.recordingGeneration == myGeneration else { return }
                 if !text.isEmpty {
                     self.draftText = text
                     self.draftCoverage = coverage
@@ -308,11 +389,15 @@ final class DictationController: ObservableObject {
 
     private func runFinalPass(duration: TimeInterval) {
         guard recorder.snapshot(to: finalURL) != nil else {
+            // Записи почти нет (чирк по клавише). Пайплайн надо снять здесь же,
+            // иначе следующая обычная диктовка уедет в его постобработку.
             indicator.hide()
             state = .idle
+            activePipeline = nil
             return
         }
         let started = Date()
+
         let useServer = settings.streaming && WhisperServer.shared.isRunning
 
         queue.async { [weak self] in
@@ -450,6 +535,11 @@ final class DictationController: ObservableObject {
             return
         }
 
+        if let pipeline = activePipeline {
+            executePipelinePostProcessing(rawText: text, pipeline: pipeline, seconds: seconds)
+            return
+        }
+
         guard settings.enableAICleanup, AIRouter.shared.isReady(for: .cleanup), !text.isEmpty else {
             finishRouting(text: postProcess(text), seconds: seconds, latencyMs: latencyMs)
             return
@@ -469,10 +559,6 @@ final class DictationController: ObservableObject {
                 self.finishRouting(text: self.postProcess(result), seconds: seconds, latencyMs: latencyMs)
             }
         }
-        // ⎋ во время причёсывания вставляет то, что распознал Whisper,
-        // не дожидаясь модели: иногда сырой текст нужен прямо сейчас.
-        skipAIStage = { settle(text) }
-
         // Плохая сеть или медленная модель не должны подвешивать диктовку —
         // по истечении таймаута отдаём исходный текст как есть. Сколько ждать,
         // решает выбранная под эту роль модель: у локальной 2B и у облачного
@@ -481,7 +567,7 @@ final class DictationController: ObservableObject {
         let deadline = AIRouter.shared.routing(for: .cleanup)?.timeout ?? 8
         DispatchQueue.main.asyncAfter(deadline: .now() + deadline) { settle(text) }
 
-        AIRouter.shared.complete(role: .cleanup, system: Self.cleanupSystemPrompt, user: text) { result in
+        let aiTask = AIRouter.shared.complete(role: .cleanup, system: Self.cleanupSystemPrompt, user: text) { result in
             switch result {
             case .success(let refined):
                 let cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -491,6 +577,11 @@ final class DictationController: ObservableObject {
                 settle(text)
             }
         }
+        // ⎋ во время причёсывания вставляет то, что распознал Whisper, не дожидаясь
+        // модели. Отменяем сам запрос: иначе поверх приложения Gemini его фоновый
+        // поток продолжает жить до собственного таймаута и каждые ~150мс дёргает
+        // фокус обратно — Intact «борется» с пользователем за фокус вхолостую.
+        skipAIStage = { aiTask.cancel(); settle(text) }
     }
 
     var customResultHandler: ((String) -> Void)?
@@ -501,13 +592,330 @@ final class DictationController: ObservableObject {
     }
 
     /// Прочитанное — не сама диктовка для вставки, а вопрос к ИИ: ответ
-    /// вставится вместо неё. Второй, независимый хоткей (по умолчанию
-    /// правый ⌥, см. AppSettings.aiTriggerKey/enableAIHotkey).
+    /// вставится вместо неё. Включается пайплайном с действием «вопрос к ИИ»
+    /// (по умолчанию правый ⌥) либо кнопкой «Спросить» в интерфейсе.
     private var isAIAnswerMode = false
 
     func startAIAnswer() {
         isAIAnswerMode = true
         start()
+    }
+
+    /// Запуск произвольного голосового пайплайна (Whisper / Cleanup / Ask AI)
+    func startPipeline(_ pipeline: VoicePipeline) {
+        // Разрешение на микрофон приходит асинхронно, и `state` меняется не в этой строке:
+        // одной проверки `.idle` мало, чтобы два независимых перехватчика событий не запустили
+        // запись дважды по одной и той же клавише.
+        guard state == .idle, !isStartingSession else { return }
+        captureTargetApp()
+        isStartingSession = true
+        abortRequestedDuringStart = false
+        activePipeline = pipeline
+        // Пост-обработкой пайплайна занимается executePipelinePostProcessing. Легаси-флаг
+        // «вопрос к ИИ» здесь не поднимаем: finish() перехватывал бы результат раньше,
+        // и выбранное в пайплайне действие молча не срабатывало.
+        isAIAnswerMode = false
+
+        ensureMicPermission { [weak self] granted in
+            guard let self else { return }
+            self.isStartingSession = false
+            guard granted else {
+                self.activePipeline = nil
+                self.fail(T("Нет доступа к микрофону.", "No access to the microphone."))
+                return
+            }
+            // Клавишу успели отпустить/прервать, пока спрашивали разрешение.
+            guard !self.abortRequestedDuringStart else {
+                self.abortRequestedDuringStart = false
+                self.activePipeline = nil
+                Log.write("Старт пайплайна отменён: клавишу отпустили, пока запрашивалось разрешение микрофона")
+                return
+            }
+            do {
+                try self.recorder.start(preferredDeviceUID: self.settings.inputDeviceUID)
+                self.state = .recording
+                self.startedAt = Date()
+                self.lastError = nil
+                self.draftText = ""
+                self.draftCoverage = 0
+                self.inFlightCoverage = -1
+                self.awaitingFinish = false
+                self.recordingGeneration += 1
+                self.elapsedText = "0:00"
+                self.pendingText = nil
+                self.pendingTimer?.invalidate()
+                if self.settings.showIndicator { self.indicator.show(controller: self) }
+                if self.settings.playSounds, !pipeline.soundStart.isEmpty {
+                    NSSound(named: pipeline.soundStart)?.play()
+                }
+                MediaController.shared.begin(muteAudio: self.settings.muteAudioWhileDictating,
+                                             pauseMedia: self.settings.pauseMediaWhileDictating)
+                self.startTicker()
+
+                self.startDrafting()
+            } catch {
+                self.activePipeline = nil
+                self.fail(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Остановка пайплайна и запуск постобработки
+    func stopPipeline(_ pipeline: VoicePipeline) {
+        // Клавишу отпустили раньше, чем разрешился доступ к микрофону:
+        // без этого запись стартовала уже после отпускания и висела бесконечно.
+        if isStartingSession { abortRequestedDuringStart = true }
+        guard state == .recording else { return }
+
+        stopTicker()
+        stopDrafting()
+        releaseTime = Date()
+        state = .transcribing
+        if settings.showIndicator { indicator.show(controller: self) }
+
+        MediaController.shared.end()
+        let heldMs = Date().timeIntervalSince(startedAt) * 1000
+        let lastSpeech = recorder.lastSpeechTime
+        let duration = recorder.stop()
+
+        // Случайный чирк по клавише пайплайна — та же защита, что и у обычной
+        // диктовки: без неё короткое нажатие гоняло транскрипцию и AI-обработку
+        // по пустой записи и било звуком «Речь не распознана» на ровном месте.
+        if heldMs < Double(settings.minHoldMs) || duration < 0.25 {
+            indicator.hide()
+            state = .idle
+            activePipeline = nil
+            draftText = ""
+            return
+        }
+
+        // Локальный Whisper: если черновик уже покрыл всю речь, ждать финальный проход незачем.
+        if settings.streaming, !draftText.isEmpty, draftCoverage >= lastSpeech - 0.05 {
+            let draft = draftText
+            indicator.hide()
+            state = .idle
+            executePipelinePostProcessing(rawText: draft, pipeline: pipeline, seconds: duration)
+            return
+        }
+        // Результат придёт в finish(), а тот увидит activePipeline и вызовет постобработку.
+        runFinalPass(duration: duration)
+    }
+
+    /// Выполнение пост-обработки для пайплайна (none / cleanup / prompt_answer)
+    func executePipelinePostProcessing(rawText: String, pipeline: VoicePipeline, seconds: TimeInterval) {
+        customResultHandler = nil
+        let clean = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            state = .idle
+            indicator.hide()
+            activePipeline = nil
+            draftText = ""
+            if settings.playSounds { NSSound(named: "Basso")?.play() }
+            lastError = T("Речь не распознана", "Speech not recognised")
+            return
+        }
+
+        switch pipeline.postProcessing {
+        case .none:
+            deliverPipelineResult(clean, pipeline: pipeline, seconds: seconds, kind: .dictation)
+
+        case .cleanup:
+            state = .processingAI
+            if settings.showIndicator { indicator.show(controller: self) }
+
+            // Свой промпт пайплайна — это инструкция без текста, поэтому диктовку надо
+            // подставить самим. Раньше customPrompt уходил в модель как есть, и она
+            // причёсывала пустоту: до неё просто не доезжало то, что человек сказал.
+            let system: String?
+            let user: String
+            if let custom = pipeline.customPrompt, !custom.isEmpty {
+                system = nil
+                user = "\(custom)\n\nТекст:\n\(clean)"
+            } else {
+                system = Self.cleanupSystemPrompt
+                user = clean
+            }
+
+            settlePipelineAI(pipeline: pipeline, seconds: seconds, kind: .dictation, fallback: clean,
+                             system: system, user: user, role: .cleanup, timeout: 20)
+
+        case .promptAnswer:
+            state = .answeringAI
+            pendingQuestion = clean
+            if settings.showIndicator { indicator.show(controller: self) }
+
+            let system = pipeline.customPrompt.flatMap { $0.isEmpty ? nil : $0 } ?? Self.aiAnswerSystemPrompt
+            settlePipelineAI(pipeline: pipeline, seconds: seconds, kind: .aiAnswer, fallback: clean,
+                             system: system, user: clean, role: .quickAnswer, timeout: 35)
+        }
+    }
+
+    /// Запрашивает модель и ровно один раз доводит результат до вставки:
+    /// либо ответ модели, либо — по таймауту или отказу — исходный текст.
+    private func settlePipelineAI(
+        pipeline: VoicePipeline,
+        seconds: TimeInterval,
+        kind: HistoryKind,
+        fallback: String,
+        system: String?,
+        user: String,
+        role: AIRole,
+        timeout: TimeInterval
+    ) {
+        var settled = false
+        let settle: (String) -> Void = { [weak self] output in
+            DispatchQueue.main.async {
+                guard let self, !settled else { return }
+                settled = true
+                self.skipAIStage = nil
+                self.deliverPipelineResult(output, pipeline: pipeline, seconds: seconds, kind: kind)
+            }
+        }
+
+        // Страховочный таймер: провайдер поверх приложения Gemini умеет молча не позвать
+        // completion (например, при отмене), и без этого индикатор висел до перезапуска.
+        // Считаем от таймаута самой модели, а не от нашего: у роутера он свой, и раньше
+        // страховка успевала сработать раньше живого ответа и вставляла сырой текст.
+        let modelTimeout = AIRouter.shared.routing(for: role)?.timeout ?? timeout
+        let guardDeadline = max(modelTimeout, timeout) + 10
+        let startedAt = Date()
+        DispatchQueue.main.asyncAfter(deadline: .now() + guardDeadline) {
+            Log.write("Пайплайн: модель молчит \(Int(guardDeadline)) с — вставляю распознанный текст как есть")
+            settle(fallback)
+        }
+
+        let aiTask = requestPipelineAI(system: system, user: user, role: role, timeout: timeout) { [weak self] output in
+            let ms = Int(Date().timeIntervalSince(startedAt) * 1000)
+            if let output, !output.isEmpty {
+                Log.write("Пайплайн: ответ модели за \(ms) мс (\(output.count) симв.)")
+                settle(output)
+            } else {
+                // Молча подставлять вопрос вместо ответа нельзя: со стороны это выглядит
+                // так, будто «вопрос к ИИ» просто печатает надиктованное.
+                Log.write("Пайплайн: модель не ответила за \(ms) мс — вставляю распознанный текст как есть")
+                DispatchQueue.main.async {
+                    self?.lastError = T("Модель не ответила — вставлен распознанный текст",
+                                        "The model did not answer — the transcript was inserted instead")
+                }
+                settle(fallback)
+            }
+        }
+        // ⎋ во время ожидания модели вставляет распознанное как есть — то же самое,
+        // что уже умеет обычная диктовка. Отменяем сам запрос: иначе фоновый поток
+        // поверх Gemini живёт до собственного таймаута и продолжает выдёргивать
+        // фокус каждые ~150мс уже после того, как пользователь явно отказался ждать.
+        skipAIStage = { aiTask.cancel(); settle(fallback) }
+    }
+
+    /// Пост-обработка идёт через модель, выбранную для этой роли в настройках,
+    /// и только если та не настроена — через приложение Gemini. Раньше здесь был
+    /// намертво прошит Gemini.app, и выбор модели в интерфейсе ничего не значил.
+    @discardableResult
+    private func requestPipelineAI(
+        system: String?,
+        user: String,
+        role: AIRole,
+        timeout: TimeInterval,
+        done: @escaping (String?) -> Void
+    ) -> AITask {
+        if AIRouter.shared.isReady(for: role) {
+            let model = AIModelCatalog.title(for: AIModelCatalog.resolved(for: role))
+            Log.write("Пайплайн: спрашиваю «\(model)» для роли \(role.rawValue)")
+            var messages: [AIMessage] = []
+            if let system, !system.isEmpty { messages.append(AIMessage(role: .system, content: system)) }
+            messages.append(AIMessage(role: .user, content: user))
+            return AIRouter.shared.complete(role: role, messages: messages) { result in
+                switch result {
+                case .success(let text):
+                    done(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                case .failure(let error):
+                    Log.write("Пайплайн: модель не ответила (\(error.localizedDescription)) — вставляю исходный текст")
+                    done(nil)
+                }
+            }
+        }
+
+        guard GeminiAIProvider.shared.isReady else {
+            Log.write("Пайплайн: для роли \(role.rawValue) не настроена ни одна модель")
+            done(nil)
+            return AITask()
+        }
+        Log.write("Пайплайн: для роли \(role.rawValue) модель не выбрана — иду в Gemini.app")
+
+        var geminiMessages: [AIMessage] = []
+        if let system, !system.isEmpty { geminiMessages.append(AIMessage(role: .system, content: system)) }
+        geminiMessages.append(AIMessage(role: .user, content: user))
+        let req = AIRequest(messages: geminiMessages, maxTokens: 3000, model: "gemini:app", role: role, timeout: timeout)
+        return GeminiAIProvider.shared.complete(req) { result in
+            switch result {
+            case .success(let text):
+                done(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            case .failure(let error):
+                Log.write("Пайплайн: Gemini.app не ответил (\(error.localizedDescription)) — вставляю исходный текст")
+                done(nil)
+            }
+        }
+    }
+
+    /// Общий финал пайплайна: вставка, звук, история.
+    ///
+    /// Голосовые команды (заметка, напоминание, «Джеминай, …») и запасная карточка
+    /// «скопировать», когда вставлять некуда, раньше работали только на обычной диктовке —
+    /// пайплайны шли мимо них, и текст просто улетал в никуда, если под курсором
+    /// не оказывалось поля ввода.
+    private func deliverPipelineResult(
+        _ text: String,
+        pipeline: VoicePipeline,
+        seconds: TimeInterval,
+        kind: HistoryKind
+    ) {
+        state = .idle
+        indicator.hide()
+        activePipeline = nil
+        draftText = ""
+
+        let processed = postProcess(text)
+        lastResult = processed.trimmingCharacters(in: .whitespaces)
+        guard !lastResult.isEmpty else {
+            pendingQuestion = ""
+            if settings.playSounds { NSSound(named: "Basso")?.play() }
+            lastError = T("Речь не распознана", "Speech not recognised")
+            return
+        }
+
+        if kind == .aiAnswer, !pendingQuestion.isEmpty {
+            let entry = QuickAnswer(question: pendingQuestion,
+                                    answer: lastResult,
+                                    model: AIModelCatalog.title(for: AIModelCatalog.resolved(for: .quickAnswer)),
+                                    date: Date())
+            recentAnswers.insert(entry, at: 0)
+            if recentAnswers.count > recentAnswersLimit {
+                recentAnswers.removeLast(recentAnswers.count - recentAnswersLimit)
+            }
+            pendingQuestion = ""
+        }
+
+        if kind == .dictation {
+            if handleNoteOrReminderCommand(text: processed, seconds: seconds) { return }
+            if handleGeminiVoiceCommand(text: processed, seconds: seconds) { return }
+        }
+
+        let canInsert = FocusInspector.canInsertText
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "—"
+        Log.write("Доставка «\(pipeline.name)»: вставка \(canInsert ? "возможна" : "невозможна"), активно «\(front)», режим \(settings.outputMode.rawValue)")
+
+        if !canInsert, settings.outputMode != .clipboard {
+            offerCopy(lastResult, isAnswer: kind == .aiAnswer)
+            return
+        }
+
+        TextInserter.deliver(processed, mode: settings.outputMode, targetApp: targetApp)
+        if settings.playSounds, !pipeline.soundFinish.isEmpty {
+            NSSound(named: pipeline.soundFinish)?.play()
+        }
+        if settings.keepHistory {
+            History.shared.add(HistoryEntry(text: lastResult, kind: kind, seconds: seconds, model: pipeline.name))
+        }
     }
 
     /// Вопрос вместо диктовки: отправляем распознанное в ИИ и вставляем ответ,
@@ -577,22 +985,42 @@ final class DictationController: ObservableObject {
         pendingQuestion = question
         let model = AIModelCatalog.title(for: AIModelCatalog.resolved(for: .quickAnswer))
 
+        var settled = false
+        let settle: () -> Void = { [weak self] in
+            guard let self, !settled else { return }
+            settled = true
+            self.state = .idle
+            self.pendingQuestion = ""
+        }
+
+        // Тот же страховочный паттерн, что и у answerWithAI: провайдер поверх
+        // приложения Gemini умеет молча не позвать completion, и без таймера
+        // .answeringAI зависал навсегда — кнопка «Переспросить» дизейблится
+        // на .idle, а toggle() из .answeringAI не запускает новую диктовку.
+        let deadline = AIRouter.shared.routing(for: .quickAnswer)?.timeout ?? 25
+        DispatchQueue.main.asyncAfter(deadline: .now() + deadline + 10) { [weak self] in
+            guard let self, !settled else { return }
+            self.lastError = T("Модель не ответила — попробуйте ещё раз", "The model did not answer — try again")
+            settle()
+        }
+
         AIRouter.shared.complete(role: .quickAnswer, system: Self.aiAnswerSystemPrompt, user: question) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.state = .idle
-                self.pendingQuestion = ""
                 switch result {
                 case .success(let answer):
                     let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
+                    guard !settled, !trimmed.isEmpty else { settle(); return }
+                    settle()
                     self.recentAnswers.insert(QuickAnswer(question: question, answer: trimmed,
                                                           model: model, date: Date()), at: 0)
                     if self.recentAnswers.count > self.recentAnswersLimit {
                         self.recentAnswers.removeLast(self.recentAnswers.count - self.recentAnswersLimit)
                     }
                 case .failure(let error):
+                    guard !settled else { return }
                     self.lastError = error.shortMessage
+                    settle()
                 }
             }
         }
@@ -618,11 +1046,12 @@ final class DictationController: ObservableObject {
 
         let insertable = FocusInspector.canInsertText
         if !insertable && settings.outputMode != .clipboard {
-            offerCopy(answer)
+            // Это ответ ИИ — карточка должна висеть достаточно, чтобы его прочитать.
+            offerCopy(answer, isAnswer: true)
             return
         }
 
-        TextInserter.deliver(answer, mode: settings.outputMode)
+        TextInserter.deliver(answer, mode: settings.outputMode, targetApp: targetApp)
         if settings.playSounds { NSSound(named: "Pop")?.play() }
         if settings.keepHistory {
             History.shared.add(HistoryEntry(text: answer, kind: .aiAnswer,
@@ -637,23 +1066,33 @@ final class DictationController: ObservableObject {
     /// на который нужен текстовый ответ, а такая же команда, как и с обычной диктовки.
     private func handleNoteOrReminderCommand(text: String, seconds: TimeInterval) -> Bool {
         if settings.enableVoiceNotes, let noteContent = AppleNotesService.extractNoteText(from: text) {
-            AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder)
-            if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
                 // В историю кладём произнесённую фразу целиком, а не обрезок после
                 // команды: если команда сработала ошибочно, это единственный способ
-                // вернуть текст — вставка-то не состоялась.
+                // вернуть текст — вставка-то не состоялась. Кладём сразу, не дожидаясь
+                // результата: даже при неудаче текст не должен потеряться.
                 History.shared.add(HistoryEntry(text: text, kind: .note,
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
-            showNoteSavedToast(title: noteContent)
+            // Раньше звук успеха и тост игрались сразу после вызова, не дожидаясь
+            // ответа Notes.app — при отказе в доступе или сбое сохранения пользователь
+            // слышал «успех» и видел «Заметка сохранена», хотя ничего не создавалось.
+            AppleNotesService.createNote(text: noteContent, folderName: settings.voiceNotesFolder) { [weak self] success in
+                guard let self else { return }
+                if success {
+                    if self.settings.playSounds { NSSound(named: "Glass")?.play() }
+                    self.showNoteSavedToast(title: noteContent)
+                } else {
+                    if self.settings.playSounds { NSSound(named: "Basso")?.play() }
+                    self.lastError = T("Не удалось сохранить заметку — текст остался в истории",
+                                       "Couldn\u{2019}t save the note — the text is still in history")
+                }
+            }
             return true
         }
 
         if settings.enableVoiceReminders, let rem = AppleRemindersService.extractReminder(from: text) {
-            AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList)
-            if settings.playSounds { NSSound(named: "Glass")?.play() }
             if settings.keepHistory {
                 let dueInfo = rem.dueDate != nil ? " (\(DateFormatter.localizedString(from: rem.dueDate!, dateStyle: .short, timeStyle: .short)))" : ""
                 // Как и с заметками — сохраняем сказанное целиком, срок дописываем справкой.
@@ -661,7 +1100,17 @@ final class DictationController: ObservableObject {
                                                 seconds: seconds,
                                                 model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
             }
-            showReminderSavedToast(title: rem.title, dueDate: rem.dueDate)
+            AppleRemindersService.createReminder(title: rem.title, dueDate: rem.dueDate, listName: settings.voiceRemindersList) { [weak self] success in
+                guard let self else { return }
+                if success {
+                    if self.settings.playSounds { NSSound(named: "Glass")?.play() }
+                    self.showReminderSavedToast(title: rem.title, dueDate: rem.dueDate)
+                } else {
+                    if self.settings.playSounds { NSSound(named: "Basso")?.play() }
+                    self.lastError = T("Не удалось сохранить напоминание — текст остался в истории",
+                                       "Couldn\u{2019}t save the reminder — the text is still in history")
+                }
+            }
             return true
         }
 
@@ -695,6 +1144,7 @@ final class DictationController: ObservableObject {
         }
 
         if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
+        if handleGeminiVoiceCommand(text: text, seconds: seconds) { return }
 
         // Проверяем, доступно ли активное окно/поле для вставки
         let insertable = FocusInspector.canInsertText
@@ -703,12 +1153,55 @@ final class DictationController: ObservableObject {
             return
         }
 
-        TextInserter.deliver(text, mode: settings.outputMode)
+        TextInserter.deliver(text, mode: settings.outputMode, targetApp: targetApp)
         if settings.playSounds { NSSound(named: "Pop")?.play() }
         if settings.keepHistory {
             History.shared.add(HistoryEntry(text: lastResult,
                                             seconds: seconds,
                                             model: URL(fileURLWithPath: settings.modelPath).lastPathComponent))
+        }
+    }
+
+    /// Проверяет, является ли фраза голосовой командой обращения к десктопному Gemini
+    private func handleGeminiVoiceCommand(text: String, seconds: TimeInterval) -> Bool {
+        guard settings.geminiIntegrationEnabled && settings.geminiVoiceCommandEnabled else { return false }
+        guard let prompt = GeminiBridgeService.shared.extractGeminiCommand(from: text) else { return false }
+
+        if settings.keepHistory {
+            History.shared.add(HistoryEntry(text: text, kind: .aiAnswer,
+                                            seconds: seconds,
+                                            model: "Gemini.app"))
+        }
+
+        // Раньше звук успеха и тост «Отправлено в Gemini» игрались сразу после
+        // вызова, не дожидаясь результата: если Gemini.app не поднял окно, не нашёл
+        // поле ввода или Automation-доступ к System Events не выдан, пользователь
+        // слышал «успех» и видел зелёный тост, хотя запрос никуда не ушёл.
+        GeminiBridgeService.shared.sendToGemini(
+            prompt: prompt,
+            autoSubmit: settings.geminiAutoSubmit,
+            newChat: settings.geminiCreateNewChat
+        ) { [weak self] success, message in
+            guard let self else { return }
+            if success {
+                if self.settings.playSounds { NSSound(named: "Glass")?.play() }
+                self.showGeminiSentToast(prompt: prompt)
+            } else {
+                if self.settings.playSounds { NSSound(named: "Basso")?.play() }
+                self.lastError = message ?? T("Не удалось отправить в Gemini", "Couldn\u{2019}t send to Gemini")
+            }
+        }
+        return true
+    }
+
+    /// Показывает короткое всплывающее подтверждение отправки запроса в Gemini
+    private func showGeminiSentToast(prompt: String) {
+        geminiSentText = prompt
+        indicator.show(controller: self, interactive: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
+            guard let self, self.state == .idle else { return }
+            self.geminiSentText = nil
+            self.indicator.hide()
         }
     }
 
@@ -744,10 +1237,13 @@ final class DictationController: ObservableObject {
     // MARK: - Вставлять некуда
 
     /// Показывает результат в панели с кнопкой «Скопировать».
-    private func offerCopy(_ text: String) {
-        Log.write("вставить некуда — показываю кнопку копирования")
+    private func offerCopy(_ text: String, isAnswer: Bool = false) {
+        Log.write("вставить некуда — показываю кнопку копирования\(isAnswer ? " (ответ ИИ, время чтения увеличено)" : "")")
         pendingText = text
-        let timeout = max(2, settings.copyDismissTimeoutSeconds)
+        // Диктовку достаточно успеть скопировать, а ответ ИИ надо ещё и прочитать —
+        // на пяти секундах по умолчанию длинный ответ просто не успеть.
+        let base = max(2, settings.copyDismissTimeoutSeconds)
+        let timeout = isAnswer ? max(20, base * 3) : base
         pendingRemainingSeconds = timeout
         indicator.show(controller: self, interactive: true)
         if settings.playSounds { NSSound(named: "Funk")?.play() }
@@ -786,6 +1282,8 @@ final class DictationController: ObservableObject {
 
     private func fail(_ message: String) {
         state = .idle
+        activePipeline = nil
+        isStartingSession = false
         MediaController.shared.end()
         lastError = message
         NSLog("Intact: \(message)")

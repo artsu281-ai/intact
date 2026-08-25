@@ -52,8 +52,13 @@ extension AIError {
                                actionLabel: T("Выбрать модель", "Choose a model"), section: .settings)
 
         case .providerUnavailable:
-            return AIErrorInfo(message: T("Локальная модель не запустилась. Проверьте, что установлен llama-server и выбранный файл модели на месте.", "The local model did not start. Check that llama-server is installed and the chosen model file is still there."),
-                               actionLabel: T("Открыть модели", "Open Models"), section: .models)
+            // Причина может быть любой из двух совсем разных провайдеров:
+            // локальная модель не запустилась (нет llama-server или файла модели)
+            // либо Gemini.app не установлен/не отвечает — .info не знает, какой
+            // именно из них сработал, поэтому формулировка не должна винить
+            // конкретно llama-server, когда на деле не готов Gemini (и наоборот).
+            return AIErrorInfo(message: T("Выбранный AI-провайдер сейчас недоступен: локальная модель не запустилась, либо не отвечает приложение Gemini.", "The chosen AI provider is unavailable right now: the local model failed to start, or the Gemini app is not responding."),
+                               actionLabel: T("Открыть настройки ИИ", "Open AI settings"), section: .settings)
 
         case .timeout:
             return AIErrorInfo(message: T("Модель не ответила вовремя. Крупная модель на длинном тексте может не уложиться — повторите запрос или выберите модель полегче.", "The model did not answer in time. A large model on long text may not make it — retry, or pick a lighter model."),
@@ -72,15 +77,15 @@ extension AIError {
         case .server(let code, let message):
             switch code {
             case 401, 403:
-                return AIErrorInfo(message: T("Ключ Anthropic не принят. Проверьте, что он скопирован целиком и не отозван.", "The Anthropic key was not accepted. Check that it was copied in full and has not been revoked."),
-                                   actionLabel: T("Проверить ключ", "Check the key"), section: .settings)
+                return AIErrorInfo(message: T("Доступ отклонён (\(code)). Проверьте настройки провайдера.", "Access denied (\(code)). Check the provider settings."),
+                                   actionLabel: T("Открыть настройки ИИ", "Open AI settings"), section: .settings)
             case 429:
-                return AIErrorInfo(message: T("Слишком много запросов подряд — API просит подождать. Повторите через минуту.", "Too many requests in a row — the API is asking you to wait. Retry in a minute."))
+                return AIErrorInfo(message: T("Слишком много запросов подряд — сервер просит подождать. Повторите через минуту.", "Too many requests in a row — the server is asking you to wait. Retry in a minute."))
             case 402:
-                return AIErrorInfo(message: T("На счету Anthropic закончились средства.", "The Anthropic account has run out of credit."),
+                return AIErrorInfo(message: T("Лимит запросов исчерпан.", "The request quota has run out."),
                                    actionLabel: T("Открыть настройки ИИ", "Open AI settings"), section: .settings)
             case 500...599:
-                return AIErrorInfo(message: T("Сбой на стороне Anthropic. Обычно проходит за минуту.", "A failure on Anthropic's side. Usually clears within a minute."))
+                return AIErrorInfo(message: T("Сбой на стороне сервера (\(code)). Обычно проходит за минуту.", "A server-side failure (\(code)). Usually clears within a minute."))
             default:
                 return AIErrorInfo(message: T("Запрос отклонён: \(message)", "Request rejected: \(message)"))
             }
@@ -241,11 +246,11 @@ final class AIRouter {
     func isReady(for role: AIRole) -> Bool {
         switch AIModelCatalog.resolved(for: role) {
         case .disabled: return false
+        case .gemini:
+            return GeminiAIProvider.shared.isReady
         case .local(let filename):
             guard let match = LLMModel.matching(path: filename) else { return false }
             return LocalAIProvider.shared.isAvailable && match.model.isInstalled(match.quant)
-        case .cloud:
-            return CloudAIProvider.shared.isReady
         }
     }
 
@@ -257,26 +262,26 @@ final class AIRouter {
         case .disabled:
             return nil
 
-        case .cloud(let id):
-            guard let model = AIModelCatalog.cloudModel(id: id) else { return nil }
+        case .gemini:
+            guard GeminiAIProvider.shared.isReady else { return nil }
             return AIRouting(
                 choice: choice,
                 role: role,
+                // Само приложение Gemini локально, но обработка идёт на серверах
+                // Google — те же данные, что попадают в облачную плашку в чате.
                 isCloud: true,
-                thinks: model.isThinkingModel,
-                model: id,
-                maxTokens: role.maxTokens(cloud: true, thinking: model.isThinkingModel),
-                effort: model.supportsEffort ? role.cloudEffort : nil,
-                timeout: role.timeout(cloud: true, thinking: model.isThinkingModel),
-                webSearchTool: webSearch ? model.webSearchTool : nil)
+                thinks: true,
+                allowThinking: false,
+                model: "gemini:app",
+                maxTokens: 4096,
+                effort: nil,
+                timeout: role == .cleanup ? 20 : 60,
+                webSearchTool: nil)
 
         case .local(let filename):
             guard let path = AIModelCatalog.localPath(for: choice),
                   FileManager.default.fileExists(atPath: path) else { return nil }
 
-            // Рассуждение включаем только там, где время не критично, и только
-            // если модель это умеет. Дистиллятам R1 его не выключить в принципе —
-            // значит, ждать их надо дольше в любой роли.
             let thinking = LLMModel.matching(path: filename)?.model.thinking ?? LLMThinking.none
             let allowThinking = role == .chat
                 && AppSettings.shared.localThinkingInChat
@@ -321,9 +326,15 @@ final class AIRouter {
             return AITask()
         }
         let req = request(routing, messages: messages)
-        return routing.isCloud
-            ? CloudAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
-            : LocalAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
+        switch routing.choice {
+        case .gemini:
+            return GeminiAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
+        case .local:
+            return LocalAIProvider.shared.stream(req, onDelta: onDelta, completion: completion)
+        case .disabled:
+            completion(.failure(.notConfigured))
+            return AITask()
+        }
     }
 
     // MARK: - Обычный запрос
@@ -337,9 +348,15 @@ final class AIRouter {
             return AITask()
         }
         let req = request(routing, messages: messages)
-        return routing.isCloud
-            ? CloudAIProvider.shared.complete(req, completion: completion)
-            : LocalAIProvider.shared.complete(req, completion: completion)
+        switch routing.choice {
+        case .gemini:
+            return GeminiAIProvider.shared.complete(req, completion: completion)
+        case .local:
+            return LocalAIProvider.shared.complete(req, completion: completion)
+        case .disabled:
+            completion(.failure(.notConfigured))
+            return AITask()
+        }
     }
 
     /// Convenience для однооборотных задач — причёсывания и быстрого ответа.

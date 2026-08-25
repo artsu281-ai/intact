@@ -160,7 +160,7 @@ final class ModelManager: NSObject, ObservableObject, URLSessionDataDelegate {
             FileManager.default.createFile(atPath: partURL.path, contents: nil)
         }
         handle = try? FileHandle(forWritingTo: partURL)
-        try? handle?.seekToEnd()
+        _ = try? handle?.seekToEnd()
 
         currentTask = session.dataTask(with: request)
         currentTask?.resume()

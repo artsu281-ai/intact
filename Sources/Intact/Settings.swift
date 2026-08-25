@@ -102,26 +102,29 @@ enum OutputMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .paste:     return "Вставить целиком на отпускании клавиши (⌘V)"
-        case .type:      return "Напечатать целиком в конце (посимвольно)"
-        case .clipboard: return "Только в буфер обмена (без вставки)"
+        case .paste:     return T("Вставить целиком на отпускании клавиши (⌘V)", "Paste it all at once on key release (⌘V)")
+        case .type:      return T("Напечатать целиком в конце (посимвольно)", "Type it all at the end (character by character)")
+        case .clipboard: return T("Только в буфер обмена (без вставки)", "Clipboard only (no paste)")
         }
     }
     var shortTitle: String {
         switch self {
-        case .paste:     return "Вставка (⌘V)"
-        case .type:      return "Посимвольно"
-        case .clipboard: return "В буфер"
+        case .paste:     return T("Вставка (⌘V)", "Paste (⌘V)")
+        case .type:      return T("Посимвольно", "Character by character")
+        case .clipboard: return T("В буфер", "Clipboard")
         }
     }
     var help: String {
         switch self {
         case .paste:
-            return "Пока клавиша зажата, в поле ничего не лезет. Отпустил — весь готовый текст чисто появляется разом через ⌘V. Буфер обмена восстанавливается сразу после вставки."
+            return T("Пока клавиша зажата, в поле ничего не лезет. Отпустил — весь готовый текст чисто появляется разом через ⌘V. Буфер обмена восстанавливается сразу после вставки.",
+                     "Nothing lands in the field while the key is held. Release it, and the finished text appears all at once via ⌘V. The clipboard is restored right after pasting.")
         case .type:
-            return "Как вставка, но прямыми быстрыми нажатиями клавиш в конце — для полей, где ⌘V заблокирован."
+            return T("Как вставка, но прямыми быстрыми нажатиями клавиш в конце — для полей, где ⌘V заблокирован.",
+                     "Same as paste, but via fast direct keystrokes at the end — for fields where ⌘V is blocked.")
         case .clipboard:
-            return "Никуда не вставляется, текст просто оказывается в буфере обмена."
+            return T("Никуда не вставляется, текст просто оказывается в буфере обмена.",
+                     "Nothing is inserted anywhere — the text just ends up on the clipboard.")
         }
     }
     /// Режимы, работающие прямыми событиями клавиатуры, без буфера обмена.
@@ -133,32 +136,35 @@ enum ActivationMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .modifierHold: return "Удержание клавиши-модификатора"
-        case .hotKeyHold:   return "Удержание сочетания клавиш"
-        case .hotKeyToggle: return "Сочетание как переключатель"
+        case .modifierHold: return T("Удержание клавиши-модификатора", "Holding a modifier key")
+        case .hotKeyHold:   return T("Удержание сочетания клавиш", "Holding a key combination")
+        case .hotKeyToggle: return T("Сочетание как переключатель", "Combination as a toggle")
         }
     }
     var help: String {
         switch self {
         case .modifierHold:
-            return "Зажал ⌥, говоришь, отпустил — текст на месте. Если во время удержания нажать любую другую клавишу или мышь, запись отменяется: значит это было обычное сочетание."
+            return T("Зажал ⌥, говоришь, отпустил — текст на месте. Если во время удержания нажать любую другую клавишу или мышь, запись отменяется: значит это было обычное сочетание.",
+                     "Hold ⌥, speak, release — the text lands. Pressing any other key or mouse button while holding cancels the recording, since that means it was an ordinary key combination.")
         case .hotKeyHold:
-            return "То же самое, но на сочетании с обычной клавишей."
+            return T("То же самое, но на сочетании с обычной клавишей.",
+                     "The same thing, but on a combination with an ordinary key.")
         case .hotKeyToggle:
-            return "Нажал — пишет, нажал ещё раз — вставляет. Удобно для длинных диктовок."
+            return T("Нажал — пишет, нажал ещё раз — вставляет. Удобно для длинных диктовок.",
+                     "Press once to start recording, press again to insert. Handy for long dictations.")
         }
     }
 }
 
 enum AIProviderKind: String, CaseIterable, Identifiable {
-    case none, local, cloud
+    case gemini, local, none
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .none:  return L10n.aiProviderNone
-        case .local: return L10n.aiProviderLocal
-        case .cloud: return L10n.aiProviderCloud
+        case .gemini:  return "Gemini.app (macOS)"
+        case .local:   return L10n.aiProviderLocal
+        case .none:    return L10n.aiProviderNone
         }
     }
 }
@@ -317,6 +323,7 @@ final class AppSettings: ObservableObject {
     @Published var suppressNonSpeech: Bool { didSet { d.set(suppressNonSpeech, forKey: "suppressNonSpeech"); onEngineChange?() } }
 
     @Published var outputMode: OutputMode { didSet { d.set(outputMode.rawValue, forKey: "outputMode") } }
+    @Published var sttEngine: STTEngineType { didSet { d.set(sttEngine.rawValue, forKey: "sttEngine") } }
     @Published var trimTrailingPeriod: Bool { didSet { d.set(trimTrailingPeriod, forKey: "trimTrailingPeriod") } }
     @Published var appendSpace: Bool { didSet { d.set(appendSpace, forKey: "appendSpace") } }
 
@@ -346,7 +353,6 @@ final class AppSettings: ObservableObject {
     @Published var enableVoiceReminders: Bool { didSet { d.set(enableVoiceReminders, forKey: "enableVoiceReminders") } }
     @Published var voiceRemindersList: String { didSet { d.set(voiceRemindersList, forKey: "voiceRemindersList") } }
     @Published var aiProviderKind: AIProviderKind { didSet { d.set(aiProviderKind.rawValue, forKey: "aiProviderKind"); onAIProviderChange?() } }
-    @Published var aiCloudModel: String { didSet { d.set(aiCloudModel, forKey: "aiCloudModel") } }
     @Published var aiLocalModelPath: String { didSet { d.set(aiLocalModelPath, forKey: "aiLocalModelPath"); onAIProviderChange?() } }
     @Published var enableAICleanup: Bool { didSet { d.set(enableAICleanup, forKey: "enableAICleanup") } }
     /// Выбор модели по разделам: роль → идентификатор `AIModelChoice`.
@@ -381,6 +387,18 @@ final class AppSettings: ObservableObject {
     @Published var lastHistoryAutoClearTimestamp: Double { didSet { d.set(lastHistoryAutoClearTimestamp, forKey: "lastHistoryAutoClearTimestamp") } }
     @Published var launchAtLogin: Bool { didSet { d.set(launchAtLogin, forKey: "launchAtLogin") } }
     @Published var showDockIcon: Bool { didSet { d.set(showDockIcon, forKey: "showDockIcon"); onDockIconChange?() } }
+
+    // Интеграция с десктопным приложением Gemini
+    @Published var geminiIntegrationEnabled: Bool { didSet { d.set(geminiIntegrationEnabled, forKey: "geminiIntegrationEnabled") } }
+    /// С каким экземпляром Gemini работать. Обычно это установленное приложение,
+    /// но Double Bubble умеет делать копию бандла со своим хранилищем и своим
+    /// идентификатором — отдельный экземпляр удобен тем, что Intact не лезет
+    /// в рабочую переписку пользователя и не спорит с ним за окно.
+    @Published var geminiBundleIdentifier: String { didSet { d.set(geminiBundleIdentifier, forKey: "geminiBundleIdentifier") } }
+    @Published var geminiBackgroundMode: Bool { didSet { d.set(geminiBackgroundMode, forKey: "geminiBackgroundMode") } }
+    @Published var geminiAutoSubmit: Bool { didSet { d.set(geminiAutoSubmit, forKey: "geminiAutoSubmit") } }
+    @Published var geminiCreateNewChat: Bool { didSet { d.set(geminiCreateNewChat, forKey: "geminiCreateNewChat") } }
+    @Published var geminiVoiceCommandEnabled: Bool { didSet { d.set(geminiVoiceCommandEnabled, forKey: "geminiVoiceCommandEnabled") } }
 
     /// Вызывается, когда меняется способ активации — чтобы перепривязать клавиши.
     var onHotKeyChange: (() -> Void)?
@@ -437,6 +455,7 @@ final class AppSettings: ObservableObject {
         suppressNonSpeech = d.object(forKey: "suppressNonSpeech") == nil ? true : d.bool(forKey: "suppressNonSpeech")
 
         outputMode = OutputMode(rawValue: d.string(forKey: "outputMode") ?? "") ?? .paste
+        sttEngine = STTEngineType(rawValue: d.string(forKey: "sttEngine") ?? "") ?? .whisperLocal
         trimTrailingPeriod = d.bool(forKey: "trimTrailingPeriod")
         appendSpace = d.object(forKey: "appendSpace") == nil ? true : d.bool(forKey: "appendSpace")
 
@@ -463,11 +482,7 @@ final class AppSettings: ObservableObject {
         voiceNotesFolder = d.string(forKey: "voiceNotesFolder") ?? "Intact"
         enableVoiceReminders = d.object(forKey: "enableVoiceReminders") == nil ? true : d.bool(forKey: "enableVoiceReminders")
         voiceRemindersList = d.string(forKey: "voiceRemindersList") ?? ""
-        aiProviderKind = AIProviderKind(rawValue: d.string(forKey: "aiProviderKind") ?? "") ?? .none
-        let storedCloudModel = d.string(forKey: "aiCloudModel") ?? ""
-        aiCloudModel = AIModelCatalog.cloud.contains { $0.id == storedCloudModel }
-            ? storedCloudModel
-            : "claude-haiku-4-5"
+        aiProviderKind = AIProviderKind(rawValue: d.string(forKey: "aiProviderKind") ?? "") ?? .local
         aiLocalModelPath = d.string(forKey: "aiLocalModelPath") ?? ""
         enableAICleanup = d.object(forKey: "enableAICleanup") == nil ? false : d.bool(forKey: "enableAICleanup")
         aiRoleOverrides = (d.dictionary(forKey: "aiRoleOverrides") as? [String: String]) ?? [:]
@@ -493,6 +508,13 @@ final class AppSettings: ObservableObject {
         lastHistoryAutoClearTimestamp = d.double(forKey: "lastHistoryAutoClearTimestamp")
         launchAtLogin = d.bool(forKey: "launchAtLogin")
         showDockIcon = d.object(forKey: "showDockIcon") == nil ? true : d.bool(forKey: "showDockIcon")
+
+        geminiIntegrationEnabled = d.object(forKey: "geminiIntegrationEnabled") == nil ? true : d.bool(forKey: "geminiIntegrationEnabled")
+        geminiBundleIdentifier = d.string(forKey: "geminiBundleIdentifier") ?? "com.google.GeminiMacOS"
+        geminiBackgroundMode = d.object(forKey: "geminiBackgroundMode") == nil ? true : d.bool(forKey: "geminiBackgroundMode")
+        geminiAutoSubmit = d.object(forKey: "geminiAutoSubmit") == nil ? true : d.bool(forKey: "geminiAutoSubmit")
+        geminiCreateNewChat = d.bool(forKey: "geminiCreateNewChat")
+        geminiVoiceCommandEnabled = d.object(forKey: "geminiVoiceCommandEnabled") == nil ? true : d.bool(forKey: "geminiVoiceCommandEnabled")
         applyTheme()
 
         DistributedNotificationCenter.default().addObserver(

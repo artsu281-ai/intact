@@ -1,25 +1,16 @@
 import SwiftUI
 
-/// Выбор модели прямо в том разделе, где с ней работают.
-///
-/// Раньше выбор был один на всё приложение и жил в настройках. Здесь он
-/// привязан к роли: у чата может быть Opus, у причёсывания диктовки —
-/// локальная 2B, и переключаются они независимо, не уходя со страницы.
-/// Без `role` компонент показывает общий выбор по умолчанию.
+/// Компактная выпадайка смены модели ИИ для шапки карточки или раздела.
 struct AIModelPicker: View {
-    /// Роль, для которой выбирается модель. `nil` — общая настройка.
     var role: AIRole? = nil
-    /// Компактный вид: только название, без пилюли «Облако/Локально».
     var compact: Bool = false
-    var onOpenSettings: () -> Void
-    var onOpenModels: () -> Void
+    var onOpenSettings: () -> Void = {}
+    var onOpenModels: () -> Void = {}
 
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var llmModels = LLMModelManager.shared
     @State private var isOpen = false
     @State private var hovering = false
-    /// Выбор, ждущий подтверждения «да, я понимаю, что текст уйдёт наружу».
-    @State private var pendingCloudChoice: AIModelChoice? = nil
 
     private var current: AIModelChoice {
         role.map { AIModelCatalog.resolved(for: $0) } ?? AIModelCatalog.current
@@ -31,16 +22,14 @@ struct AIModelPicker: View {
         return !AIModelCatalog.hasOverride(role)
     }
 
-    private var cloudReady: Bool { CloudAIProvider.shared.isReady }
-
     private var statusColor: Color {
         switch current {
         case .disabled:
             return Palette.iconMuted
+        case .gemini:
+            return GeminiBridgeService.shared.isInstalled ? Palette.iconSuccess : Palette.iconWarning
         case .local:
             return LocalAIProvider.shared.isAvailable ? Palette.iconSuccess : Palette.iconWarning
-        case .cloud:
-            return cloudReady ? Palette.iconSuccess : Palette.iconWarning
         }
     }
 
@@ -80,24 +69,6 @@ struct AIModelPicker: View {
         .onHover { hovering = $0 }
         .help(role.map { T("Модель для раздела «\($0.title)»", "Model for “\($0.title)”") } ?? T("Сменить версию ИИ", "Change AI model"))
         .popover(isPresented: $isOpen, arrowEdge: .bottom) { picker }
-        .alert(T("Текст будет уходить в облако", "Text will be sent to the cloud"),
-               isPresented: Binding(get: { pendingCloudChoice != nil },
-                                    set: { if !$0 { pendingCloudChoice = nil } })) {
-            Button(T("Отмена", "Cancel"), role: .cancel) { pendingCloudChoice = nil }
-            Button(T("Понимаю, включить", "I understand, enable")) {
-                if let choice = pendingCloudChoice {
-                    settings.cloudConsentGiven = true
-                    commit(choice)
-                }
-                pendingCloudChoice = nil
-            }
-        } message: {
-            Text(T("С локальной моделью звук и текст не покидают этот Mac. ", "With a local model, audio and text never leave this Mac. ")
-                 + T("Облачная модель работает иначе: распознанный текст, а в чате — ещё ", "A cloud model works differently: the recognised text — and in chat also ")
-                 + T("и заметки, напоминания и содержимое прикреплённых файлов ", "your notes, reminders and the contents of attached files — ")
-                 + T("отправляются на серверы Anthropic.\n\n", "are sent to Anthropic's servers.\n\n")
-                 + T("Спрашиваем один раз. Вернуться к локальной модели можно в любой момент.", "Asked once. You can switch back to a local model at any time."))
-        }
     }
 
     /// Применяет выбор — к роли или к общей настройке.
@@ -120,8 +91,8 @@ struct AIModelPicker: View {
                     Divider().overlay(Palette.hairline).padding(.vertical, 3)
                 }
 
+                appsSection
                 localSection
-                cloudSection
 
                 Divider().overlay(Palette.hairline).padding(.vertical, 3)
 
@@ -131,8 +102,25 @@ struct AIModelPicker: View {
             .padding(7)
         }
         .frame(width: 372)
-        .frame(maxHeight: 460)
+        .frame(maxHeight: 450)
         .background(Palette.card)
+    }
+
+    @ViewBuilder
+    private var appsSection: some View {
+        sectionHeader(T("Десктопное приложение", "Desktop Application"))
+        row(
+            choice: .gemini,
+            title: "Gemini.app (macOS)",
+            subtitle: GeminiBridgeService.shared.isInstalled
+                ? T("Официальное приложение Gemini на вашем Mac (работает в фоне)", "Official Gemini app on your Mac (runs in background)")
+                : T("Приложение Gemini не найдено в /Applications", "Gemini app not found in /Applications"),
+            footnote: T("100% бесплатно · без API ключей · через Accessibility API", "100% free · no API keys · via Accessibility API"),
+            enabled: GeminiBridgeService.shared.isInstalled
+        )
+        if !GeminiBridgeService.shared.isInstalled {
+            hint(T("Установите приложение Gemini в /Applications", "Install the Gemini app in /Applications")) { onOpenSettings() }
+        }
     }
 
     @ViewBuilder
@@ -153,21 +141,6 @@ struct AIModelPicker: View {
             if !LocalAIProvider.shared.isAvailable {
                 hint(T("Нужен llama-server: brew install llama.cpp", "Needs llama-server: brew install llama.cpp")) { onOpenSettings() }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var cloudSection: some View {
-        sectionHeader(T("Облако Anthropic", "Anthropic cloud"))
-        ForEach(AIModelCatalog.cloud) { model in
-            row(choice: .cloud(model.id),
-                title: model.title,
-                subtitle: model.note,
-                footnote: "\(model.contextText) · \(model.priceText)",
-                enabled: cloudReady)
-        }
-        if !cloudReady {
-            hint(T("Нужен ключ Anthropic API", "Needs an Anthropic API key")) { onOpenSettings() }
         }
     }
 
@@ -192,77 +165,94 @@ struct AIModelPicker: View {
         }
     }
 
-    private func row(choice: AIModelChoice, title: String, subtitle: String,
-                     footnote: String? = nil, enabled: Bool) -> some View {
-        WisprDropdownItemRow(
-            isSelected: current == choice && !inherits,
+    private func row(choice: AIModelChoice,
+                     title: String,
+                     subtitle: String? = nil,
+                     footnote: String? = nil,
+                     enabled: Bool = true) -> some View {
+        let isSelected = !inherits && current == choice
+        return WisprDropdownItemRow(
+            isSelected: isSelected,
             action: {
                 guard enabled else { return }
-                isOpen = false
-                // Переход на облако — это изменение того, что происходит
-                // с текстом пользователя. Один раз об этом стоит спросить.
-                if case .cloud = choice, !settings.cloudConsentGiven {
-                    pendingCloudChoice = choice
-                    return
-                }
                 commit(choice)
+                isOpen = false
             }
         ) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(enabled ? Palette.textPrimary : Palette.iconMuted)
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Palette.textTertiary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(enabled ? Palette.textPrimary : Palette.textTertiary)
+
+                    if let placement = AIModelCatalog.placement(for: choice) {
+                        Text(placement)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(Palette.textTertiary)
+                            .padding(.horizontal, 4.5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Palette.pill))
+                    }
+                }
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.textSecondary)
+                        .lineLimit(2)
+                }
+
                 if let footnote {
                     Text(footnote)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(Palette.textTertiary.opacity(0.85))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.textTertiary)
                 }
             }
+            .opacity(enabled ? 1.0 : 0.55)
         }
-        .opacity(enabled ? 1 : 0.5)
     }
 
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text.uppercased())
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(Palette.textTertiary)
-            .kerning(0.6)
-            .padding(.horizontal, 10)
+            .kerning(0.5)
+            .padding(.horizontal, 8)
             .padding(.top, 6)
             .padding(.bottom, 2)
     }
 
-    private func hint(_ text: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                IntactIcon(kind: .warning, size: 13)
-                Text(text)
-                    .font(.system(size: 11.5))
-                Spacer(minLength: 0)
-                IntactIcon(kind: .chevronRight, size: 9)
+    private func hint(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            isOpen = false
+            action()
+        }) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.accent)
+                Spacer()
+                Text("→")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Palette.accent)
             }
-            .foregroundStyle(Palette.iconWarning)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .contentShape(Rectangle())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
     }
 
     private func sizeText(_ mb: Int) -> String {
-        mb >= 1000 ? String(format: T("%.1f ГБ", "%.1f GB"), Double(mb) / 1000.0) : T("\(mb) МБ", "\(mb) MB")
+        mb >= 1000
+            ? String(format: "%.1f ГБ", Double(mb) / 1024.0)
+            : "\(mb) МБ"
     }
 
     private func tierText(_ tier: LLMTier) -> String {
         switch tier {
-        case .light:  return T("лёгкая", "light")
-        case .large:  return T("крупная", "large")
-        case .xlarge: return T("очень крупная", "very large")
+        case .xlarge: return T("флагман", "flagship")
+        case .large:  return T("баланс", "balanced")
+        case .light:  return T("лёгкая", "compact")
         }
     }
 }
@@ -280,26 +270,23 @@ struct AIRoleRow: View {
     private var choice: AIModelChoice { AIModelCatalog.resolved(for: role) }
 
     /// Честное предупреждение вместо молчания: роль настроена, но работать
-    /// не будет — ключа нет, сервер не установлен или модель выключена.
+    /// не будет — приложение не запущено или модель не установлена.
     private var problem: String? {
         switch choice {
         case .disabled:
             return T("ИИ выключен — задача выполняться не будет", "AI is off — this task will not run")
-        case .cloud:
-            return CloudAIProvider.shared.isReady ? nil : T("Нужен ключ Anthropic API в настройках", "Needs an Anthropic API key in Settings")
+        case .gemini:
+            return GeminiBridgeService.shared.isInstalled ? nil : T("Приложение Gemini не найдено в /Applications", "Gemini app not found in /Applications")
         case .local:
             return LocalAIProvider.shared.isAvailable ? nil : T("Не найден llama-server: brew install llama.cpp", "llama-server not found: brew install llama.cpp")
         }
     }
 
-    /// Куда уходит текст этой задачи. Слова «Облако» в маленькой пилюле
-    /// недостаточно: приложение обещает приватность, и место, где это
-    /// обещание перестаёт действовать, должно называться прямо.
-    private var privacy: (text: String, cloud: Bool)? {
+    private var privacy: String? {
         switch choice {
         case .disabled: return nil
-        case .local:    return (T("Не покидает этот Mac", "Never leaves this Mac"), false)
-        case .cloud:    return (T("Текст этой задачи отправляется в облако Anthropic", "Text from this task is sent to the Anthropic cloud"), true)
+        case .gemini:   return T("Передаётся в приложение Gemini на вашем Mac", "Forwarded to Gemini app on your Mac")
+        case .local:    return T("Не покидает этот Mac (0 токенов, офлайн)", "Never leaves this Mac (0 tokens, offline)")
         }
     }
 
@@ -314,10 +301,10 @@ struct AIRoleRow: View {
                 if let privacy {
                     HStack(spacing: 5) {
                         IntactIcon(kind: .lock, size: 11)
-                        Text(privacy.text)
+                        Text(privacy)
                             .font(.system(size: 11))
                     }
-                    .foregroundStyle(privacy.cloud ? Palette.iconWarning : Palette.textTertiary)
+                    .foregroundStyle(Palette.textTertiary)
                 }
             }
         }

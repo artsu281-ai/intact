@@ -10,11 +10,88 @@ struct IndicatorView: View {
     }
 
     static let width: CGFloat = 460
-    static let listeningSize = NSSize(width: 112, height: 32)
+    static let listeningSize = NSSize(width: 114, height: 32)
     static let noteSavedSize = NSSize(width: 154, height: 32)
     static let reminderSavedSize = NSSize(width: 196, height: 32)
+    static let geminiSentSize = NSSize(width: 220, height: 32)
     private static let copyPad: CGFloat = 16
     private static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .regular)
+
+    private static func measureTextWidth(_ text: String, font: NSFont) -> CGFloat {
+        let box = (text as NSString).boundingRect(
+            with: NSSize(width: 800, height: 32),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font]
+        )
+        return ceil(box.width)
+    }
+
+    /// Сколько символов черновика помещается в пилюлю: четыре строки шириной ~390 pt
+    /// шрифтом 12 pt — это примерно столько.
+    private static let draftPreviewLimit = 210
+
+    /// В пилюле показываем **хвост** черновика, а не его начало.
+    ///
+    /// Раньше сюда уходил весь `draftText` с `lineLimit(4)`, и SwiftUI обрезал его с конца:
+    /// на экране навсегда застывали первые четыре строки, а новые слова, ради которых
+    /// живой предпросмотр и нужен, были не видны.
+    static func draftPreview(_ raw: String) -> String {
+        let flat = raw.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard flat.count > draftPreviewLimit else { return flat }
+
+        let tail = flat.suffix(draftPreviewLimit)
+        // Обрезаем по границе слова, чтобы фраза не начиналась с половины слова.
+        if let space = tail.firstIndex(of: " ") {
+            return "… " + tail[tail.index(after: space)...]
+        }
+        return "… " + tail
+    }
+
+    /// Межстрочный интервал черновика. Держим его здесь, чтобы замер высоты и отрисовка
+    /// не разъезжались: без него последняя строка подрезалась снизу.
+    static let draftLineSpacing: CGFloat = 2
+
+    private static func measureDraftHeight(_ text: String, width: CGFloat, font: NSFont) -> CGFloat {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = draftLineSpacing
+        paragraph.lineBreakMode = .byWordWrapping
+        let box = (text as NSString).boundingRect(
+            with: NSSize(width: width, height: 200),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font, .paragraphStyle: paragraph]
+        )
+        return ceil(box.height)
+    }
+
+    static func listeningSize(for controller: DictationController) -> NSSize {
+        if let note = controller.noteSavedText {
+            let tw = measureTextWidth(note, font: .systemFont(ofSize: 11.5, weight: .medium))
+            return NSSize(width: max(148, min(420, tw + 52)), height: 34)
+        } else if let rem = controller.reminderSavedText {
+            let tw = measureTextWidth(rem, font: .systemFont(ofSize: 11.5, weight: .medium))
+            return NSSize(width: max(160, min(420, tw + 52)), height: 34)
+        } else if let gem = controller.geminiSentText {
+            let tw = measureTextWidth(gem, font: .systemFont(ofSize: 11.5, weight: .medium))
+            return NSSize(width: max(170, min(420, tw + 52)), height: 34)
+        }
+
+        switch controller.state {
+        case .recording:
+            return NSSize(width: 224, height: 34)
+
+        case .transcribing:
+            return NSSize(width: 236, height: 34)
+
+        case .processingAI:
+            return NSSize(width: 256, height: 34)
+
+        case .answeringAI:
+            return NSSize(width: 242, height: 34)
+
+        case .idle:
+            return NSSize(width: 120, height: 34)
+        }
+    }
 
     static func copySize(for text: String) -> NSSize {
         let textH = textHeight(text)
@@ -33,6 +110,7 @@ struct IndicatorView: View {
     }
 
     var body: some View {
+        let curSize = Self.listeningSize(for: controller)
         Group {
             if let pending = controller.pendingText {
                 noPlaceToInsert(text: pending)
@@ -50,91 +128,102 @@ struct IndicatorView: View {
                     )
             } else if controller.noteSavedText != nil {
                 noteSavedToast
-                    .frame(width: Self.noteSavedSize.width, height: Self.noteSavedSize.height)
-                    .background(capsuleBg)
-            } else if let remText = controller.reminderSavedText {
-                reminderSavedToast(text: remText)
-                    .frame(width: Self.reminderSavedSize.width, height: Self.reminderSavedSize.height)
-                    .background(capsuleBg)
+                    .frame(width: curSize.width, height: curSize.height)
+                    .background(dynamicIslandBg(size: curSize))
+            } else if controller.reminderSavedText != nil {
+                if let remText = controller.reminderSavedText {
+                    reminderSavedToast(text: remText)
+                        .frame(width: curSize.width, height: curSize.height)
+                        .background(dynamicIslandBg(size: curSize))
+                }
+            } else if let gemText = controller.geminiSentText {
+                geminiSentToast(prompt: gemText)
+                    .frame(width: curSize.width, height: curSize.height)
+                    .background(dynamicIslandBg(size: curSize))
             } else {
-                listening
-                    .frame(width: Self.listeningSize.width, height: Self.listeningSize.height)
-                    .background(capsuleBg)
+                listening(size: curSize)
+                    .frame(width: curSize.width, height: curSize.height)
+                    .background(dynamicIslandBg(size: curSize))
             }
         }
+        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: controller.state)
         .preferredColorScheme(settings.appTheme.colorScheme)
     }
 
-    private var capsuleBg: some View {
-        Capsule()
+    private func dynamicIslandBg(size: NSSize) -> some View {
+        let radius = min(size.height / 2, 18)
+        return RoundedRectangle(cornerRadius: radius, style: .continuous)
             .fill(Palette.hudBg(theme: settings.appTheme))
             .overlay(
-                Capsule()
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(Palette.hudBorder(theme: settings.appTheme), lineWidth: 0.75)
             )
-            .shadow(color: Palette.hudShadow(theme: settings.appTheme), radius: 10, y: 3)
+            .shadow(color: Palette.hudShadow(theme: settings.appTheme), radius: 14, y: 4)
     }
 
-    // MARK: - Компактный эстетичный спектр и индикатор записи
+    // MARK: - Бесшовный Dynamic Island индикатор записи
 
-    private var listening: some View {
-        HStack(spacing: 5) {
-            switch controller.state {
-            case .recording:
-                PulsingVoiceIcon(active: true, size: 13)
-                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
+    @ViewBuilder
+    private func listening(size: NSSize) -> some View {
+        if controller.state == .recording {
+            let badge = controller.activePipeline?.uiBadge ?? "Whisper Voice"
+            LiveMicrophoneIndicator(
+                active: true,
+                level: controller.level,
+                elapsedText: controller.elapsedText,
+                badgeText: badge
+            )
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+        } else {
+            HStack(spacing: 7) {
+                switch controller.state {
+                case .recording:
+                    EmptyView()
 
-                CompactEqualizer(level: controller.level, theme: settings.appTheme)
-                    .frame(width: 18, height: 12)
+                case .transcribing:
+                    ThinkingDots(size: 14)
+                        .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                Text(controller.elapsedText)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+                    Text("Whisper Voice · Transcribing…")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                        .lineLimit(1)
+                        .fixedSize()
 
-            case .transcribing:
-                ThinkingDots(size: 14)
-                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
+                case .processingAI:
+                    ThinkingDots(size: 14)
+                        .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                Text(L10n.hudTranscribing)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
-                    .lineLimit(1)
-                    .fixedSize()
+                    Text("Whisper Cleanup · Polishing…")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                        .lineLimit(1)
+                        .fixedSize()
 
-            case .processingAI:
-                ThinkingDots(size: 14)
-                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
+                    Text("⎋")
+                        .font(.system(size: 10, weight: .regular))
+                        .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+                        .lineLimit(1)
+                        .fixedSize()
 
-                // Имя модели и выход из ожидания: с крупной моделью пауза
-                // длится секунды, и без этих двух подписей непонятно, кто
-                // держит текст и можно ли не ждать.
-                Text(modelName(for: .cleanup))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
-                    .lineLimit(1)
-                    .fixedSize()
+                case .answeringAI:
+                    ThinkingDots(size: 14)
+                        .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                Text(T("⎋ как есть", "⎋ as is"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
-                    .lineLimit(1)
-                    .fixedSize()
+                    Text("Whisper Answer · Thinking…")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                        .lineLimit(1)
+                        .fixedSize()
 
-            case .answeringAI:
-                ThinkingDots(size: 14)
-                    .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
-
-                Text(modelName(for: .quickAnswer))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
-                    .lineLimit(1)
-                    .fixedSize()
-
-            case .idle:
-                EmptyView()
+                case .idle:
+                    EmptyView()
+                }
             }
+            .padding(.horizontal, 12)
+            .frame(height: 34)
         }
-        .padding(.horizontal, 10)
     }
 
     // MARK: - Подтверждение сохранения заметки
@@ -163,6 +252,26 @@ struct IndicatorView: View {
                 .foregroundStyle(Palette.hudText(theme: settings.appTheme))
 
             Text(text)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 12)
+    }
+
+    // MARK: - Подтверждение отправки в Gemini
+
+    private func geminiSentToast(prompt: String) -> some View {
+        HStack(spacing: 6) {
+            IntactIcon(kind: .aiStar, size: 13)
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+
+            Text(L10n.geminiSentHud)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+
+            Text(prompt)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
                 .lineLimit(1)
@@ -235,8 +344,10 @@ struct IndicatorView: View {
 
     /// Короткое имя работающей модели: в пилюле фиксированной ширины
     /// «Claude Haiku 4.5» помещается, а «Qwen3.5 9B · Q8_0» — уже нет.
-    private func modelName(for role: AIRole) -> String {
-        let full = AIModelCatalog.title(for: AIModelCatalog.resolved(for: role))
+    static func modelName(for role: AIRole) -> String {
+        let choice = AIModelCatalog.resolved(for: role)
+        if choice == .gemini { return "Gemini" }
+        let full = AIModelCatalog.title(for: choice)
         return full.split(separator: "·").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? full
     }
 
@@ -249,6 +360,57 @@ struct IndicatorView: View {
         if rem10 == 1 && rem100 != 11 { return T("слово", "word") }
         if (2...4).contains(rem10) && !(12...14).contains(rem100) { return T("слова", "words") }
         return T("слов", "words")
+    }
+}
+
+// MARK: - Индикатор микрофона и бейдж Gemini
+
+/// Живой микрофон с пульсирующей точкой записи и эквалайзером
+struct LiveMicrophoneIndicator: View {
+    let active: Bool
+    let level: Float
+    let elapsedText: String
+    var badgeText: String? = nil
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ZStack {
+                if active {
+                    Circle()
+                        .fill(Color.red.opacity(0.25))
+                        .frame(width: 12, height: 12)
+                        .scaleEffect(1.0 + CGFloat(max(0, min(1, level))) * 0.5)
+                }
+
+                Circle()
+                    .fill(active ? Color.red : Palette.hudTextMuted(theme: settings.appTheme))
+                    .frame(width: 6, height: 6)
+            }
+
+            Image(systemName: "mic.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(active ? Palette.hudIcon(theme: settings.appTheme) : Palette.hudTextMuted(theme: settings.appTheme))
+
+            CompactEqualizer(level: level, theme: settings.appTheme)
+                .frame(width: 16, height: 10)
+
+            Text(elapsedText)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+
+            if let badgeText, !badgeText.isEmpty {
+                Circle()
+                    .fill(Palette.hudBorder(theme: settings.appTheme))
+                    .frame(width: 3, height: 3)
+
+                Text(badgeText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Palette.hudText(theme: settings.appTheme))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
     }
 }
 
@@ -379,24 +541,27 @@ final class IndicatorPanel {
     private var isInteractive = false
 
     func show(controller: DictationController, interactive: Bool = false) {
-        if panel != nil, interactive == isInteractive { return }
+        let size: NSSize
+        if interactive {
+            size = IndicatorView.copySize(for: controller.pendingText ?? "")
+        } else {
+            size = IndicatorView.listeningSize(for: controller)
+        }
+
+        if let p = panel {
+            if interactive == isInteractive {
+                updateFrame(for: p, newSize: size)
+                return
+            }
+        }
         hide()
 
         let hosting = NSHostingView(rootView: IndicatorView(controller: controller))
         let isDark = AppSettings.shared.isDarkMode
         let targetAppearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
         hosting.appearance = targetAppearance
-
-        let size: NSSize
-        if interactive {
-            size = IndicatorView.copySize(for: controller.pendingText ?? "")
-        } else if controller.noteSavedText != nil {
-            size = IndicatorView.noteSavedSize
-        } else if controller.reminderSavedText != nil {
-            size = IndicatorView.reminderSavedSize
-        } else {
-            size = IndicatorView.listeningSize
-        }
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = NSColor.clear.cgColor
         hosting.frame = NSRect(origin: .zero, size: size)
 
         let p = KeyablePanel(contentRect: hosting.frame,
@@ -411,19 +576,50 @@ final class IndicatorPanel {
         p.level = interactive ? .floating : .statusBar
         p.ignoresMouseEvents = !interactive
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        reposition(p)
+        reposition(p, size: size)
         p.orderFrontRegardless()
 
         panel = p
         isInteractive = interactive
     }
 
-    private func reposition(_ p: NSPanel) {
-        guard let screen = NSScreen.main else { return }
-        let size = p.frame.size
-        let visible = screen.visibleFrame
-        p.setFrameOrigin(NSPoint(x: visible.midX - size.width / 2,
+    func update(controller: DictationController) {
+        guard let p = panel, !isInteractive else { return }
+        let size = IndicatorView.listeningSize(for: controller)
+        if abs(p.frame.width - size.width) > 1 || abs(p.frame.height - size.height) > 1 {
+            updateFrame(for: p, newSize: size)
+        }
+    }
+
+    private func updateFrame(for p: NSPanel, newSize: NSSize) {
+        guard let visible = Self.visibleFrame(for: p) else { return }
+        let targetFrame = NSRect(x: visible.midX - newSize.width / 2,
+                                 y: visible.minY + 90,
+                                 width: newSize.width,
+                                 height: newSize.height)
+        guard targetFrame != p.frame else { return }
+
+        // Размер меняем мгновенно, без анимации окна.
+        //
+        // Черновик приходит до десяти раз в секунду, и каждая новая 0,36-секундная
+        // анимация перебивала предыдущую в самом начале: окно успевало вырасти
+        // на считанные проценты и тут же начинало новую анимацию с того же места.
+        // На экране это выглядело как застрявшие первые слова — пилюля просто
+        // не догоняла текст. Плавность даёт сам SwiftUI внутри пилюли.
+        p.setFrame(targetFrame, display: true)
+    }
+
+    private func reposition(_ p: NSPanel, size: NSSize? = nil) {
+        guard let visible = Self.visibleFrame(for: p) else { return }
+        let targetSize = size ?? p.frame.size
+        p.setFrameOrigin(NSPoint(x: visible.midX - targetSize.width / 2,
                                  y: visible.minY + 90))
+    }
+
+    /// У неактивирующей панели своего ключевого окна нет, поэтому `NSScreen.main`
+    /// иногда пуст — тогда берём экран самой панели или первый доступный.
+    private static func visibleFrame(for p: NSPanel) -> NSRect? {
+        (p.screen ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
     }
 
     func hide() {

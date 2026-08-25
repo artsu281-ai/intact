@@ -359,10 +359,8 @@ final class SettingsSearchIndex {
               keywords: [T("пауза", "pause"), "pause", T("музыка", "music"), "music", T("видео", "video"), "video", "spotify", "apple music", T("плеер", "player"), "player", T("медиа", "media")]),
         .init(title: T("Звуковые сигналы", "Sound cues"), subtitle: T("Звуки начала и конца записи", "Sounds at the start and end of recording"), section: .settings,
               keywords: [T("звуковые", "sound"), "sounds", T("сигналы", "cues"), "effects", "chime", T("начало", "start"), "start", T("конец", "end"), "stop", T("ошибка", "error")]),
-        .init(title: T("Провайдер ИИ", "AI provider"), subtitle: T("Локально или в облаке", "Local or in the cloud"), section: .settings,
-              keywords: [T("ии", "ai"), "ai", T("искусственный интеллект", "artificial intelligence"), T("провайдер", "provider"), "provider", "claude", "anthropic", "llm", T("локально", "local"), "local", T("облако", "cloud"), "cloud"]),
-        .init(title: T("API-ключ Anthropic", "Anthropic API key"), subtitle: T("Ключ для облачного ИИ", "Key for the cloud AI"), section: .settings,
-              keywords: ["api", T("ключ", "key"), "key", "anthropic", "claude", "keychain", T("облако", "cloud"), "cloud"]),
+        .init(title: T("Провайдер ИИ", "AI provider"), subtitle: T("Локально или через Gemini.app", "Local or via Gemini.app"), section: .settings,
+              keywords: [T("ии", "ai"), "ai", T("искусственный интеллект", "artificial intelligence"), T("провайдер", "provider"), "provider", "gemini", "llm", T("локально", "local"), "local", T("облако", "cloud"), "cloud"]),
         .init(title: T("Причёсывание текста ИИ", "AI text cleanup"), subtitle: T("Убирает слова-паразиты", "Removes filler words"), section: .settings,
               keywords: [T("причёсывание", "cleanup"), "cleanup", T("текст", "text"), "text", T("слова-паразиты", "filler words"), "filler", T("форматирование", "formatting"), "formatting"]),
 

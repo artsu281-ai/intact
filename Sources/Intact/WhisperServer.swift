@@ -156,12 +156,22 @@ final class WhisperServer {
         var result = ""
         var failure: Error?
         let sem = DispatchSemaphore(value: 0)
-        URLSession.shared.dataTask(with: req) { data, _, error in
-            if let error { failure = error }
-            else if let data { result = String(data: data, encoding: .utf8) ?? "" }
-            sem.signal()
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            defer { sem.signal() }
+            if let error { failure = error; return }
+            let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                failure = TranscribeError.serverFailed(http.statusCode, body)
+                return
+            }
+            result = body
         }.resume()
-        _ = sem.wait(timeout: .now() + 60)
+        // Семафор ждёт немного дольше сетевого таймаута: иначе при реальном таймауте
+        // сети (60с) семафор истекает первым и молча возвращает пустую строку —
+        // пользователь видит «речь не распознана» вместо настоящей причины.
+        guard sem.wait(timeout: .now() + 65) == .success else {
+            throw TranscribeError.timedOut
+        }
 
         if let failure { throw failure }
         return Transcriber.clean(result)

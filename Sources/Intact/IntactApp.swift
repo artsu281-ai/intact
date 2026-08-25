@@ -91,6 +91,15 @@ struct MenuContent: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(controller.lastResult, forType: .string)
             }
+            if settings.geminiIntegrationEnabled && GeminiBridgeService.shared.isInstalled {
+                Button(L10n.geminiSendLastResult) {
+                    GeminiBridgeService.shared.sendToGemini(
+                        prompt: controller.lastResult,
+                        autoSubmit: settings.geminiAutoSubmit,
+                        newChat: settings.geminiCreateNewChat
+                    )
+                }
+            }
         }
 
         if !history.entries.isEmpty {
@@ -116,17 +125,16 @@ struct MenuContent: View {
         // язык, режим вставки, тема и восемь тумблеров. Всё это живёт
         // в окне, а здесь нужно то, что делают на бегу.
         Menu(T("Модель чата: \(shortModelTitle)", "Chat model: \(shortModelTitle)")) {
-            ForEach(AIModelCatalog.cloud) { model in
-                Button {
-                    AIModelCatalog.apply(.cloud(model.id), to: .chat)
-                } label: {
-                    HStack {
-                        Text(model.title)
-                        if AIModelCatalog.resolved(for: .chat) == .cloud(model.id) { MenuCheckmark() }
-                    }
+            Button {
+                AIModelCatalog.apply(.gemini, to: .chat)
+            } label: {
+                HStack {
+                    Text("Gemini.app (macOS)")
+                    if AIModelCatalog.resolved(for: .chat) == .gemini { MenuCheckmark() }
                 }
-                .disabled(!CloudAIProvider.shared.isReady)
             }
+            .disabled(!GeminiBridgeService.shared.isInstalled)
+
             let installed = LLMModelManager.shared.installedPairs
             if !installed.isEmpty {
                 Divider()
@@ -186,13 +194,12 @@ struct MenuContent: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var escMonitor: Any?
     private var permissionPoll: Timer?
-    /// Отдельный от основной диктовки монитор — под второй хоткей «вопрос к ИИ».
-    private let aiKeyMonitor = ModifierKeyMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = AppSettings.shared
 
         settings.onHotKeyChange = { [weak self] in self?.applyActivation() }
+        PipelineManager.shared.onChange = { [weak self] in self?.applyActivation() }
         settings.onEngineChange = { DictationController.shared.restartEngine() }
         settings.onAIProviderChange = { DictationController.shared.warmUpLocalAI() }
         // Прибираем за прошлым запуском до того, как поднимем свои серверы.
@@ -342,14 +349,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let mod = ModifierKeyMonitor.shared
         let ctl = DictationController.shared
 
+        // Одну и ту же клавишу ловили сразу два перехватчика: легаси-монитор обычной
+        // диктовки и менеджер голосовых пайплайнов. По одному нажатию ⌥ стартовали обе
+        // ветки, спорили за микрофон и за состояние контроллера. Пайплайн — более общий
+        // механизм (свой движок распознавания и своё действие на выходе), поэтому
+        // при пересечении клавиш он выигрывает, а легаси-монитор молча уступает.
+        let pipelineKeyCodes: Set<Int64> = PipelineManager.shared.pipelines
+            .filter { $0.enabled }
+            .reduce(into: Set<Int64>()) { codes, pipeline in
+                if case .modifierKey(let key) = pipeline.trigger { codes.formUnion(key.keyCodes) }
+            }
+
         switch s.activationMode {
         case .modifierHold:
             hk.unregister()
-            mod.onPress = { ctl.start() }
-            mod.onRelease = { ctl.stop() }
-            mod.onAbort = { ctl.abort() }
-            mod.start(trigger: s.triggerKey)
-            if !mod.isActive { watchForAccessibility() }
+            if pipelineKeyCodes.isDisjoint(with: s.triggerKey.keyCodes) {
+                mod.onPress = { ctl.start() }
+                mod.onRelease = { ctl.stop() }
+                mod.onAbort = { ctl.abort() }
+                mod.start(trigger: s.triggerKey)
+                if !mod.isActive { watchForAccessibility() }
+            } else {
+                mod.stop()
+                Log.write("клавиша \(s.triggerKey.symbol) занята голосовым пайплайном — обычная диктовка на ней не дублируется")
+                if !Permissions.allGranted { watchForAccessibility() }
+            }
             DictationController.shared.permissionsOK = Permissions.allGranted
 
         case .hotKeyHold:
@@ -365,17 +389,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hk.register(keyCode: s.hotKeyCode, modifiers: s.hotKeyModifiers)
         }
 
-        // Второй, независимый хоткей — вопрос к ИИ вместо обычной диктовки.
-        // Всегда через удержание модификатора, вне зависимости от того, каким
-        // способом активируется основная диктовка.
-        if s.enableAIHotkey {
-            aiKeyMonitor.onPress = { ctl.startAIAnswer() }
-            aiKeyMonitor.onRelease = { ctl.stop() }
-            aiKeyMonitor.onAbort = { ctl.abort() }
-            aiKeyMonitor.start(trigger: s.aiTriggerKey)
-        } else {
-            aiKeyMonitor.stop()
+        // Централизованный запуск пайплайнов (Хоткеи + Кнопки Мыши)
+        InputEventManager.shared.onPipelineStart = { pipeline in
+            Log.write("Запуск пайплайна «\(pipeline.name)» (\(pipeline.trigger.title))")
+            ctl.startPipeline(pipeline)
         }
+        InputEventManager.shared.onPipelineStop = { pipeline in
+            Log.write("Остановка пайплайна «\(pipeline.name)»")
+            ctl.stopPipeline(pipeline)
+        }
+        InputEventManager.shared.onPipelineAbort = {
+            ctl.abort()
+        }
+        InputEventManager.shared.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -383,7 +409,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionPoll?.invalidate()
         HotKeyManager.shared.unregister()
         ModifierKeyMonitor.shared.stop()
-        aiKeyMonitor.stop()
+        InputEventManager.shared.stop()
         WhisperServer.shared.stop()
         LocalAIProvider.shared.stop()
         GemmaAudioProvider.shared.stop()

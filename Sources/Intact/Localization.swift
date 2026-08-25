@@ -112,13 +112,6 @@ enum L10n {
     static var aiProviderSubtitle: String { isRu ? "Кто причёсывает текст после распознавания" : "Who cleans up text after transcription" }
     static var aiProviderNone: String { isRu ? "Выключено" : "Off" }
     static var aiProviderLocal: String { isRu ? "Локально" : "Local" }
-    static var aiProviderCloud: String { isRu ? "Облако (Claude)" : "Cloud (Claude)" }
-    static var aiHeaderCloud: String { isRu ? "Облачный провайдер" : "Cloud Provider" }
-    static var aiApiKeyLabel: String { isRu ? "API-ключ Anthropic" : "Anthropic API Key" }
-    static var aiApiKeyPlaceholder: String { isRu ? "sk-ant-…" : "sk-ant-…" }
-    static var aiApiKeySave: String { isRu ? "Сохранить" : "Save" }
-    static var aiApiKeySavedSub: String { isRu ? "Ключ хранится в Keychain, не в настройках приложения" : "Key is stored in Keychain, not in app settings" }
-    static var aiCloudModelLabel: String { isRu ? "Модель" : "Model" }
     static var aiHeaderLocal: String { isRu ? "Локальная модель" : "Local Model" }
     static var aiLocalServerMissing: String { isRu ? "Локальный AI-сервер не найден" : "Local AI server not found" }
     static var aiLocalServerMissingSub: String { isRu ? "Нужен llama-server из llama.cpp — можно поставить прямо отсюда" : "Requires llama-server from llama.cpp — install it right here" }
@@ -294,6 +287,29 @@ enum L10n {
         ? "Весь процесс записи и распознавания речи выполняется исключительно на вашем Mac. Аудиофайлы никогда не отправляются на сторонние серверы и удаляются из памяти сразу после завершения диктовки."
         : "All audio recording and transcription happens 100% locally on your Mac. No voice recordings or text ever leave your computer or get sent to remote servers."
     }
+
+    // MARK: - Интеграция с Gemini
+    static var geminiCardHeader: String { isRu ? "ИНТЕГРАЦИЯ С GEMINI.APP" : "GEMINI.APP INTEGRATION" }
+    static var geminiIntegrationTitle: String { isRu ? "Приложение Gemini на Mac" : "Gemini App on Mac" }
+    static var geminiIntegrationSub: String { isRu ? "Быстрая пересылка голоса и контекста в официальное приложение Gemini через AppleScript" : "Fast forwarding of voice and context to official Gemini macOS app via AppleScript" }
+    static var geminiInstalled: String { isRu ? "Приложение установлено" : "App installed" }
+    static var geminiNotInstalled: String { isRu ? "Приложение не найдено в /Applications" : "App not found in /Applications" }
+    static var geminiRunning: String { isRu ? "Запущено" : "Running" }
+    static var geminiNotRunning: String { isRu ? "Не запущено (будет открыто автоматически)" : "Not running (will open automatically)" }
+    static var geminiAutoSubmitTitle: String { isRu ? "Автоотправка запроса (Enter)" : "Auto-submit prompt (Enter)" }
+    static var geminiAutoSubmitSub: String { isRu ? "Автоматически нажимать Enter после вставки текста в окно Gemini" : "Automatically press Enter after pasting prompt into Gemini" }
+    static var geminiNewChatTitle: String { isRu ? "Создавать новый чат (⌘N)" : "Create new chat (⌘N)" }
+    static var geminiNewChatSub: String { isRu ? "Открывать чистый диалог перед вставкой каждого нового запроса" : "Open a fresh conversation before pasting each new query" }
+    static var geminiVoiceCommandTitle: String { isRu ? "Голосовая команда «Джеминай...»" : "Voice trigger “Gemini...”" }
+    static var geminiVoiceCommandSub: String { isRu ? "Начните диктовку со слова «Джеминай» или «Gemini», чтобы запрос сразу ушел в приложение" : "Start your dictation with “Gemini” to route prompt directly to the app" }
+    static var geminiHotkeyTitle: String { isRu ? "Включение микрофона Gemini по хоткею" : "Gemini mic hotkey" }
+    static var geminiHotkeySub: String { isRu ? "Нажатие клавиши (по умолчанию Левый ⌥ Option) активирует встроенный микрофон в самом Gemini" : "Pressing key (default Left ⌥ Option) activates the built-in microphone in Gemini" }
+    static var geminiBackgroundModeTitle: String { isRu ? "Тихая отправка в фоне (без переключения окон)" : "Silent background delivery (no window switching)" }
+    static var geminiBackgroundModeSub: String { isRu ? "Отправляет запрос прямо в Gemini, не выводя его поверх ваших рабочих окон и не перехватывая фокус" : "Delivers prompt directly to Gemini without stealing focus or popping up over your active windows" }
+    static var geminiTestButton: String { isRu ? "Тестовая отправка в Gemini" : "Test send to Gemini" }
+    static var geminiOpenButton: String { isRu ? "Открыть Gemini.app" : "Open Gemini.app" }
+    static var geminiSentHud: String { isRu ? "Отправлено в Gemini" : "Sent to Gemini" }
+    static var geminiSendLastResult: String { isRu ? "Отправить последний результат в Gemini" : "Send last result to Gemini" }
 }
 
 /// Русские числовые формы: «1 запись», «3 записи», «143 записи», «5 записей».

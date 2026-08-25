@@ -30,7 +30,12 @@ enum FocusInspector {
         "com.apple.notificationcenterui",
         "com.apple.Spotlight",
         "com.apple.loginwindow",
-        "com.apple.ScreenSaver.Engine"
+        "com.apple.ScreenSaver.Engine",
+        // Приложения-посредники, через которые мы сами и спрашиваем модель.
+        // Если ответ придёт в момент, когда фронтом оказалось окно Gemini,
+        // «вставить» означало бы вписать ответ в его же поле ввода — а
+        // пользователь при этом не увидит вообще ничего.
+        "com.google.GeminiMacOS"
     ]
 
     /// Определяет, есть ли в данный момент возможность доставить текст в активное приложение.
@@ -95,7 +100,7 @@ enum FocusInspector {
             }
         }
 
-        // 4. Для остальных приложений (Antigravity IDE, VS Code, Telegram, Slack, Notes, Word, Terminal и др.)
+        // 4. Для остальных приложений (VS Code, Xcode, Telegram, Slack, Notes, Word, Terminal и др.)
         if err == .success, let elem = focusedRef as! AXUIElement? {
             var roleRef: CFTypeRef?
             AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)

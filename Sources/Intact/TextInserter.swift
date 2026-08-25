@@ -8,8 +8,14 @@ enum TextInserter {
 
     static func requestAccessibility() { Permissions.requestAccessibility() }
 
-    static func deliver(_ text: String, mode: OutputMode) {
+    static func deliver(_ text: String, mode: OutputMode, targetApp: NSRunningApplication? = nil) {
         guard !text.isEmpty else { return }
+        if let targetApp, targetApp.bundleIdentifier != Bundle.main.bundleIdentifier {
+            // .activateIgnoringOtherApps ничего не делает с macOS 14 — это
+            // поведение теперь и так поведение по умолчанию у activate().
+            targetApp.activate()
+            usleep(50000) // 50 мс для передачи системного фокуса
+        }
         switch mode {
         case .clipboard:
             copy(text)

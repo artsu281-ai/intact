@@ -206,7 +206,7 @@ struct BriefsTab: View {
                                  else { expanded.insert(brief.id) }
                              },
                              onExport: { export(brief) },
-                             onSaveToNotes: { saveToNotes(brief) },
+                             onSaveToNotes: { done in saveToNotes(brief, completion: done) },
                              onDelete: { service.delete(brief.id) })
                 }
             }
@@ -231,9 +231,10 @@ struct BriefsTab: View {
     }
 
     /// Бриф в Apple Notes — там же, где живут остальные заметки из голоса.
-    private func saveToNotes(_ brief: Brief) {
+    private func saveToNotes(_ brief: Brief, completion: @escaping (Bool) -> Void) {
         AppleNotesService.createNote(text: "\(brief.title)\n\n\(brief.text)",
-                                     folderName: settings.voiceNotesFolder)
+                                     folderName: settings.voiceNotesFolder,
+                                     completion: completion)
     }
 }
 
@@ -245,11 +246,37 @@ private struct BriefRow: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let onExport: () -> Void
-    let onSaveToNotes: () -> Void
+    let onSaveToNotes: (@escaping (Bool) -> Void) -> Void
     let onDelete: () -> Void
 
     @State private var hovering = false
     @State private var copied = false
+    private enum NotesSaveState { case idle, saving, saved, failed }
+    @State private var notesSaveState: NotesSaveState = .idle
+
+    private var notesSaveTitle: String {
+        switch notesSaveState {
+        case .idle:   return T("В заметки", "To Notes")
+        case .saving: return T("Сохраняю…", "Saving…")
+        case .saved:  return T("Сохранено", "Saved")
+        case .failed: return T("Не удалось", "Failed")
+        }
+    }
+    private var notesSaveIcon: IntactIconKind {
+        switch notesSaveState {
+        case .idle, .saving: return .briefs
+        case .saved:         return .copied
+        case .failed:        return .warning
+        }
+    }
+    private var notesSaveTone: IconTone? {
+        switch notesSaveState {
+        case .idle:   return nil
+        case .saving: return .process
+        case .saved:  return .success
+        case .failed: return .danger
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -300,7 +327,23 @@ private struct BriefRow: View {
                                 copied = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                             }
-                            PillButton(title: T("В заметки", "To Notes"), icon: .briefs) { onSaveToNotes() }
+                            PillButton(
+                                title: notesSaveTitle,
+                                icon: notesSaveIcon,
+                                tone: notesSaveTone
+                            ) {
+                                // Раньше кнопка не давала вообще никакой обратной связи:
+                                // нажал — и непонятно, сохранилось ли, нужно было идти
+                                // проверять в самом Apple Notes.
+                                guard notesSaveState != .saving else { return }
+                                notesSaveState = .saving
+                                onSaveToNotes { success in
+                                    notesSaveState = success ? .saved : .failed
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + (success ? 1.5 : 2.5)) {
+                                        notesSaveState = .idle
+                                    }
+                                }
+                            }
                             PillButton(title: T("Файл", "File"), icon: .export) { onExport() }
                             PillButton(title: T("Удалить", "Delete"), icon: .clearAll, tone: .danger) { onDelete() }
                         }

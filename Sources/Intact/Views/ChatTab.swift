@@ -305,7 +305,7 @@ struct ChatTab: View {
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
                 .background(Capsule().fill(Palette.iconWarning.opacity(0.12)))
-                .help(T("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Anthropic", "Messages, dictations, notes and the contents of attached files are sent to Anthropic's servers"))
+                .help(T("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Google", "Messages, dictations, notes and the contents of attached files are sent to Google's servers"))
             }
 
             Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
@@ -758,6 +758,26 @@ struct ChatTab: View {
             }
             .buttonStyle(.plain)
             .help(T("Прикрепить файл или папку", "Attach a file or folder"))
+
+            if settings.geminiIntegrationEnabled && GeminiBridgeService.shared.isInstalled {
+                Button {
+                    let prompt = inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? (controller.lastResult.isEmpty ? T("Привет, Gemini!", "Hi, Gemini!") : controller.lastResult)
+                        : inputText
+                    GeminiBridgeService.shared.sendToGemini(
+                        prompt: prompt,
+                        autoSubmit: settings.geminiAutoSubmit,
+                        newChat: settings.geminiCreateNewChat
+                    )
+                } label: {
+                    IntactIcon(kind: .aiStar, size: 14)
+                        .foregroundStyle(Palette.textSecondary)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Palette.pill))
+                }
+                .buttonStyle(.plain)
+                .help(T("Отправить в приложение Gemini на Mac", "Send to Gemini app on Mac"))
+            }
 
             // Кнопка голосового сообщения (ГС / микрофон)
             Button {

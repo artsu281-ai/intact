@@ -9,16 +9,34 @@ struct AskAITab: View {
     var onOpenSection: ((SettingsSection) -> Void)? = nil
 
     @ObservedObject private var controller = DictationController.shared
+    @ObservedObject private var geminiBridge = GeminiBridgeService.shared
+    @ObservedObject private var pipelineManager = PipelineManager.shared
     @State private var copiedID: UUID? = nil
+    @State private var isTestingGemini: Bool = false
+    @State private var testResult: String? = nil
 
     private var aiReady: Bool { AIRouter.shared.isReady(for: .quickAnswer) }
 
-    /// Сравнение через `==` пропустило бы «Любой ⌥ Option» (по умолчанию у основной
-    /// диктовки) против «Правый ⌥ Option» (по умолчанию у вопроса к ИИ) — разные
-    /// значения enum, но физически одна и та же клавиша. Сверяем по кодам клавиш.
-    private var triggerKeysCollide: Bool {
-        guard settings.activationMode == .modifierHold else { return false }
-        return !settings.triggerKey.keyCodes.isDisjoint(with: settings.aiTriggerKey.keyCodes)
+    /// Клавиши и кнопки мыши, которые можно назначить пайплайну.
+    private static let triggerOptions: [TriggerSource] =
+        TriggerKey.allCases.map { TriggerSource.modifierKey($0) }
+        + MouseButtonType.allCases.map { TriggerSource.mouseButton($0) }
+
+    /// Правка одного поля пайплайна прямо в списке.
+    private func pipelineBinding<V: Equatable>(
+        _ pipeline: VoicePipeline,
+        _ keyPath: WritableKeyPath<VoicePipeline, V>
+    ) -> Binding<V> {
+        Binding(
+            get: {
+                (pipelineManager.pipelines.first { $0.id == pipeline.id } ?? pipeline)[keyPath: keyPath]
+            },
+            set: { newValue in
+                var updated = pipelineManager.pipelines.first { $0.id == pipeline.id } ?? pipeline
+                updated[keyPath: keyPath] = newValue
+                pipelineManager.updatePipeline(updated)
+            }
+        )
     }
 
     var body: some View {
@@ -33,6 +51,8 @@ struct AskAITab: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.bottom, 2)
+
+            pipelinesCard
 
             if !aiReady {
                 Card(header: nil) {
@@ -55,29 +75,11 @@ struct AskAITab: View {
                           onOpenModels: { onOpenSection?(.models) })
             }
 
-            Card(header: T("ХОТКЕЙ", "HOTKEY")) {
-                Row(title: T("Отдельный хоткей для вопросов", "Separate hotkey for questions"),
-                    subtitle: T("Держишь клавишу, спрашиваешь — вместо диктовки вставится ответ ИИ", "Hold the key, ask — the AI's answer is inserted instead of dictation"),
-                    first: true) {
-                    Toggle("", isOn: $settings.enableAIHotkey)
-                        .toggleStyle(WisprToggleStyle())
-                }
-                if settings.enableAIHotkey {
-                    Row(title: T("Клавиша", "Key"),
-                        subtitle: triggerKeysCollide
-                            ? T("⚠︎ Пересекается с клавишей обычной диктовки (\(settings.triggerKey.title)) — выбери другую", "⚠︎ Clashes with the dictation key (\(settings.triggerKey.title)) — pick another")
-                            : T("Удерживай во время вопроса, как основной хоткей диктовки", "Hold it while you ask, like the main dictation hotkey")) {
-                        WisprDropdown(selection: $settings.aiTriggerKey,
-                                      options: TriggerKey.allCases) { key in
-                            Text(key.title)
-                        }
-                    }
-                }
-            }
-
             if !controller.recentAnswers.isEmpty {
                 recentCard
             }
+
+            geminiCard
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(T("НАПРИМЕР", "FOR EXAMPLE"))
@@ -92,6 +94,168 @@ struct AskAITab: View {
                 }
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.textSecondary)
+            }
+        }
+    }
+
+    // MARK: - Интеграция с Gemini.app
+
+    private var geminiCard: some View {
+        Card(header: L10n.geminiCardHeader) {
+            Row(
+                title: L10n.geminiIntegrationTitle,
+                subtitle: geminiBridge.isInstalled
+                    ? (geminiBridge.isRunning ? "\(L10n.geminiInstalled) · \(L10n.geminiRunning)" : "\(L10n.geminiInstalled) · \(L10n.geminiNotRunning)")
+                    : L10n.geminiNotInstalled,
+                first: true
+            ) {
+                Toggle("", isOn: $settings.geminiIntegrationEnabled)
+                    .toggleStyle(WisprToggleStyle())
+            }
+
+            if settings.geminiIntegrationEnabled {
+                // Выбор экземпляра появляется, только если копия действительно есть:
+                // одинокий выпадающий список с единственным вариантом — мусор в интерфейсе.
+                let instances = GeminiBridgeService.availableInstances()
+                if instances.count > 1 {
+                    Row(
+                        title: T("Экземпляр Gemini", "Gemini instance"),
+                        subtitle: T("Отдельная копия работает со своим аккаунтом и своей перепиской — Intact не вмешивается в ваш рабочий чат",
+                                    "A separate copy runs with its own account and its own history — Intact stays out of your working chat")
+                    ) {
+                        WisprDropdown(
+                            selection: $settings.geminiBundleIdentifier,
+                            options: instances.map(\.bundleId)
+                        ) { id in
+                            Text(instances.first(where: { $0.bundleId == id })?.title ?? id)
+                        }
+                    }
+                }
+
+                Row(
+                    title: L10n.geminiBackgroundModeTitle,
+                    subtitle: L10n.geminiBackgroundModeSub
+                ) {
+                    Toggle("", isOn: $settings.geminiBackgroundMode)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                Row(
+                    title: L10n.geminiVoiceCommandTitle,
+                    subtitle: L10n.geminiVoiceCommandSub
+                ) {
+                    Toggle("", isOn: $settings.geminiVoiceCommandEnabled)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                Row(
+                    title: L10n.geminiAutoSubmitTitle,
+                    subtitle: L10n.geminiAutoSubmitSub
+                ) {
+                    Toggle("", isOn: $settings.geminiAutoSubmit)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                Row(
+                    title: L10n.geminiNewChatTitle,
+                    subtitle: L10n.geminiNewChatSub
+                ) {
+                    Toggle("", isOn: $settings.geminiCreateNewChat)
+                        .toggleStyle(WisprToggleStyle())
+                }
+
+                Row(
+                    title: L10n.geminiTestButton,
+                    subtitle: isTestingGemini ? T("Отправка запроса в Gemini...", "Sending prompt to Gemini...") : (testResult ?? T("Нажмите для проверки работы AppleScript с приложением Gemini", "Click to test AppleScript communication with Gemini.app"))
+                ) {
+                    HStack(spacing: 8) {
+                        if isTestingGemini {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            PillButton(
+                                title: L10n.geminiTestButton,
+                                icon: .aiStar,
+                                tone: testResult != nil ? .success : nil
+                            ) {
+                                isTestingGemini = true
+                                testResult = nil
+                                geminiBridge.testSend { success, msg in
+                                    isTestingGemini = false
+                                    testResult = success ? T("✓ Успешно отправлено!", "✓ Sent successfully!") : (msg ?? "Ошибка")
+                                }
+                            }
+                        }
+
+                        PillButton(title: L10n.geminiOpenButton, icon: .folder) {
+                            geminiBridge.openGemini()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Модульные голосовые пайплайны и органы управления
+
+    private var pipelinesCard: some View {
+        Card(header: T("ГОЛОСОВЫЕ ПАЙПЛАЙНЫ И ОРГАНЫ УПРАВЛЕНИЯ", "VOICE PIPELINES & CONTROLS")) {
+            ForEach(Array(pipelineManager.pipelines.enumerated()), id: \.element.id) { index, pipeline in
+                pipelineRow(pipeline, first: index == 0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pipelineRow(_ pipeline: VoicePipeline, first: Bool) -> some View {
+        let clash = pipelineManager.conflicts(with: pipeline).first
+        VStack(alignment: .leading, spacing: 8) {
+            Row(
+                title: pipeline.name,
+                subtitle: clash.map {
+                    T("⚠︎ Та же клавиша, что у «\($0.name)» — выбери другую",
+                      "⚠︎ Same key as “\($0.name)” — pick another one")
+                } ?? "\(pipeline.trigger.title) · \(pipeline.sttEngine.title)",
+                first: first
+            ) {
+                Toggle("", isOn: pipelineBinding(pipeline, \.enabled))
+                    .toggleStyle(WisprToggleStyle())
+            }
+
+            if pipeline.enabled {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Text(T("Клавиша:", "Key:"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Palette.textSecondary)
+                            .frame(width: 62, alignment: .leading)
+
+                        WisprDropdown(
+                            selection: pipelineBinding(pipeline, \.trigger),
+                            options: Self.triggerOptions
+                        ) { trigger in
+                            Text(trigger.title)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        Text(T("Действие:", "Action:"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Palette.textSecondary)
+                            .frame(width: 62, alignment: .leading)
+
+                        WisprDropdown(
+                            selection: pipelineBinding(pipeline, \.postProcessing),
+                            options: PostProcessingMode.allCases
+                        ) { mode in
+                            Text(mode.title)
+                        }
+                    }
+
+                    // Строка «Движок» убрана: STTEngineType — enum с единственным
+                    // кейсом (локальный Whisper), выбирать больше не из чего.
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
             }
         }
     }

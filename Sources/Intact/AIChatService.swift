@@ -617,9 +617,14 @@ final class AIChatService: ObservableObject {
 
         if attachedCount == 0 && !skipped.isEmpty {
             let names = skipped.prefix(3).joined(separator: ", ")
-            errorInfo = AIErrorInfo(message: "Не удалось прочитать: \(names). Поддерживаются текстовые файлы (txt, md, код и т.п.) и PDF.")
+            errorInfo = AIErrorInfo(message: T("Не удалось прочитать: \(names). Поддерживаются текстовые файлы (txt, md, код и т.п.) и PDF.",
+                                               "Couldn\u{2019}t read: \(names). Text files (txt, md, code, etc.) and PDF are supported."))
         } else if !skipped.isEmpty {
-            errorInfo = AIErrorInfo(message: "Не прочитано: \(skipped.prefix(3).joined(separator: ", "))\(skipped.count > 3 ? " и ещё \(skipped.count - 3)" : "")")
+            let names = skipped.prefix(3).joined(separator: ", ")
+            let more = skipped.count > 3
+                ? T(" и ещё \(skipped.count - 3)", " and \(skipped.count - 3) more")
+                : ""
+            errorInfo = AIErrorInfo(message: T("Не прочитано: \(names)\(more)", "Not read: \(names)\(more)"))
         }
         return attachedCount > 0
     }

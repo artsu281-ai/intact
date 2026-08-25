@@ -4,6 +4,8 @@ enum TranscribeError: LocalizedError {
     case binaryMissing
     case modelMissing(String)
     case failed(Int32, String)
+    case serverFailed(Int, String)
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -14,6 +16,11 @@ enum TranscribeError: LocalizedError {
         case .failed(let code, let err):
             let tail = err.split(separator: "\n").suffix(3).joined(separator: " ")
             return "whisper-cli завершился с кодом \(code). \(tail)"
+        case .serverFailed(let status, let body):
+            let tail = body.split(separator: "\n").suffix(3).joined(separator: " ")
+            return "whisper-server ответил ошибкой \(status). \(tail)"
+        case .timedOut:
+            return "whisper-server не ответил вовремя"
         }
     }
 }

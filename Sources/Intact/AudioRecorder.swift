@@ -18,6 +18,9 @@ final class AudioRecorder {
     private let bufferLock = NSLock()
     private var samples: [Float] = []
     private var lastSpeechSample: Int = 0
+    /// Отдельный, более строгий детектор речи — см. `silenceDuration`.
+    private var lastLoudSample: Int = 0
+    private var peakRMS: Float = 0
 
     private(set) var isRecording = false
     private var startTime = Date()
@@ -37,6 +40,48 @@ final class AudioRecorder {
     var lastSpeechTime: TimeInterval {
         bufferLock.lock(); defer { bufferLock.unlock() }
         return Double(lastSpeechSample) / Self.sampleRate
+    }
+
+    /// Сколько секунд назад в микрофоне последний раз была уверенная речь.
+    ///
+    /// Считается отдельно от `lastSpeechTime`: там порог нарочно занижен (rms 0,003),
+    /// чтобы обрезка тишины не срезала тихий хвост фразы. Для ответа на вопрос
+    /// «человек договорил?» такой порог бесполезен — его перешагивает обычный шум комнаты,
+    /// и тишина не наступает никогда: в логах стояло ровно «тишина 0 мс» на каждой записи.
+    ///
+    /// Порог здесь подстраивается под голос: доля от самого громкого места этой записи,
+    /// но не ниже фиксированного минимума.
+    var silenceDuration: TimeInterval {
+        bufferLock.lock(); defer { bufferLock.unlock() }
+        return Double(max(0, samples.count - lastLoudSample)) / Self.sampleRate
+    }
+
+    /// Внутренности детектора тишины — чтобы порог можно было настраивать по живым цифрам
+    /// из лога, а не наугад.
+    struct SilenceProbe {
+        let silence: TimeInterval
+        let peak: Float
+        let threshold: Float
+    }
+
+    var silenceProbe: SilenceProbe {
+        bufferLock.lock(); defer { bufferLock.unlock() }
+        return SilenceProbe(
+            silence: Double(max(0, samples.count - lastLoudSample)) / Self.sampleRate,
+            peak: peakRMS,
+            threshold: Self.speechThreshold(peak: peakRMS)
+        )
+    }
+
+    /// Строгий порог речи. Абсолютный минимум держит шум комнаты ниже планки,
+    /// доля от пика — подстраивает её под то, насколько громко человек говорит.
+    /// Доля намеренно небольшая: внутри одной фразы громкость гуляет на десятки децибел,
+    /// и слишком высокая планка принимает затихающий конец фразы за тишину.
+    private static func speechThreshold(peak: Float) -> Float {
+        // Пол взят по живым замерам: у тихого микрофона пик речи всего ~0,02, и порог 0,008
+        // отсекал всё, кроме самых громких слогов — детектор объявлял тишину на середине
+        // фразы, микрофон закрывался, конец предложения терялся.
+        max(0.0035, peak * 0.08)
     }
 
     private static var targetFormat: AVAudioFormat {
@@ -109,6 +154,8 @@ final class AudioRecorder {
         samples.removeAll(keepingCapacity: true)
         samples.reserveCapacity(Int(Self.sampleRate) * 30)
         lastSpeechSample = 0
+        lastLoudSample = 0
+        peakRMS = 0
         bufferLock.unlock()
 
         applyPreferredDevice(uid: preferredDeviceUID)
@@ -117,7 +164,8 @@ final class AudioRecorder {
         let inFormat = input.inputFormat(forBus: 0)
         guard inFormat.sampleRate > 0 else {
             throw NSError(domain: "VoiceInput", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Микрофон недоступен. Проверь разрешение в «Конфиденциальность и безопасность → Микрофон»."
+                NSLocalizedDescriptionKey: T("Микрофон недоступен. Проверь разрешение в «Конфиденциальность и безопасность → Микрофон».",
+                                            "The microphone is unavailable. Check the permission under Privacy & Security → Microphone.")
             ])
         }
 
@@ -160,6 +208,10 @@ final class AudioRecorder {
         samples.append(contentsOf: UnsafeBufferPointer(start: ch, count: n))
         // Порог речи: ловит даже тихую речь
         if rms > 0.003 { lastSpeechSample = samples.count }
+        // Строгий порог для «договорил / не договорил»: доля от пика этой записи,
+        // но не ниже минимума, иначе шум комнаты сойдёт за речь.
+        peakRMS = max(peakRMS, rms)
+        if rms > Self.speechThreshold(peak: peakRMS) { lastLoudSample = samples.count }
         bufferLock.unlock()
 
         let db = 20 * log10(max(rms, 1e-7))
