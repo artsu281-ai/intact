@@ -133,8 +133,13 @@ final class GeminiAIProvider: AIProvider {
                 // Окон нет вообще (закрыто на крестик) — только тогда открываем новое,
                 // и строго без активации
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                    // Стартуем СКРЫТЫМ: без этого флага запуск Gemini выкидывает
+                    // его окно на экран — пользователь видит «вызвался полноценный
+                    // Gemini». Замерено: скрытый запуск не мешает — поле ввода
+                    // доступно, окно на экране не появляется.
                     let config = NSWorkspace.OpenConfiguration()
                     config.activates = false
+                    config.hides = true
                     NSWorkspace.shared.openApplication(at: url, configuration: config)
                 }
                 var retries = 10
@@ -185,6 +190,7 @@ final class GeminiAIProvider: AIProvider {
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
                     let cfg = NSWorkspace.OpenConfiguration()
                     cfg.activates = false
+                    cfg.hides = true
                     let sem = DispatchSemaphore(value: 0)
                     NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in sem.signal() }
                     _ = sem.wait(timeout: .now() + 3)

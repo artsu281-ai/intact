@@ -38,6 +38,22 @@ enum FocusInspector {
         "com.google.GeminiMacOS"
     ]
 
+    /// Короткое описание того, что видит проверка прямо сейчас — для лога.
+    /// Без него разбор «почему текст ушёл в никуда» требует отдельного скрипта.
+    static var focusDescription: String {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return "нет активного приложения" }
+        let bundleId = front.bundleIdentifier ?? "—"
+        let app = AXUIElementCreateApplication(front.processIdentifier)
+        var focusedRef: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedRef)
+        guard err == .success, let elem = focusedRef as! AXUIElement? else {
+            return "\(bundleId), фокуса нет (код \(err.rawValue))"
+        }
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
+        return "\(bundleId), фокус: \(roleRef as? String ?? "?")"
+    }
+
     /// Определяет, есть ли в данный момент возможность доставить текст в активное приложение.
     static var canInsertText: Bool {
         guard Permissions.accessibility else { return false }
@@ -101,17 +117,29 @@ enum FocusInspector {
         }
 
         // 4. Для остальных приложений (VS Code, Xcode, Telegram, Slack, Notes, Word, Terminal и др.)
-        if err == .success, let elem = focusedRef as! AXUIElement? {
-            var roleRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
-            let role = roleRef as? String ?? ""
-
-            // Если фокус на чистой кнопке или статическом изображении без текстового ввода
-            if role == (kAXButtonRole as String) || role == (kAXImageRole as String) {
-                return false
-            }
+        //
+        // Нет сфокусированного элемента — значит вставлять физически некуда: пользователь
+        // кликнул по пустому месту окна или по рабочему столу. Раньше здесь стоял
+        // безусловный `return true`, и текст молча уходил в пустоту, а карточка
+        // «Скопировать» не показывалась — сказанное просто пропадало.
+        guard err == .success, let elem = focusedRef as! AXUIElement? else {
+            return false
         }
 
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
+        let role = roleRef as? String ?? ""
+
+        // Фокус на кнопке, картинке или неизменяемой подписи — не поле ввода.
+        if role == (kAXButtonRole as String)
+            || role == (kAXImageRole as String)
+            || role == (kAXStaticTextRole as String) {
+            return false
+        }
+
+        // Всё остальное считаем пригодным: многие редакторы и терминалы отдают
+        // нестандартные роли, и требовать от них строго текстовую роль — значит
+        // сломать вставку там, где она сейчас работает.
         return true
     }
 }

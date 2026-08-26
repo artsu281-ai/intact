@@ -227,6 +227,8 @@ final class GeminiBridgeService: ObservableObject {
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleIdentifier) {
                 let config = NSWorkspace.OpenConfiguration()
                 config.activates = false
+                // Скрытый старт: иначе поднятие Gemini показывает его окно.
+                config.hides = true
                 NSWorkspace.shared.openApplication(at: url, configuration: config)
             }
             var retries = 10

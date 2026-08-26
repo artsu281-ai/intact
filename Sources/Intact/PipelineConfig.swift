@@ -67,16 +67,21 @@ public enum TriggerSource: Codable, Hashable {
 
 public enum STTEngineType: String, Codable, CaseIterable, Identifiable {
     case whisperLocal = "whisper_local"
+    /// Диктовка встроенным микрофоном приложения Gemini: жмём его кнопку записи
+    /// через Accessibility и забираем расшифровку из поля ввода. Своей записи
+    /// при этом не отменяем — она остаётся страховкой, см. GeminiSTTService.
+    case geminiNative = "gemini_native"
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
         case .whisperLocal: return T("Локальный Whisper (0 токенов, офлайн)", "Local Whisper (0 tokens, offline)")
+        case .geminiNative: return T("Распознавание Gemini (через приложение)", "Gemini speech recognition (via the app)")
         }
     }
 
-    /// Миграция старых конфигов: удалённый движок ChatGPT превращается в Whisper.
+    /// Миграция старых конфигов: значения удалённых движков превращаются в Whisper.
     public init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         self = STTEngineType(rawValue: raw) ?? .whisperLocal
