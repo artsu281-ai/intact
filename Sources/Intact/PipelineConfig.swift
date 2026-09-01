@@ -66,6 +66,17 @@ public enum TriggerSource: Codable, Hashable {
 }
 
 public enum STTEngineType: String, Codable, CaseIterable, Identifiable {
+
+    /// Как движок называется в пилюле. Одно место на всё приложение: раньше
+    /// это имя было зашито в трёх местах индикатора и в значениях по умолчанию,
+    /// и разъехалось с действительностью.
+    public var badgeName: String {
+        switch self {
+        case .whisperLocal: return "Whisper"
+        case .geminiNative: return "Gemini"
+        }
+    }
+
     case whisperLocal = "whisper_local"
     /// Диктовка встроенным микрофоном приложения Gemini: жмём его кнопку записи
     /// через Accessibility и забираем расшифровку из поля ввода. Своей записи
@@ -111,7 +122,30 @@ public struct VoicePipeline: Codable, Identifiable, Equatable {
     public var trigger: TriggerSource
     public var sttEngine: STTEngineType
     public var postProcessing: PostProcessingMode
-    public var customPrompt: String?
+    /// Что показывать в пилюле.
+    ///
+    /// Считается из движка и этапа, а не берётся из `uiBadge` вслепую. Причина:
+    /// `uiBadge` — отдельное хранимое поле, с `sttEngine` ничем не связанное, и
+    /// оно закономерно разъехалось. Пайплайны давно писали микрофоном Gemini,
+    /// а пилюля на расшифровке и обработке говорила «Whisper» — про движок она
+    /// вообще не спрашивала.
+    ///
+    /// Своё название, если человек его придумал, уважается: перегенерируем
+    /// только те подписи, что начинаются с имени движка, то есть выглядят
+    /// сгенерированными нами.
+    public var displayBadge: String {
+        let stage: String
+        switch postProcessing {
+        case .none:         stage = "Voice"
+        case .cleanup:      stage = "Cleanup"
+        case .promptAnswer: stage = "Answer"
+        }
+        let generated = STTEngineType.allCases.map(\.badgeName) + ["ChatGPT"]
+        let looksGenerated = generated.contains { uiBadge.hasPrefix($0 + " ") }
+        guard uiBadge.isEmpty || looksGenerated else { return uiBadge }
+        return "\(sttEngine.badgeName) \(stage)"
+    }
+
     public var uiBadge: String
     public var soundStart: String
     public var soundFinish: String
@@ -123,7 +157,6 @@ public struct VoicePipeline: Codable, Identifiable, Equatable {
         trigger: TriggerSource,
         sttEngine: STTEngineType,
         postProcessing: PostProcessingMode,
-        customPrompt: String? = nil,
         uiBadge: String,
         soundStart: String = "Tink",
         soundFinish: String = "Pop"
@@ -134,7 +167,6 @@ public struct VoicePipeline: Codable, Identifiable, Equatable {
         self.trigger = trigger
         self.sttEngine = sttEngine
         self.postProcessing = postProcessing
-        self.customPrompt = customPrompt
         self.uiBadge = uiBadge
         self.soundStart = soundStart
         self.soundFinish = soundFinish
@@ -187,7 +219,7 @@ public final class PipelineManager: ObservableObject {
                 trigger: .modifierKey(.leftOption), // Левый Option — чистая диктовка (как есть)
                 sttEngine: .whisperLocal,
                 postProcessing: .none,
-                uiBadge: "Whisper Voice"
+                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Voice"
             ),
             VoicePipeline(
                 id: "ai_cleanup",
@@ -196,14 +228,7 @@ public final class PipelineManager: ObservableObject {
                 trigger: .modifierKey(.rightOption), // Правый Option — обработка / причёсывание
                 sttEngine: .whisperLocal,
                 postProcessing: .cleanup,
-                customPrompt: """
-                Инструкция: Ты — модуль форматирования текста. Причеши текст голосовой диктовки:
-                1) Удали слова-паразиты («ну», «короче», «типа», «э-э», «в общем» и т.д.);
-                2) Убери повторы и заикания;
-                3) Расставь правильную пунктуацию и регистр;
-                4) Не меняй смысл и не добавляй ответов от себя. Выведи только исправленный текст.
-                """,
-                uiBadge: "Whisper Cleanup"
+                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Cleanup"
             ),
             VoicePipeline(
                 id: "ai_task",
@@ -212,8 +237,7 @@ public final class PipelineManager: ObservableObject {
                 trigger: .modifierKey(.rightCommand), // Правый Command — вопрос / задача к ИИ
                 sttEngine: .whisperLocal,
                 postProcessing: .promptAnswer,
-                customPrompt: "Отвечай сразу по существу, максимально кратко и точно, без вступлений («Конечно», «Вот ответ:») и без заключений. Только чистый текст ответа.",
-                uiBadge: "Whisper Answer"
+                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Answer"
             )
         ]
         save()

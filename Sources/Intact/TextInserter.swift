@@ -1,85 +1,41 @@
 import AppKit
-import Carbon.HIToolbox
 
 /// Доставка распознанного текста в активное приложение.
+///
+/// Сама механика живёт в `InsertionEngine` (цепочка попыток),
+/// `SyntheticKeyboard` (синтетические нажатия) и `AXText` (дерево
+/// доступности). Здесь остался только фасад: проверка прав, лог и прежняя
+/// подпись для вызывающих.
 enum TextInserter {
 
     static var hasAccessibility: Bool { Permissions.accessibility }
 
     static func requestAccessibility() { Permissions.requestAccessibility() }
 
-    static func deliver(_ text: String, mode: OutputMode, targetApp: NSRunningApplication? = nil) {
-        guard !text.isEmpty else { return }
-        if let targetApp, targetApp.bundleIdentifier != Bundle.main.bundleIdentifier {
-            // .activateIgnoringOtherApps ничего не делает с macOS 14 — это
-            // поведение теперь и так поведение по умолчанию у activate().
-            targetApp.activate()
-            usleep(50000) // 50 мс для передачи системного фокуса
-        }
-        switch mode {
-        case .clipboard:
-            copy(text)
-        case .paste:
-            paste(text)
-        case .type:
-            typeOut(text)
-        }
-    }
-
-    private static func copy(_ text: String) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
-    }
-
-    /// Кладём текст в буфер, жмём ⌘V и через секунду возвращаем прежнее содержимое.
-    private static func paste(_ text: String) {
-        guard Permissions.accessibility else {
-            Log.write("текст в буфере, но ⌘V отправить нельзя: нет «Универсального доступа»")
+    /// - Parameter completion: `true` — текст доставлен, `false` — все способы
+    ///   провалились (текст при этом остаётся в буфере обмена, и вызывающая
+    ///   сторона показывает карточку «Скопировать»).
+    ///
+    ///   Звук успеха и прочую обратную связь вешать только на `true`. Раньше
+    ///   звук играл сразу после отправки ⌘V, за ~370 мс до того, как выяснится,
+    ///   дошёл ли он, — и при неудаче получалось «звук вставки, потом карточка
+    ///   „скопировать“», хотя вставлять было некуда.
+    static func deliver(_ text: String, mode: OutputMode, targetApp: NSRunningApplication? = nil,
+                        completion: ((Bool) -> Void)? = nil) {
+        guard mode == .clipboard || Permissions.accessibility else {
+            Clipboard.write(text, transient: false, session: nil)
+            Log.write("текст в буфере, но вставить нельзя: нет «Универсального доступа»")
+            completion?(false)
             return
         }
-        let pb = NSPasteboard.general
-        let previous = pb.string(forType: .string)
 
-        copy(text)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            guard let src = CGEventSource(stateID: .combinedSessionState) else { return }
-            let down = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: true)
-            let up   = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_ANSI_V), keyDown: false)
-            down?.flags = .maskCommand
-            up?.flags = .maskCommand
-            down?.post(tap: .cghidEventTap)
-            up?.post(tap: .cghidEventTap)
-
-            if let previous {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    // Не затираем буфер, если пользователь успел скопировать что-то своё.
-                    if pb.string(forType: .string) == text {
-                        pb.clearContents()
-                        pb.setString(previous, forType: .string)
-                    }
-                }
+        InsertionEngine.deliver(text, mode: mode, targetApp: targetApp) { outcome in
+            if outcome.landed {
+                Log.write("Вставлено через \(outcome.via)")
+            } else {
+                Log.write("Вставить не удалось: \(outcome.reason ?? "причина неизвестна") — текст оставлен в буфере")
             }
-        }
-    }
-
-    /// Посимвольный ввод — для полей, где ⌘V не работает.
-    private static func typeOut(_ text: String) {
-        guard let src = CGEventSource(stateID: .combinedSessionState) else { return }
-        for ch in text {
-            var units = Array(String(ch).utf16)
-            let down = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: true)
-            down?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
-            down?.flags = []
-            down?.post(tap: .cgAnnotatedSessionEventTap)
-
-            var unitsUp = Array(String(ch).utf16)
-            let up = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: false)
-            up?.keyboardSetUnicodeString(stringLength: unitsUp.count, unicodeString: &unitsUp)
-            up?.flags = []
-            up?.post(tap: .cgAnnotatedSessionEventTap)
-            usleep(1400)
+            completion?(outcome.landed)
         }
     }
 }

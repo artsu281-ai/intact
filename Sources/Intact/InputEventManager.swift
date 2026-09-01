@@ -82,6 +82,12 @@ public final class InputEventManager {
             return
         }
 
+        // Собственные синтетические нажатия (⌘V, печать текста) приходят сюда
+        // как обычные события. Без этой проверки наш же ⌘V выглядит как
+        // «пользователь нажал клавишу во время удержания триггера» и отменяет
+        // только что закончившийся пайплайн.
+        if SyntheticKeyboard.isOurs(event) { return }
+
         let pipelines = PipelineManager.shared.pipelines.filter { $0.enabled }
 
         switch type {
@@ -112,6 +118,32 @@ public final class InputEventManager {
         }
     }
 
+    /// Зависимые от устройства биты модификаторов (`IOLLEvent.h`).
+    ///
+    /// Обобщённая маска (`.maskAlternate`) не различает левый и правый ⌥, и из-за
+    /// этого ломались два сценария сразу. Триггер — правый ⌥, а левый ⌥ человек
+    /// держит по своим делам: на отпускании правого маска всё ещё содержит
+    /// `.maskAlternate`, отпускание не засчитывается, и **запись висит до
+    /// таймаута в 300 секунд**. Обратный случай: сначала отпускают левый ⌥ —
+    /// его код не совпадает с кодом триггера, и ветка «поверх триггера нажали
+    /// ещё модификатор» **выбрасывает всю диктовку** без звука и без карточки.
+    private static let deviceBits: [Int64: UInt64] = [
+        Int64(kVK_Control):      0x00000001,
+        Int64(kVK_Shift):        0x00000002,
+        Int64(kVK_RightShift):   0x00000004,
+        Int64(kVK_Command):      0x00000008,
+        Int64(kVK_RightCommand): 0x00000010,
+        Int64(kVK_Option):       0x00000020,
+        Int64(kVK_RightOption):  0x00000040,
+        Int64(kVK_RightControl): 0x00002000,
+    ]
+
+    /// Нажата ли прямо сейчас **именно эта** клавиша, а не «какой-нибудь ⌥».
+    static func isKeyDown(code: Int64, flags: CGEventFlags) -> Bool {
+        if let bit = deviceBits[code] { return flags.rawValue & bit != 0 }
+        return flags.contains(flag(for: code))
+    }
+
     private func handleModifierEvent(event: CGEvent, pipelines: [VoicePipeline]) {
         let code = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags
@@ -121,7 +153,7 @@ public final class InputEventManager {
         // и запись висела до перезапуска приложения.
         if isTriggerHeld, let active = activePipeline,
            case .modifierKey(let key) = active.trigger, key.keyCodes.contains(code) {
-            guard !flags.contains(key.flag) else { return }
+            guard !Self.isKeyDown(code: code, flags: flags) else { return }
             isTriggerHeld = false
             activePipeline = nil
             DispatchQueue.main.async { [weak self] in self?.onPipelineStop?(active) }
@@ -131,7 +163,7 @@ public final class InputEventManager {
         guard !isTriggerHeld else {
             // Поверх удерживаемого триггера нажали ещё один модификатор — это сочетание
             // клавиш вроде ⌘⇧S, а не диктовка.
-            if Self.isModifierKeyCode(code), flags.contains(Self.flag(for: code)) {
+            if Self.isModifierKeyCode(code), Self.isKeyDown(code: code, flags: flags) {
                 Self.traceTrigger(code: code, "поверх удерживаемого триггера — считаю это сочетанием клавиш, отменяю запись")
                 isTriggerHeld = false
                 activePipeline = nil
@@ -144,7 +176,7 @@ public final class InputEventManager {
             guard case .modifierKey(let key) = pipeline.trigger,
                   key.keyCodes.contains(code) else { continue }
             // Клавиша пайплайна опознана — дальше расходятся нажатие и отпускание.
-            guard flags.contains(key.flag) else { return }
+            guard Self.isKeyDown(code: code, flags: flags) else { return }
             isTriggerHeld = true
             activePipeline = pipeline
             DispatchQueue.main.async { [weak self] in self?.onPipelineStart?(pipeline) }
@@ -154,7 +186,7 @@ public final class InputEventManager {
         // Клавиша не подошла ни одному включённому пайплайну. Молчать здесь нельзя:
         // именно так «клавиша вообще ничего не делает» выглядела в логе как пустота,
         // и отличить «событие не дошло» от «пайплайн выключен» было невозможно.
-        if Self.isModifierKeyCode(code), flags.contains(Self.flag(for: code)) {
+        if Self.isModifierKeyCode(code), Self.isKeyDown(code: code, flags: flags) {
             let known = pipelines.compactMap { p -> String? in
                 guard case .modifierKey(let k) = p.trigger else { return nil }
                 return "\(p.name):\(k.keyCodes.map(String.init).joined(separator: "/"))"

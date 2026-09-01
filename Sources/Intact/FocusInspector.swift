@@ -1,145 +1,175 @@
 import AppKit
 import ApplicationServices
 
-/// Интеллектуальная проверка доступности текстового поля перед вставкой:
+/// Что мы знаем о том, куда сейчас поедет текст.
 ///
-/// 1. В браузерах (Chrome, Safari, Arc, Brave, Edge, Firefox и др.):
-///    - Если курсор стоит в строке поиска, форме ввода или на странице в поле — текст вставляется напрямую.
-///    - Если пользователь просто смотрит на страницу и поле не выбрано — показывается карточка «Скопировать».
-/// 2. В Finder (на рабочем столе или в папках без режима переименования) — показывается карточка «Скопировать».
-/// 3. В редакторах и приложениях (Antigravity IDE, VS Code, Telegram, Slack, Notes, Terminal и др.) — текст вставляется напрямую.
+/// # Важное изменение подхода
+///
+/// Раньше этот файл **решал**, вставлять или нет, по дереву доступности: нет
+/// подходящего элемента — текст не вставляем вовсе, показываем карточку
+/// «Скопировать». На живом логе это давало 23% отказов, и заметная часть из
+/// них была ошибкой предсказания, а не отсутствием поля.
+///
+/// Никто из тех, у кого вставка работает, так не делает: VoiceInk шлёт ⌘V
+/// без вопросов, Hex перебирает три способа подряд. Решение о вставке
+/// переехало в `InsertionEngine`, который **пробует**, а не гадает.
+///
+/// Здесь осталось три вещи, которые по-прежнему нужны:
+/// 1. Узкая политика «сюда не вставляем никогда» — свои же окна и
+///    приложения-посредники (`shouldDeliver(to:)`).
+/// 2. Пробуждение дерева доступности у Chromium (`ensureAccessibilityTree`).
+/// 3. Описание текущего фокуса для лога (`focusDescription`).
 enum FocusInspector {
 
-    private static let browserBundles: Set<String> = [
-        "com.google.Chrome",
-        "com.google.Chrome.canary",
-        "org.chromium.Chromium",
-        "com.apple.Safari",
-        "company.thebrowser.Arc",
-        "com.brave.Browser",
-        "com.microsoft.edgemac",
-        "org.mozilla.firefox",
-        "com.operasoftware.Opera",
-        "com.vivaldi.Vivaldi"
-    ]
-
-    private static let systemExcludedBundles: Set<String> = [
+    /// Куда не вставляем ни при каких обстоятельствах.
+    ///
+    /// Это политика, а не догадка о поле: сюда попадают наши собственные окна
+    /// и посредники, через которых мы сами и спрашиваем модель. Если ответ
+    /// придёт в момент, когда фронтом оказалось окно Gemini, «вставить»
+    /// означало бы вписать ответ в его же поле ввода — а человек при этом не
+    /// увидит вообще ничего.
+    private static let excludedBundles: Set<String> = [
         "com.apple.dock",
         "com.apple.WindowManager",
         "com.apple.controlcenter",
         "com.apple.notificationcenterui",
         "com.apple.Spotlight",
         "com.apple.loginwindow",
-        "com.apple.ScreenSaver.Engine",
-        // Приложения-посредники, через которые мы сами и спрашиваем модель.
-        // Если ответ придёт в момент, когда фронтом оказалось окно Gemini,
-        // «вставить» означало бы вписать ответ в его же поле ввода — а
-        // пользователь при этом не увидит вообще ничего.
-        "com.google.GeminiMacOS"
+        "com.apple.ScreenSaver.Engine"
     ]
 
-    /// Короткое описание того, что видит проверка прямо сейчас — для лога.
-    /// Без него разбор «почему текст ушёл в никуда» требует отдельного скрипта.
-    static var focusDescription: String {
-        guard let front = NSWorkspace.shared.frontmostApplication else { return "нет активного приложения" }
-        let bundleId = front.bundleIdentifier ?? "—"
-        let app = AXUIElementCreateApplication(front.processIdentifier)
-        var focusedRef: CFTypeRef?
-        let err = AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedRef)
-        guard err == .success, let elem = focusedRef as! AXUIElement? else {
-            return "\(bundleId), фокуса нет (код \(err.rawValue))"
-        }
-        var roleRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
-        return "\(bundleId), фокус: \(roleRef as? String ?? "?")"
+    /// Приложение-посредник, через которое мы сами и спрашиваем модель.
+    ///
+    /// Отдельно от списка выше, потому что экземпляр Gemini бывает не один:
+    /// в настройках можно выбрать копию (Double Bubble), и её идентификатор
+    /// выглядит как `com.google.GeminiMacOS.doublebubble.<хеш>`. Точное
+    /// сравнение со списком такую копию не ловило — и если ответ приходил в
+    /// момент, когда фронтом оказалось её окно, «вставить» означало вписать
+    /// ответ в её же поле ввода, где человек его не увидит.
+    private static func isGeminiBridge(_ bundleId: String) -> Bool {
+        bundleId.hasPrefix(GeminiBridgeService.mainBundleIdentifier)
+            || bundleId == GeminiBridgeService.bundleIdentifier
     }
 
-    /// Определяет, есть ли в данный момент возможность доставить текст в активное приложение.
-    static var canInsertText: Bool {
-        guard Permissions.accessibility else { return false }
+    /// Можно ли вообще доставлять текст в это приложение.
+    ///
+    /// Единственная оставшаяся проверка «до» вставки. Она про приложение
+    /// целиком, а не про элемент под курсором: про элемент честно ответит
+    /// только сама попытка.
+    static func shouldDeliver(to app: NSRunningApplication?) -> Bool {
+        let bundleId = (app ?? NSWorkspace.shared.frontmostApplication)?.bundleIdentifier ?? ""
+        if bundleId.isEmpty { return false }
+        if bundleId == Bundle.main.bundleIdentifier { return false }
+        if isGeminiBridge(bundleId) { return false }
+        return !excludedBundles.contains(bundleId)
+    }
 
-        guard let frontApp = NSWorkspace.shared.frontmostApplication else { return false }
-        let bundleId = frontApp.bundleIdentifier ?? ""
-
-        // 1. Игнорируем собственное приложение и системные панели
-        if bundleId.isEmpty || bundleId == Bundle.main.bundleIdentifier || systemExcludedBundles.contains(bundleId) {
-            return false
+    /// Короткое описание того, что видно прямо сейчас — для лога.
+    /// Без него разбор «почему текст ушёл в никуда» требует отдельного скрипта.
+    static func focusDescription(for app: NSRunningApplication? = nil) -> String {
+        let target = app ?? NSWorkspace.shared.frontmostApplication
+        guard let target else { return "нет активного приложения" }
+        let bundleId = target.bundleIdentifier ?? "—"
+        guard let element = AXText.focusedElement(of: target) else {
+            return "\(bundleId), фокуса нет (код \(AXText.lastLookupError.rawValue))"
         }
+        let role = AXText.role(element)
+        let subrole = AXText.subrole(element)
+        return "\(bundleId), фокус: \(role)\(subrole.isEmpty ? "" : "/\(subrole)")"
+    }
 
-        let app = AXUIElementCreateApplication(frontApp.processIdentifier)
-        var focusedRef: CFTypeRef?
-        let err = AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focusedRef)
+    // MARK: - Пробуждение дерева доступности у Chromium
 
-        // 2. Особый случай для Finder: на пустом рабочем столе или в списке файлов без переименования вставки нет
-        if bundleId == "com.apple.finder" {
-            if err == .success, let elem = focusedRef as! AXUIElement? {
-                var roleRef: CFTypeRef?
-                AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
-                let role = roleRef as? String ?? ""
-                if role == (kAXTextFieldRole as String) || role == "AXSearchField" {
-                    return true
-                }
-            }
-            return false
-        }
+    /// Когда приложению в последний раз ставили `AXManualAccessibility`.
+    private static var armedAt: [pid_t: Date] = [:]
+    private static let armLock = NSLock()
 
-        // 3. Web-браузеры (Chrome, Safari, Arc, Brave, Edge, Firefox и др.)
-        if browserBundles.contains(bundleId) {
-            if err == .success, let elem = focusedRef as! AXUIElement? {
-                var roleRef: CFTypeRef?
-                var isValSettable: DarwinBoolean = false
-                var isSelSettable: DarwinBoolean = false
-                var isInsertionPoint: CFTypeRef?
+    /// Chromium **сам выключает** дерево доступности, когда им какое-то время
+    /// никто не пользуется. Поэтому одного включения на запуск приложения не
+    /// хватает — атрибут надо переставлять. Держим паузу, чтобы не дёргать
+    /// его на каждое нажатие.
+    private static let rearmInterval: TimeInterval = 120
 
-                AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
-                AXUIElementCopyAttributeValue(elem, kAXInsertionPointLineNumberAttribute as CFString, &isInsertionPoint)
-                AXUIElementIsAttributeSettable(elem, kAXValueAttribute as CFString, &isValSettable)
-                AXUIElementIsAttributeSettable(elem, kAXSelectedTextAttribute as CFString, &isSelSettable)
+    /// Включает у приложения дерево доступности.
+    ///
+    /// Chromium (Chrome, Electron: Claude Desktop, Antigravity, Slack, VS Code)
+    /// по умолчанию не публикует дерево веб-содержимого — оно включается только
+    /// когда его запросит вспомогательная технология. Пока оно выключено, окно
+    /// выглядит так:
+    ///
+    ///     AXWindow «Claude»
+    ///       AXGroup → AXGroup → AXGroup → AXGroup   (и ничего больше)
+    ///       AXButton (закрыть / развернуть / свернуть)
+    ///
+    /// Ни `AXWebArea`, ни полей, ни `AXFocusedUIElement` — отсюда и вечное
+    /// −25212, и карточка «Скопировать» вместо вставки.
+    ///
+    /// **Просыпается не мгновенно.** В коде Chromium и Electron это
+    /// `enableScreenReaderCompleteModeAfterDelay` с константой
+    /// `kTwoSecondDelay = 2.0` — то есть две секунды после запроса, плюс
+    /// время на построение дерева. Поэтому звать это надо в начале записи,
+    /// пока человек говорит, а не в момент вставки.
+    ///
+    /// Тем, кто атрибута не понимает, вызов безвреден: возвращается −25205
+    /// или −25208, и ничего не происходит.
+    ///
+    /// **`AXEnhancedUserInterface` мы больше не ставим.** Electron его и не
+    /// принимает (в логе `enhanced=-25208`, `kAXErrorNotImplemented`), а вот
+    /// нативные Cocoa-приложения принимают — и это известный способ сломать
+    /// им изменение размеров окон, на чём обжигались авторы оконных
+    /// менеджеров. Пользы ноль, риск настоящий.
+    static func ensureAccessibilityTree(for app: NSRunningApplication) {
+        let pid = app.processIdentifier
+        guard pid > 0,
+              app.bundleIdentifier != Bundle.main.bundleIdentifier,
+              Permissions.accessibility else { return }
 
-                let role = roleRef as? String ?? ""
+        armLock.lock()
+        let last = armedAt[pid]
+        let due = last.map { Date().timeIntervalSince($0) > rearmInterval } ?? true
+        // Отметку ставим только когда правда собрались включать. Раньше pid
+        // вносился в список ДО проверки прав — один ранний вызов без
+        // «Универсального доступа», и приложение помечено «уже сделано»
+        // навсегда, а дерево у него так и не проснулось.
+        if due { armedAt[pid] = Date() }
+        armLock.unlock()
+        guard due else { return }
 
-                // Проверяем, является ли элемент редактируемым полем ввода
-                if role == (kAXTextFieldRole as String) ||
-                   role == (kAXTextAreaRole as String) ||
-                   role == "AXSearchField" ||
-                   role == (kAXComboBoxRole as String) ||
-                   isValSettable.boolValue ||
-                   isSelSettable.boolValue ||
-                   isInsertionPoint != nil {
-                    return true
-                }
-                // Фокус на ссылке, кнопке, картинке или теле страницы — не поле ввода
-                return false
-            } else {
-                // В браузере нет сфокусированного элемента ввода
-                return false
-            }
-        }
-
-        // 4. Для остальных приложений (VS Code, Xcode, Telegram, Slack, Notes, Word, Terminal и др.)
+        // Сам AX-запрос — с фоновой очереди.
         //
-        // Нет сфокусированного элемента — значит вставлять физически некуда: пользователь
-        // кликнул по пустому месту окна или по рабочему столу. Раньше здесь стоял
-        // безусловный `return true`, и текст молча уходил в пустоту, а карточка
-        // «Скопировать» не показывалась — сказанное просто пропадало.
-        guard err == .success, let elem = focusedRef as! AXUIElement? else {
-            return false
+        // Это синхронный поход в чужой процесс, и хотя таймаут ограничен
+        // четвертью секунды, зовут эту функцию из наблюдателя за
+        // переключением приложений, то есть на КАЖДЫЙ переход между окнами и
+        // всегда на главном потоке. А на главном ранлупе висит перехватчик
+        // клавиш (`InputEventManager.swift`, `CFRunLoopAddSource(CFRunLoopGetMain(), …)`):
+        // пока поток занят, события к нему не идут, и система вправе отключить
+        // перехватчик по таймауту. Он переподключается сам, но нажатия,
+        // пришедшие в это окно, теряются — а это самая частая клавиша
+        // приложения. Ответ нам не нужен ни для чего, кроме строки лога,
+        // так что ждать его на главном потоке незачем.
+        //
+        // Учёт `armedAt` остаётся выше и под замком, поэтому переносить его
+        // сюда не требуется.
+        let bundleId = app.bundleIdentifier ?? "—"
+        DispatchQueue.global(qos: .utility).async {
+            let element = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(element, 0.25)
+            let result = AXUIElementSetAttributeValue(element, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            if result == .success, last == nil {
+                Log.write("Дерево доступности запрошено у «\(bundleId)»")
+            }
         }
+    }
 
-        var roleRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(elem, kAXRoleAttribute as CFString, &roleRef)
-        let role = roleRef as? String ?? ""
-
-        // Фокус на кнопке, картинке или неизменяемой подписи — не поле ввода.
-        if role == (kAXButtonRole as String)
-            || role == (kAXImageRole as String)
-            || role == (kAXStaticTextRole as String) {
-            return false
-        }
-
-        // Всё остальное считаем пригодным: многие редакторы и терминалы отдают
-        // нестандартные роли, и требовать от них строго текстовую роль — значит
-        // сломать вставку там, где она сейчас работает.
-        return true
+    /// Проснулось ли дерево. Chromium и Electron отдают этот атрибут на
+    /// чтение (`accessibilityAttributeValue:@"AXManualAccessibility"` →
+    /// «режим доступности полный»), так что гадать не нужно.
+    static func accessibilityTreeIsAwake(for app: NSRunningApplication) -> Bool? {
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(element, 0.25)
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, "AXManualAccessibility" as CFString, &ref) == .success,
+              let number = ref as? NSNumber else { return nil }
+        return number.boolValue
     }
 }

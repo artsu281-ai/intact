@@ -88,8 +88,7 @@ struct MenuContent: View {
         if !controller.lastResult.isEmpty {
             Divider()
             Button(T("Скопировать последний результат", "Copy the last result")) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(controller.lastResult, forType: .string)
+                Clipboard.write(controller.lastResult, transient: false, session: nil)
             }
             if settings.geminiIntegrationEnabled && GeminiBridgeService.shared.isInstalled {
                 Button(L10n.geminiSendLastResult) {
@@ -106,8 +105,7 @@ struct MenuContent: View {
             Menu(T("Недавние записи (\(min(history.entries.count, 50)))", "Recent records (\(min(history.entries.count, 50)))")) {
                 ForEach(history.entries.prefix(8)) { entry in
                     Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(entry.text, forType: .string)
+                        Clipboard.write(entry.text, transient: false, session: nil)
                     } label: {
                         Text(entry.text.prefix(45) + (entry.text.count > 45 ? "…" : ""))
                     }
@@ -215,6 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         applyActivation()
         DictationController.shared.warmUp()
+        DictationController.shared.watchAppSwitches()
+        // Раскладку считаем здесь, на главном потоке: очередь вставки трогать
+        // Text Input Sources не имеет права — см. SyntheticKeyboard.pasteKeyCode.
+        SyntheticKeyboard.watchKeyboardLayout()
         BriefService.shared.startScheduler()
 
         atexit {
@@ -339,8 +341,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func dockCancel() { DictationController.shared.cancel() }
     @objc private func dockOpenSettings() { MainWindow.shared.show(section: .settings) }
     @objc private func dockCopyLast() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(DictationController.shared.lastResult, forType: .string)
+        Clipboard.write(DictationController.shared.lastResult, transient: false, session: nil)
     }
 
     private func applyActivation() {

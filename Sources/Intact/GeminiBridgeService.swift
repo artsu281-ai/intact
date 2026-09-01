@@ -376,9 +376,17 @@ final class GeminiBridgeService: ObservableObject {
             return
         }
 
-        let oldPasteboard = NSPasteboard.general.string(forType: .string)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(prompt, forType: .string)
+        // Через общую машинерию буфера, а не руками.
+        //
+        // Здесь сохранялась только строка и возвращалась безусловно через
+        // секунду: всё остальное — картинка, файл, форматированный текст —
+        // пропадало, а возврат затирал и то, что человек успел скопировать
+        // сам за эту секунду. `Clipboard` уже умеет и полный снимок, и охрану
+        // по токену сессии: возврат случится, только если в буфере всё ещё
+        // наше.
+        let session = UUID().uuidString
+        let saved = Clipboard.userSnapshot()
+        Clipboard.write(prompt, transient: true, session: session)
 
         let newChatCmd = newChat ? "delay 0.2\nkeystroke \"n\" using {command down}\ndelay 0.2" : ""
         let submitCmd = autoSubmit ? "delay 0.15\nkey code 36" : ""
@@ -400,12 +408,7 @@ final class GeminiBridgeService: ObservableObject {
             appleScript.executeAndReturnError(&errorDict)
         }
 
-        if let oldPasteboard {
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1.0) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(oldPasteboard, forType: .string)
-            }
-        }
+        Clipboard.restore(saved, session: session, fallback: prompt, after: 1.0)
 
         DispatchQueue.main.async {
             if let error = errorDict {

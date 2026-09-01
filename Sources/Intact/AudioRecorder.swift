@@ -24,6 +24,31 @@ final class AudioRecorder {
 
     private(set) var isRecording = false
     private var startTime = Date()
+    private var configObserver: NSObjectProtocol?
+
+    init() {
+        // AVAudioEngine при переконфигурации аудиоустройства (наушники воткнули,
+        // устройство исчезло, сменился формат) останавливается САМ и рвёт связи
+        // графа. Мы этого сейчас не замечаем: `isRecording` остаётся true, тикер
+        // тикает, человек «диктует» в мёртвый движок и получает пустое
+        // распознавание.
+        //
+        // Здесь намеренно только запись в лог. Обработка — переустановка tap,
+        // сброс состояния, рестарт движка — меняет горячий путь и способна
+        // сломать больше, чем чинит; делать её надо отдельно и по собранным
+        // данным, а не наугад.
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine, queue: nil
+        ) { [weak self] _ in
+            guard let self else { return }
+            Log.write("Аудиоустройство переконфигурировано (запись идёт: \(self.isRecording), длительность \(String(format: "%.1f", self.duration)) с)")
+        }
+    }
+
+    deinit {
+        if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+    }
 
     /// Уровень сигнала 0...1 для индикатора.
     var onLevel: ((Float) -> Void)?
@@ -140,9 +165,14 @@ final class AudioRecorder {
               let dev = Self.availableInputDevices().first(where: { $0.id == uid }),
               let unit = engine.inputNode.audioUnit else { return }
         var deviceID = dev.deviceID
-        AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
-                             kAudioUnitScope_Global, 0,
-                             &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size))
+        // Молча проигнорированная ошибка здесь означает запись не с того
+        // микрофона без единого следа в логе.
+        let status = AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
+                                          kAudioUnitScope_Global, 0,
+                                          &deviceID, UInt32(MemoryLayout<AudioDeviceID>.size))
+        if status != noErr {
+            Log.write("Запись: не удалось выбрать устройство «\(dev.name)» (код \(status)) — пишу с текущего")
+        }
     }
 
     // MARK: - Запись
@@ -177,7 +207,21 @@ final class AudioRecorder {
         }
 
         engine.prepare()
-        try engine.start()
+        // Если старт сорвался, tap надо снять здесь и сейчас. Иначе он остаётся
+        // висеть навсегда: `isRecording` не станет true, а `stop()` отсечётся на
+        // своём guard и до `removeTap` не дойдёт. Вызывающая сторона тоже не
+        // спасёт — `DictationController.fail()` останавливает MediaController,
+        // но `recorder.stop()` не зовёт. Следующая же диктовка попыталась бы
+        // поставить второй tap на ту же шину, а это не ошибка, а падение:
+        // AVFAudio допускает ровно один tap на шину.
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            converter = nil
+            throw error
+        }
+        Log.write("Запись: вход \(Int(inFormat.sampleRate)) Гц, устройство \(preferredDeviceUID.isEmpty ? "по умолчанию" : preferredDeviceUID)")
         startTime = Date()
         isRecording = true
     }
@@ -221,11 +265,33 @@ final class AudioRecorder {
     @discardableResult
     func stop() -> TimeInterval {
         guard isRecording else { return 0 }
-        engine.inputNode.removeTap(onBus: 0)
+
+        // Порядок: сначала остановить движок, потом снимать tap.
+        //
+        // Это гигиена, а не исправление краша 27 августа: там зануление
+        // клиентского колбэка произошло глубже, внутри AUHAL, куда порядок
+        // этих двух вызовов не дотягивается (главный поток в трейсе стоял уже
+        // внутри `engine.stop()`, то есть `removeTap` успел вернуться). Но
+        // после возврата из `engine.stop()` аудиопоток гарантированно вышел —
+        // именно его и ждёт `usleep` внутри `AudioOutputUnitStop`, — поэтому
+        // снятие tap на остановленном движке уже ни с чем не гоняется.
+        // Цена нулевая: те же два вызова в другом порядке.
+        let startedStop = Date()
         engine.stop()
+        let stopMs = Int(Date().timeIntervalSince(startedStop) * 1000)
+        engine.inputNode.removeTap(onBus: 0)
+        // `converter` обнуляем строго ПОСЛЕ removeTap, иначе `process()` успеет
+        // поймать nil-конвертер на ещё живом tap.
         converter = nil
         isRecording = false
         onLevel?(0)
+
+        // Штатная остановка укладывается в единицы миллисекунд. Если она
+        // затянулась — движок ждал выхода аудиопотока, а это как раз то
+        // состояние, в котором приложение упало 27 августа. В логе про это
+        // не было ни строчки, и об аномалии узнавали только из отчёта о краше.
+        if stopMs > 30 { Log.write("AudioRecorder: engine.stop() занял \(stopMs) мс") }
+
         return recordedDuration
     }
 

@@ -163,10 +163,23 @@ struct IndicatorView: View {
 
     // MARK: - Бесшовный Dynamic Island индикатор записи
 
+    /// Кто сейчас работает — одной строкой на все состояния пилюли.
+    ///
+    /// Раньше правильное имя стояло только на записи, а на расшифровке,
+    /// причёсывании и ответе были зашиты «Whisper Voice / Whisper Cleanup /
+    /// Whisper Answer». Про движок эти строки не спрашивали вообще, поэтому
+    /// пилюля годами говорила «Whisper» там, где писал микрофон Gemini.
+    private var engineBadge: String {
+        // Страховка важнее настройки: если Gemini отвалился и дорасшифровывает
+        // локальный Whisper, называть надо его.
+        if controller.engineFellBack { return STTEngineType.whisperLocal.badgeName }
+        return controller.activePipeline?.displayBadge ?? controller.engineLabel
+    }
+
     @ViewBuilder
     private func listening(size: NSSize) -> some View {
         if controller.state == .recording {
-            let badge = controller.activePipeline?.uiBadge ?? "Whisper Voice"
+            let badge = engineBadge
             LiveMicrophoneIndicator(
                 active: true,
                 level: controller.level,
@@ -185,7 +198,7 @@ struct IndicatorView: View {
                     ThinkingDots(size: 14)
                         .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                    Text("Whisper Voice · Transcribing…")
+                    Text("\(engineBadge) · \(T("расшифровка…", "Transcribing…"))")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                         .lineLimit(1)
@@ -195,7 +208,7 @@ struct IndicatorView: View {
                     ThinkingDots(size: 14)
                         .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                    Text("Whisper Cleanup · Polishing…")
+                    Text("\(engineBadge) · \(T("причёсываю…", "Polishing…"))")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                         .lineLimit(1)
@@ -211,7 +224,7 @@ struct IndicatorView: View {
                     ThinkingDots(size: 14)
                         .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                    Text("Whisper Answer · Thinking…")
+                    Text("\(engineBadge) · \(T("думаю…", "Thinking…"))")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                         .lineLimit(1)

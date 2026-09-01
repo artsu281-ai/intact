@@ -66,10 +66,24 @@ enum Log {
         .urls(for: .libraryDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Logs/Intact.log")
 
+    /// Запись сериализована.
+    ///
+    /// Каждый вызов открывает свой `FileHandle`, делает `seekToEnd()` и
+    /// `write` — три операции без единой блокировки. Пока весь код жил на
+    /// главном потоке, это сходило с рук. После переезда вставки на очередь
+    /// `intact.insertion` в лог пишут два потока сразу, и строки могут
+    /// наложиться друг на друга или потеряться. Очередь последовательная и
+    /// асинхронная: ни главный поток, ни очередь вставки на ней не ждут.
+    private static let queue = DispatchQueue(label: "intact.log", qos: .utility)
+
     static func write(_ message: String) {
         let line = "\(Date().formatted(date: .omitted, time: .standard))  \(message)\n"
         NSLog("Intact: \(message)")
         guard let data = line.data(using: .utf8) else { return }
+        queue.async { append(data) }
+    }
+
+    private static func append(_ data: Data) {
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()
