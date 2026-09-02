@@ -40,15 +40,25 @@ enum FocusInspector {
 
     /// Приложение-посредник, через которое мы сами и спрашиваем модель.
     ///
-    /// Отдельно от списка выше, потому что экземпляр Gemini бывает не один:
-    /// в настройках можно выбрать копию (Double Bubble), и её идентификатор
-    /// выглядит как `com.google.GeminiMacOS.doublebubble.<хеш>`. Точное
-    /// сравнение со списком такую копию не ловило — и если ответ приходил в
-    /// момент, когда фронтом оказалось её окно, «вставить» означало вписать
-    /// ответ в её же поле ввода, где человек его не увидит.
+    /// Сравнение **точное**, и это принципиально. Экземпляр Gemini бывает не
+    /// один: в настройках выбирают копию (Double Bubble) с идентификатором вида
+    /// `com.google.GeminiMacOS.doublebubble.<хеш>`, и раньше здесь стояло
+    /// `hasPrefix(mainBundleIdentifier)` — чтобы копия тоже попадала под запрет.
+    /// Но `hasPrefix` истинен и для строки, **равной** префиксу, поэтому под
+    /// запрет попадало и само основное приложение.
+    ///
+    /// У того, кто выбрал мостом копию, это отсекало ровно то окно, ради
+    /// свободы которого копию и заводят (§4.5): на живом логе 26 доставок в
+    /// `com.google.GeminiMacOS` и ни одной вставки, причём строкой выше лог
+    /// писал `фокус: AXTextArea` — поле было живым, каскад просто не звали.
+    ///
+    /// Мост в любой момент ровно один — тот, что вернёт
+    /// `GeminiBridgeService.bundleIdentifier`; через него же резолвят
+    /// посредника и провайдер, и STT, и прямая отправка. Всё остальное
+    /// семейство — обычные приложения пользователя, куда диктовка обязана
+    /// доезжать.
     private static func isGeminiBridge(_ bundleId: String) -> Bool {
-        bundleId.hasPrefix(GeminiBridgeService.mainBundleIdentifier)
-            || bundleId == GeminiBridgeService.bundleIdentifier
+        bundleId == GeminiBridgeService.bundleIdentifier
     }
 
     /// Можно ли вообще доставлять текст в это приложение.
@@ -57,11 +67,38 @@ enum FocusInspector {
     /// целиком, а не про элемент под курсором: про элемент честно ответит
     /// только сама попытка.
     static func shouldDeliver(to app: NSRunningApplication?) -> Bool {
+        refusalReason(for: app) == nil
+    }
+
+    /// Та же лестница условий, но названная словами — для лога.
+    ///
+    /// `nil` значит «доставлять можно». Отдельная функция, а не второй список
+    /// условий рядом: расхождение между тем, что мы делаем, и тем, что пишем в
+    /// лог, — худший вид лога. Здесь один источник истины, `shouldDeliver`
+    /// сведён к нему.
+    ///
+    /// Зачем понадобилось. Из трёх мест доставки причину отказа писали два, а
+    /// третье — пайплайновое, то самое, через которое идёт вся работа, — не
+    /// писало ничего: в логе оставалась безличная строка «вставить некуда»,
+    /// одинаковая и для «политика запретила», и для «каскад провалился».
+    /// Отличить их можно было только чтением исходников.
+    static func refusalReason(for app: NSRunningApplication?) -> String? {
         let bundleId = (app ?? NSWorkspace.shared.frontmostApplication)?.bundleIdentifier ?? ""
-        if bundleId.isEmpty { return false }
-        if bundleId == Bundle.main.bundleIdentifier { return false }
-        if isGeminiBridge(bundleId) { return false }
-        return !excludedBundles.contains(bundleId)
+        if bundleId.isEmpty {
+            return T("у приложения-получателя нет идентификатора",
+                     "the receiving app has no bundle identifier")
+        }
+        if bundleId == Bundle.main.bundleIdentifier {
+            return T("это собственное окно Intact", "this is Intact's own window")
+        }
+        if isGeminiBridge(bundleId) {
+            return T("«\(bundleId)» — посредник, через который мы сами спрашиваем модель",
+                     "«\(bundleId)» is the bridge we ask the model through")
+        }
+        if excludedBundles.contains(bundleId) {
+            return T("«\(bundleId)» — системное окно", "«\(bundleId)» is a system window")
+        }
+        return nil
     }
 
     /// Короткое описание того, что видно прямо сейчас — для лога.

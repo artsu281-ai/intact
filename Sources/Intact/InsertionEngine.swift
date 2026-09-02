@@ -234,13 +234,54 @@ enum InsertionEngine {
         //    есть чем, и задвоения не будет.
         if let element {
             let before = AXText.snapshot(element)
-            // Здесь мягче, чем у ⌘V, и осознанно: `AXUIElementSetAttributeValue`
-            // возвращает код ответа от самого приложения — это подтверждение, а не
-            // догадка. Измерение тут лишь отсекает случай «ответил success, но не
-            // сделал ничего».
-            if AXText.insert(text, into: element),
-               AXText.verdict(before: before, after: AXText.snapshot(element), inserted: inserted) != .failed {
-                return finish(Outcome(landed: true, via: "Accessibility", reason: nil), restoreClipboard: true)
+            if AXText.insert(text, into: element) {
+                let measured = AXText.verdict(before: before, after: AXText.snapshot(element), inserted: inserted)
+
+                if measured == .landed {
+                    return finish(Outcome(landed: true, via: "Accessibility", reason: nil), restoreClipboard: true)
+                }
+
+                // Код ответа приложения здесь — НЕ подтверждение.
+                //
+                // Раньше успехом считалось `verdict != .failed`, то есть
+                // `.unmeasurable` шёл в зачёт: рассуждали так, что
+                // `AXUIElementSetAttributeValue` возвращает ответ самого
+                // приложения, а измерение лишь отсекает «ответил success и не
+                // сделал ничего». Собственный журнал проекта говорит обратное
+                // прямым текстом (§4.2): «код возврата
+                // `AXUIElementSetAttributeValue` за доказательство не считать —
+                // замёрзшее дерево отвечает `.success`».
+                //
+                // Отдельно про веб-композер. Единственная форма записи,
+                // измеренная на нём как работающая, — ПАРА
+                // `kAXSelectedTextRange` + `kAXSelectedText` (§4.1,
+                // `GeminiAIProvider.insertAsUserInput`). `AXText.insert` пишет
+                // только вторую половину, без установки диапазона; сработает
+                // ли такая запись, на этом композере не мерил никто. Тем
+                // важнее не выдавать её за успех без подтверждения.
+                //
+                // Складывалось это в худший исход во всём приложении: диктуют в
+                // ПУСТОЕ поле, `before` = (0,0) неизмерим, запись ничего не
+                // сделала, `after` тоже (0,0) — «Вставлено через Accessibility»,
+                // звук успеха, а через 0.5 с `Clipboard.restore` кладёт поверх
+                // прежний буфер. Сказанное исчезает целиком, и лог при этом
+                // выглядит починкой.
+                //
+                // Обратной ошибки здесь нет: удавшаяся запись делает поле
+                // измеримым (длина N, каретка N) и даёт `.landed`. Так что
+                // `.unmeasurable` на этом шаге означает ровно «подтвердить
+                // нечем», и выдавать его за успех нельзя.
+                if measured == .unmeasurable {
+                    // Дальше по каскаду не идём: печать на неизмеримом поле
+                    // может задвоить текст, если запись всё же прошла. Карточка
+                    // с текстом в буфере — исход, при котором ничего не теряется
+                    // и ничего не дублируется.
+                    Log.write("Accessibility: приложение приняло запись, но поле её не подтвердило — печатать вслепую не буду")
+                    return giveUp(text, reason: T("не удалось подтвердить вставку",
+                                                  "could not confirm the text was pasted"))
+                }
+
+                Log.write("Accessibility: запись поле не изменила — пробую печать")
             }
         }
 

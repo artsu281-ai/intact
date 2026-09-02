@@ -1170,7 +1170,9 @@ final class DictationController: ObservableObject {
         // способов. Осталась узкая политика — свои окна и посредники.
         Log.write("Доставка «\(pipeline.name)»: цель \(targetApp?.bundleIdentifier ?? "—"), \(FocusInspector.focusDescription(for: targetApp)), режим \(settings.outputMode.rawValue)")
 
-        if settings.outputMode != .clipboard, !FocusInspector.shouldDeliver(to: targetApp) {
+        if settings.outputMode != .clipboard,
+           let why = FocusInspector.refusalReason(for: targetApp) {
+            Log.write("Доставка «\(pipeline.name)» отменена политикой: \(why)")
             offerCopy(lastResult, isAnswer: kind == .aiAnswer)
             return
         }
@@ -1320,9 +1322,10 @@ final class DictationController: ObservableObject {
             pendingQuestion = ""
         }
 
-        if settings.outputMode != .clipboard, !FocusInspector.shouldDeliver(to: targetApp) {
+        if settings.outputMode != .clipboard,
+           let why = FocusInspector.refusalReason(for: targetApp) {
             // Это ответ ИИ — карточка должна висеть достаточно, чтобы его прочитать.
-            Log.write("Ответ ИИ: доставлять некуда — \(FocusInspector.focusDescription(for: targetApp))")
+            Log.write("Ответ ИИ: доставлять некуда — \(why); \(FocusInspector.focusDescription(for: targetApp))")
             offerCopy(answer, isAnswer: true)
             return
         }
@@ -1425,8 +1428,9 @@ final class DictationController: ObservableObject {
         if handleNoteOrReminderCommand(text: text, seconds: seconds) { return }
         if handleGeminiVoiceCommand(text: text, seconds: seconds) { return }
 
-        if settings.outputMode != .clipboard, !FocusInspector.shouldDeliver(to: targetApp) {
-            Log.write("Диктовка: доставлять некуда — \(FocusInspector.focusDescription(for: targetApp))")
+        if settings.outputMode != .clipboard,
+           let why = FocusInspector.refusalReason(for: targetApp) {
+            Log.write("Диктовка: доставлять некуда — \(why); \(FocusInspector.focusDescription(for: targetApp))")
             offerCopy(lastResult)
             return
         }

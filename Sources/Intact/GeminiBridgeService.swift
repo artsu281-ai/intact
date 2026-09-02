@@ -20,10 +20,38 @@ final class GeminiBridgeService: ObservableObject {
         let chosen = AppSettings.shared.geminiBundleIdentifier
         guard !chosen.isEmpty,
               NSWorkspace.shared.urlForApplication(withBundleIdentifier: chosen) != nil else {
-            // Выбранной копии больше нет (удалили клон) — молча возвращаемся к основному.
+            noteFallbackToMainApp(from: chosen)
             return mainBundleIdentifier
         }
         return chosen
+    }
+
+    /// Откат на основное приложение молчаливым быть не должен.
+    ///
+    /// Раньше здесь стояло «выбранной копии больше нет — молча возвращаемся к
+    /// основному», и это ровно тот путь, которым чинимая ошибка возвращается:
+    /// мостом становится основное приложение, и рабочее окно человека снова
+    /// оказывается тем, куда диктовку не доставляют. Плюс с этого момента Intact
+    /// начинает писать промпты в его личную переписку, а `clearComposer` —
+    /// стирать его набранный текст.
+    ///
+    /// Пишем один раз на каждый несостоявшийся идентификатор: свойство выше
+    /// читают на каждую доставку и из двух потоков, лог захлебнётся.
+    private static var reportedFallback: String?
+    private static let fallbackLock = NSLock()
+
+    private static func noteFallbackToMainApp(from chosen: String) {
+        // Пустая настройка — это не откат, а «экземпляр никогда не выбирали».
+        guard !chosen.isEmpty, chosen != mainBundleIdentifier else { return }
+
+        fallbackLock.lock()
+        let isNew = reportedFallback != chosen
+        if isNew { reportedFallback = chosen }
+        fallbackLock.unlock()
+        guard isNew else { return }
+
+        Log.write("Gemini: выбранный экземпляр «\(chosen)» не найден — мостом стало основное приложение. "
+                  + "Пока это так, запросы идут в рабочую переписку, а диктовка в её окно не доставляется")
     }
 
     /// Один доступный экземпляр Gemini: основное приложение или его копия.
