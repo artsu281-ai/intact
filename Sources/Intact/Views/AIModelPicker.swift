@@ -40,15 +40,26 @@ struct AIModelPicker: View {
                     .fill(statusColor)
                     .frame(width: 7, height: 7)
 
+                // Единственный элемент шапки, которому позволено сжиматься:
+                // название модели усекается многоточием, всё остальное рядом
+                // стоит на `fixedSize`. Кто-то сжиматься обязан — суммарная
+                // ширина шапки больше, чем окно даёт в узком состоянии.
                 Text(AIModelCatalog.title(for: current))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
 
                 if !compact, let placement = AIModelCatalog.placement(for: current) {
+                    // Без `lineLimit` этот бейдж разрывался ПОСРЕДИ СЛОВА:
+                    // «Приложение» складывалось в капсуле в четыре строки по
+                    // слогам — «При / ило / же / ние». У названия модели строкой
+                    // выше ограничение стояло, у бейджа его забыли.
                     Text(placement)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(Palette.textTertiary)
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1.5)
                         .background(Capsule().fill(Palette.pill))

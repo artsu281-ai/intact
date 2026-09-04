@@ -276,7 +276,31 @@ struct ChatTab: View {
 
     // MARK: - Sticky провайдер-хедер
 
+    /// Шапка чата с деградацией по ширине.
+    ///
+    /// Замерено метриками AppKit: в полном виде шапке нужно 677 pt, а область
+    /// чата при открытом списке чатов даёт около 520. Одного `lineLimit` мало —
+    /// он убирает разрыв слов, но переполнение остаётся, и шапка просто
+    /// обрезается краем. Поэтому здесь три варианта, и `ViewThatFits` берёт
+    /// первый, который влезает целиком:
+    ///
+    /// - полный — 677 pt;
+    /// - без подписи «уходит в облако», замок остаётся — 587 pt;
+    /// - плюс «Настройки ИИ» одной шестерёнкой — 501 pt.
+    ///
+    /// Внутри каждого варианта сжиматься позволено только названию модели
+    /// (`AIModelPicker` усекает его многоточием) — всё прочее стоит на
+    /// `fixedSize`, иначе SwiftUI начинает ломать подписи по слогам.
     private var stickyProviderHeader: some View {
+        ViewThatFits(in: .horizontal) {
+            headerRow(cloudLabel: true, settingsLabel: true)
+            headerRow(cloudLabel: false, settingsLabel: true)
+            headerRow(cloudLabel: false, settingsLabel: false)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func headerRow(cloudLabel: Bool, settingsLabel: Bool) -> some View {
         HStack(spacing: 10) {
             Button {
                 withAnimation(.easeInOut(duration: 0.16)) { railVisible.toggle() }
@@ -298,8 +322,12 @@ struct ChatTab: View {
             if isCloudChat {
                 HStack(spacing: 4) {
                     IntactIcon(kind: .lock, size: 10)
-                    Text(T("уходит в облако", "goes to the cloud"))
-                        .font(.system(size: 11, weight: .medium))
+                    if cloudLabel {
+                        Text(T("уходит в облако", "goes to the cloud"))
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
                 .foregroundStyle(Palette.iconWarning)
                 .padding(.horizontal, 7)
@@ -318,6 +346,8 @@ struct ChatTab: View {
                     IntactIcon(kind: .context, size: 12)
                     Text(contextLabel)
                         .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 .foregroundStyle(Palette.textSecondary)
                 .padding(.horizontal, 9)
@@ -340,14 +370,20 @@ struct ChatTab: View {
             } label: {
                 HStack(spacing: 4) {
                     IntactIcon(kind: .settings, size: 12)
-                    Text(T("Настройки ИИ", "AI settings"))
-                        .font(.system(size: 12))
+                    if settingsLabel {
+                        Text(T("Настройки ИИ", "AI settings"))
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
                 .foregroundStyle(Palette.textTertiary)
             }
             .buttonStyle(.plain)
+            // В сжатых вариантах от подписей остаются одни значки — смысл
+            // должен оставаться доступным хотя бы по наведению.
+            .help(T("Настройки ИИ", "AI settings"))
         }
-        .padding(.vertical, 10)
     }
 
     // MARK: - Поповер выбора источников контекста
@@ -497,9 +533,15 @@ struct ChatTab: View {
             HStack(spacing: 7) {
                 IntactIcon(kind: iconKind, size: 14)
                     .foregroundStyle(Palette.accent)
+                // Подпись чипа не переносится: «Извлечь задачи» уезжало в две
+                // строки, пока соседи оставались в одну, и ряд разъезжался по
+                // высоте. Чип узкий и короткий — ему честнее быть шире, чем
+                // выше.
                 Text(label)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.textPrimary)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 7.5)
