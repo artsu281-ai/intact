@@ -77,8 +77,11 @@ struct SettingsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            // Волосяной линии между меню и содержимым здесь больше нет.
+            // Границу и так держит разница фонов (`Palette.sidebar` против
+            // `Palette.page`), а лишний штрих делил окно пополам сильнее, чем
+            // нужно: меню и содержимое — одно окно, а не два.
             sidebar
-            Rectangle().fill(Palette.hairline).frame(width: 1)
             detail
         }
         .frame(minWidth: 1040, minHeight: 680)
