@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 
 struct IndicatorView: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var controller: DictationController
     @ObservedObject private var settings = AppSettings.shared
 
@@ -380,6 +384,10 @@ struct IndicatorView: View {
 
 /// Живой микрофон с пульсирующей точкой записи и эквалайзером
 struct LiveMicrophoneIndicator: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let active: Bool
     let level: Float
     let elapsedText: String
@@ -432,6 +440,10 @@ struct LiveMicrophoneIndicator: View {
 /// Короткий, ультра-эстетичный спектр из 4 живых анимированных столбиков,
 /// динамически адаптирующийся под светлую и тёмную темы оформления.
 struct CompactEqualizer: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let level: Float
     var theme: AppTheme = .white
 
@@ -446,6 +458,10 @@ struct CompactEqualizer: View {
 }
 
 private struct EqualizerBar: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let level: Float
     let minH: CGFloat
     let maxH: CGFloat
@@ -478,6 +494,10 @@ private struct EqualizerBar: View {
 // MARK: - Кнопки панели
 
 struct SoftButton: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     let icon: IntactIconKind
     let action: () -> Void
@@ -503,6 +523,10 @@ struct SoftButton: View {
 }
 
 struct DismissCountdownButton: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let seconds: Int
     let action: () -> Void
     @State private var hovering = false
@@ -531,6 +555,10 @@ struct DismissCountdownButton: View {
 }
 
 struct CircleIconButton: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let icon: IntactIconKind
     let action: () -> Void
     @State private var hovering = false
@@ -569,7 +597,10 @@ final class IndicatorPanel {
         }
         hide()
 
-        let hosting = NSHostingView(rootView: IndicatorView(controller: controller))
+        // Пилюля — отдельное окно (NSPanel), а не часть главного дерева,
+        // поэтому отпечаток темы ей надо раздать своим корнем: окружение
+        // через границу окна не проходит.
+        let hosting = NSHostingView(rootView: IndicatorView(controller: controller).themedRoot())
         let isDark = AppSettings.shared.isDarkMode
         let targetAppearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
         hosting.appearance = targetAppearance

@@ -77,6 +77,10 @@ enum MessageParser {
 /// Ответ ассистента с разобранной разметкой: заголовки, списки, выделения
 /// и блоки кода, каждый со своей кнопкой копирования.
 struct MarkdownMessage: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let text: String
 
     var body: some View {
@@ -97,6 +101,10 @@ struct MarkdownMessage: View {
 // MARK: - Текстовая часть
 
 private struct ProseBlock: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let text: String
 
     var body: some View {
@@ -202,6 +210,10 @@ private struct ProseBlock: View {
 
 /// Код с заголовком, языком и копированием в одно нажатие.
 private struct CodeBlock: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let language: String?
     let code: String
 

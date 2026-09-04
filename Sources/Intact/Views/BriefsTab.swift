@@ -9,6 +9,10 @@ import AppKit
 /// разные вещи в одном месте. Настройки интеграций уехали в «Настройки»,
 /// а бриф стал объектом, который лежит на диске и переживает перезапуск.
 struct BriefsTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
 
@@ -241,6 +245,10 @@ struct BriefsTab: View {
 /// Строка списка брифов: свёрнутая — заголовок и первые строки,
 /// развёрнутая — весь текст с разметкой.
 private struct BriefRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let brief: Brief
     let first: Bool
     let isExpanded: Bool

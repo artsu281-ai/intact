@@ -4,6 +4,10 @@ import AppKit
 /// Единая вкладка «Настройки» — оформление (тема, иконка),
 /// система и звук (автозапуск, приглушение звука, пауза музыки), провайдер ИИ.
 struct SettingsTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     var onOpenModels: (() -> Void)? = nil
 
@@ -168,7 +172,7 @@ struct SettingsTab: View {
                         cardSample: Color.white,
                         isSelected: settings.appTheme == .white
                     ) {
-                        settings.appTheme = .white
+                        settings.setTheme(.white)
                         settings.applyTheme()
                     }
 
@@ -181,7 +185,7 @@ struct SettingsTab: View {
                         cardSample: Color(red: 0.996, green: 0.992, blue: 0.984),
                         isSelected: settings.appTheme == .terracotta
                     ) {
-                        settings.appTheme = .terracotta
+                        settings.setTheme(.terracotta)
                         settings.applyTheme()
                     }
 
@@ -194,7 +198,7 @@ struct SettingsTab: View {
                         cardSample: Color(red: 0.145, green: 0.141, blue: 0.137),
                         isSelected: settings.appTheme == .dark
                     ) {
-                        settings.appTheme = .dark
+                        settings.setTheme(.dark)
                         settings.applyTheme()
                     }
 
@@ -207,7 +211,7 @@ struct SettingsTab: View {
                         cardSample: Color.white,
                         isSelected: settings.appTheme == .system
                     ) {
-                        settings.appTheme = .system
+                        settings.setTheme(.system)
                         settings.applyTheme()
                     }
                 }

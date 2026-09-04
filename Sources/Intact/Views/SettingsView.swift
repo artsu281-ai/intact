@@ -66,6 +66,10 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings = AppSettings.shared
     @ObservedObject private var controller = DictationController.shared
     @ObservedObject var state = MainWindowState.shared
@@ -80,7 +84,13 @@ struct SettingsView: View {
         .frame(minWidth: 1040, minHeight: 680)
         .background(Palette.page)
         .preferredColorScheme(settings.appTheme.colorScheme)
-        .id(settings.appTheme)
+        // Здесь стоял `.id(settings.appTheme)`. Он менял идентичность всего
+        // дерева, и SwiftUI сносил его целиком: анимация через смену
+        // идентичности невозможна в принципе, а вместе с деревом терялось всё
+        // локальное состояние — наведение, раскрытые секции, позиция прокрутки.
+        // Теперь тему раздаёт окружение (`ThemeStamp`), а виды подписаны на
+        // него через `@ThemeReader`; дерево живёт, цвета перетекают.
+        .themedRoot()
     }
 
     // MARK: Боковик
@@ -410,6 +420,10 @@ final class SettingsSearchIndex {
 // MARK: - Результат поиска в сайдбаре
 
 struct SearchResultRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let entry: SettingsSearchEntry
     let isActive: Bool
     let action: () -> Void
@@ -446,6 +460,10 @@ struct SearchResultRow: View {
 }
 
 struct SidebarRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let item: SettingsSection
     let selected: Bool
     let action: () -> Void
@@ -487,6 +505,10 @@ struct SidebarRow: View {
 }
 
 struct PermissionRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     let subtitle: String
     let granted: Bool
@@ -513,6 +535,10 @@ struct PermissionRow: View {
 // MARK: - Интерактивная карточка выбора иконки приложения
 
 struct AppIconChoiceCard: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let style: AppIconStyle
     let title: String
     let subtitle: String
@@ -588,6 +614,10 @@ struct AppIconChoiceCard: View {
 }
 
 struct ThemeCard: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let theme: AppTheme
     let title: String
     let subtitle: String
@@ -680,6 +710,10 @@ struct ThemeCard: View {
 
 /// Раскрывающийся блок для технических настроек.
 struct AdvancedBlock<Content: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @Binding var expanded: Bool
     @ViewBuilder var content: Content
 
@@ -711,6 +745,10 @@ struct AdvancedBlock<Content: View>: View {
 // MARK: - Баннер первоначальной установки модели (Onboarding)
 
 struct ModelOnboardingBanner: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var models = ModelManager.shared
     @ObservedObject var settings = AppSettings.shared
 
@@ -841,6 +879,10 @@ struct ModelOnboardingBanner: View {
 // MARK: - История (History)
 
 struct HistoryTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     @ObservedObject private var history = History.shared
     @State private var query = ""
@@ -1222,6 +1264,10 @@ struct HistoryTab: View {
 // MARK: - Поповер очистки истории с кастомными векторными иконками
 
 struct HistoryClearPopoverView: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let onSelect: (HistoryClearRange) -> Void
 
     var body: some View {
@@ -1284,6 +1330,10 @@ struct HistoryClearPopoverView: View {
 }
 
 struct HistoryClearOptionRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let iconKind: IntactIconKind
     let title: String
     let subtitle: String
@@ -1321,6 +1371,10 @@ struct HistoryClearOptionRow: View {
 }
 
 struct HistoryRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let entry: HistoryEntry
     var first: Bool
     /// nil — режим выбора выключен, чекбоксов нет.
@@ -1434,6 +1488,10 @@ struct HistoryRow: View {
 // MARK: - О программе (About)
 
 struct AboutTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
 
     private var whisperStatus: String {

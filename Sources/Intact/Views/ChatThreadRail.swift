@@ -5,6 +5,10 @@ import SwiftUI
 /// Ветку можно открыть, переименовать двойным щелчком и удалить. Активная
 /// подсвечена; свежие сверху — порядок задаёт сам сервис при каждом ответе.
 struct ChatThreadRail: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject private var chat = AIChatService.shared
     @State private var renamingID: UUID? = nil
     @State private var draftTitle: String = ""
@@ -116,6 +120,10 @@ struct ChatThreadRail: View {
 }
 
 private struct ChatThreadRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let thread: ChatThread
     let isActive: Bool
     let onOpen: () -> Void

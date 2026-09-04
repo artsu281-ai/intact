@@ -4,6 +4,10 @@ import SwiftUI
 
 /// Кнопка, которая ловит следующее сочетание клавиш и записывает его в настройки.
 struct HotKeyRecorder: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     @State private var listening = false
     @State private var monitor: Any?

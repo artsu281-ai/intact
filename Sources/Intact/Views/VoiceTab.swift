@@ -4,6 +4,10 @@ import AppKit
 /// Объединённый экран «Диктовка» — горячая клавиша, устройство, язык, разрешения, тест.
 /// Заменяет три отдельные вкладки: GeneralTab + MicrophoneTab + LanguageTab.
 struct VoiceTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
     @ObservedObject private var controller = DictationController.shared

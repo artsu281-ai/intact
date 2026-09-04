@@ -5,6 +5,10 @@ import SwiftUI
 /// задаёшь вопрос голосом, и вместо причёсанного текста вставляется прямой ответ ИИ.
 /// Вынесено отдельным пунктом сайдбара из вкладки «Диктовка», чтобы фичу было проще найти.
 struct AskAITab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     var onOpenSection: ((SettingsSection) -> Void)? = nil
 

@@ -345,7 +345,18 @@ final class AppSettings: ObservableObject {
     @Published var playSounds: Bool { didSet { d.set(playSounds, forKey: "playSounds") } }
     @Published var muteAudioWhileDictating: Bool { didSet { d.set(muteAudioWhileDictating, forKey: "muteAudioWhileDictating") } }
     @Published var pauseMediaWhileDictating: Bool { didSet { d.set(pauseMediaWhileDictating, forKey: "pauseMediaWhileDictating") } }
-    @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); applyTheme() } }
+    @Published var appTheme: AppTheme { didSet { d.set(appTheme.rawValue, forKey: "appTheme"); themeRevision &+= 1; applyTheme() } }
+
+    /// Счётчик смен темы. Нужен `ThemeStamp` (см. `Views/Theme.swift`).
+    ///
+    /// Отпечаток темы `Equatable`, и на этом равенстве держится вся экономия
+    /// перерисовок. Но у системной темы есть гонка: `AppleInterfaceThemeChangedNotification`
+    /// приходит синхронно, а `isDarkMode` читает `AppleInterfaceStyle` из
+    /// `UserDefaults` и `NSApp.effectiveAppearance` — они к этому моменту могут
+    /// быть ещё старыми. Пойманное «ещё светло» дало бы отпечаток, равный
+    /// прежнему, и залипло бы до следующей публикации. Ревизия делает отпечаток
+    /// заведомо новым, и гонка исчезает как класс.
+    @Published private(set) var themeRevision: Int = 0
     @Published var appIconStyle: AppIconStyle { didSet { d.set(appIconStyle.rawValue, forKey: "appIconStyle"); applyTheme() } }
     @Published var copyDismissTimeoutSeconds: Int { didSet { d.set(copyDismissTimeoutSeconds, forKey: "copyDismissTimeoutSeconds") } }
     @Published var enableVoiceNotes: Bool { didSet { d.set(enableVoiceNotes, forKey: "enableVoiceNotes") } }
@@ -418,6 +429,24 @@ final class AppSettings: ObservableObject {
                 return true
             }
             return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        }
+    }
+
+    /// Единственная точка смены темы из интерфейса.
+    ///
+    /// Присваивание завёрнуто в транзакцию намеренно: анимацию SwiftUI берёт
+    /// с той транзакции, внутри которой изменилось состояние. Присвоить
+    /// `appTheme` напрямую — значит получить мгновенную подмену всех цветов,
+    /// то есть моргание на весь экран.
+    ///
+    /// Под «Уменьшением движения» смена мгновенная: кроссфейд всей палитры —
+    /// это как раз то, от чего человек защищается этой настройкой.
+    func setTheme(_ theme: AppTheme) {
+        guard theme != appTheme else { return }
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            appTheme = theme
+        } else {
+            withAnimation(.easeInOut(duration: 0.28)) { appTheme = theme }
         }
     }
 
@@ -524,6 +553,7 @@ final class AppSettings: ObservableObject {
         ) { [weak self] _ in
             guard let self else { return }
             if self.appTheme == .system {
+                self.themeRevision &+= 1
                 self.objectWillChange.send()
                 self.applyTheme()
             }

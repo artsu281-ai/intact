@@ -4,6 +4,10 @@ import SwiftUI
 /// Единый презентационный ряд для каталогов моделей (Whisper, LLM, Gemma-Audio).
 /// Чисто презентационный компонент без жёсткой привязки к конкретным типам моделей.
 struct ModelCatalogRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     let sizeMB: Int
     let note: String?
@@ -167,6 +171,10 @@ struct ModelCatalogRow: View {
 /// Единый хаб «Модели»: объединяет все каталоги (Whisper, LLM для причёсывания, Gemma-audio),
 /// сводку по диску, настройки движка распознавания и технические параметры.
 struct ModelsHub: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     @StateObject private var whisperModels = ModelManager.shared
     @StateObject private var llmModels = LLMModelManager.shared
@@ -522,6 +530,10 @@ struct ModelsHub: View {
 /// каталогов (Whisper, Gemma-audio) кванта нет и добавлять им лишний параметр
 /// незачем — так проще, чем тащить через ModelCatalogRow условную опцию.
 struct LLMQuantRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let model: LLMModel
     @ObservedObject var settings: AppSettings
     @ObservedObject var models: LLMModelManager
@@ -696,6 +708,10 @@ struct LLMQuantRow: View {
 /// Живёт рядом с каталогом, потому что проверять модель идут сразу после того,
 /// как её скачали.
 struct GemmaAudioTestRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
 
     @State private var recorder = AudioRecorder()

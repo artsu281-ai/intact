@@ -9,6 +9,10 @@ import AppKit
 /// наговорено, что из этого стало заметкой или напоминанием, и одна
 /// кнопка — собрать из всего этого бриф.
 struct HomeTab: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @ObservedObject var settings: AppSettings
     var onOpenSection: (SettingsSection) -> Void
 
@@ -384,6 +388,10 @@ extension String {
 /// Строка ленты дня. Отдельный тип ради собственного состояния: кнопка
 /// копирования проявляется по наведению и подтверждает результат.
 private struct DayEntryRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let entry: HistoryEntry
     let time: String
     let isLast: Bool

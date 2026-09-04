@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Компактная выпадайка смены модели ИИ для шапки карточки или раздела.
 struct AIModelPicker: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     var role: AIRole? = nil
     var compact: Bool = false
     var onOpenSettings: () -> Void = {}
@@ -271,6 +275,10 @@ struct AIModelPicker: View {
 /// Строка настроек «какая модель отвечает за эту задачу» — с выбором прямо тут.
 /// Используется в разделах «Диктовка», «Спросите ИИ» и в общих настройках.
 struct AIRoleRow: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let role: AIRole
     var first: Bool = false
     var onOpenSettings: () -> Void

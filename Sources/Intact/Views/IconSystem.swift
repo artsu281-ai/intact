@@ -211,6 +211,10 @@ enum IconWeight: Hashable {
 /// поэтому её можно ставить в любую кнопку и не думать о теме. Явный `tone`
 /// перебивает наследование и красит иконку семантически.
 struct IntactIcon: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let kind: IntactIconKind
     var size: CGFloat = 16
     var tone: IconTone? = nil
@@ -294,6 +298,10 @@ private struct OptionalForeground: ViewModifier {
 /// Иконка, которая растёт вместе с системным масштабом текста (100 %…200 %).
 /// Верхняя граница обязательна: иначе на 200 % иконка разорвёт строку карточки.
 struct ScaledIntactIcon: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let kind: IntactIconKind
     var tone: IconTone? = nil
     var weight: IconWeight = .regular
@@ -311,6 +319,10 @@ struct ScaledIntactIcon: View {
 /// Иконка раздела в сайдбаре. Выбранный раздел получает акцент и чуть большую
 /// плотность контура — вес важнее цвета, он читается и в монохромной теме.
 struct SidebarIntactIcon: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let kind: IntactIconKind
     let selected: Bool
     var size: CGFloat = 16
@@ -331,6 +343,10 @@ struct SidebarIntactIcon: View {
 /// Стекло живёт здесь, а не на контуре: эффект на штрихе толщиной 1.4 pt
 /// превращается в грязь. Одна плитка на смысловой блок, не на каждую строку списка.
 struct IconTile: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let kind: IntactIconKind
     var tone: IconTone = .active
     var side: CGFloat = 36
@@ -368,6 +384,10 @@ struct IconTile: View {
 /// и полностью отключается при «Уменьшении движения»: индикатор висит поверх
 /// всех окон, и вечный таймер там стоит батареи.
 struct PulsingVoiceIcon: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     var active: Bool
     var size: CGFloat = 16
     /// `nil` — наследовать цвет от вызывающего кода (нужно в HUD со своей палитрой).
@@ -394,6 +414,10 @@ struct PulsingVoiceIcon: View {
 /// крутящийся индикатор означает «жди неизвестно сколько», а бегущие точки
 /// читаются как «идёт речь» — это разные обещания пользователю.
 struct ThinkingDots: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     var size: CGFloat = 16
     var tone: IconTone? = nil
 

@@ -280,6 +280,95 @@ enum Palette {
     }
 }
 
+// MARK: - Подписка видов на тему
+
+/// Отпечаток действующей темы: сама тема, уже разрешённая «темнота» и ревизия.
+///
+/// `isDark` отдельным полем потому, что у `.system` тему меняет не человек,
+/// а macOS, и `appTheme` при этом не шевелится — без второго поля такая смена
+/// прошла бы мимо.
+///
+/// `Equatable` здесь несущий: SwiftUI сравнивает значения окружения и
+/// переоценивает виды только когда отпечаток правда изменился. Поэтому обычные
+/// публикации `AppSettings` — громкость, путь к модели, что угодно — лишней
+/// работы не создают. Замерено на стенде: пять посторонних публикаций дают
+/// корню 18 переоценок, а листу 0.
+struct ThemeStamp: Equatable {
+    var theme: AppTheme
+    var isDark: Bool
+    var revision: Int
+
+    init(_ settings: AppSettings) {
+        theme = settings.appTheme
+        isDark = settings.isDarkMode
+        revision = settings.themeRevision
+    }
+
+    init(theme: AppTheme, isDark: Bool, revision: Int = 0) {
+        self.theme = theme
+        self.isDark = isDark
+        self.revision = revision
+    }
+}
+
+private struct ThemeStampKey: EnvironmentKey {
+    static let defaultValue = ThemeStamp(theme: .white, isDark: false)
+}
+
+extension EnvironmentValues {
+    var themeStamp: ThemeStamp {
+        get { self[ThemeStampKey.self] }
+        set { self[ThemeStampKey.self] = newValue }
+    }
+}
+
+/// Подписка вида на тему — одна строка в объявлении.
+///
+/// `Palette` — статика, и чтение `Palette.card` в теле вида не создаёт для
+/// SwiftUI никакой зависимости: у вида не изменилось ни одно хранимое свойство,
+/// значит переоценивать его незачем, значит он останется в старых цветах.
+/// Именно поэтому раньше на корне окна стоял `.id(settings.appTheme)` — он
+/// менял идентичность всего дерева, и SwiftUI сносил его целиком и строил
+/// заново. Через смену идентичности анимация невозможна в принципе, а вместе
+/// с деревом терялось и всё локальное состояние: наведение, раскрытые секции,
+/// позиция прокрутки.
+///
+/// Это свойство читает окружение, а оно при смене темы меняется — и вид
+/// переоценивается штатно, с анимацией и без потери состояния.
+///
+/// Правило: вид читает `Palette` — вид объявляет `@ThemeReader`. Значение
+/// в теле использовать не обязательно, работает само объявление.
+/// **Не удалять «как неиспользуемое»** — вид застрянет в прежней палитре.
+/// Это же касается видов, которые читают палитру не напрямую, а через
+/// `IconTone.color` или `IntactButtonRole`: слова `Palette` в них нет,
+/// а выцветают они одинаково.
+@propertyWrapper
+struct ThemeReader: DynamicProperty {
+    @Environment(\.themeStamp) private var stamp
+
+    // Явный `init()` нужен, чтобы обёртка получала значение по умолчанию
+    // в почленном инициализаторе вида — иначе объявление свойства меняло бы
+    // сигнатуру вроде `Card(header:content:)` и ломало места вызова.
+    init() {}
+
+    var wrappedValue: ThemeStamp { stamp }
+}
+
+/// Ставится один раз на корень каждого окна. Модификатор сам подписан на
+/// `AppSettings`, поэтому корню окна ни о чём знать не нужно.
+private struct ThemedRootModifier: ViewModifier {
+    @ObservedObject private var settings = AppSettings.shared
+
+    func body(content: Content) -> some View {
+        content.environment(\.themeStamp, ThemeStamp(settings))
+    }
+}
+
+extension View {
+    /// Корень окна: раздаёт вниз отпечаток темы.
+    func themedRoot() -> some View { modifier(ThemedRootModifier()) }
+}
+
 // MARK: - Кнопки
 
 /// Роль кнопки — что она делает, а не как выглядит. Цвета выводятся из роли,
@@ -484,6 +573,10 @@ struct WisprToggleStyle: ToggleStyle {
 /// и `@Environment`/`@State` внутри самого стиля не обновлялись бы. Именно
 /// здесь читается `isEnabled`, приходящий от `.disabled(...)` на месте вызова.
 private struct WisprSwitch: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @Binding var isOn: Bool
 
     @Environment(\.isEnabled) private var isEnabled
@@ -571,6 +664,10 @@ private struct SwitchPressStyle: ButtonStyle {
 
 /// Страница раздела: крупный заголовок с засечками и прокручиваемое содержимое.
 struct SettingsPage<Content: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     @ViewBuilder var content: Content
 
@@ -600,6 +697,10 @@ struct SettingsPage<Content: View>: View {
 
 /// Карточка с заголовком: мягкий фон, скругленные углы, разделители-волоски.
 struct Card<Content: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     var header: String? = nil
     @ViewBuilder var content: Content
 
@@ -630,6 +731,10 @@ struct Card<Content: View>: View {
 
 /// Строка карточки: название, пояснение под ним, управляющий элемент справа.
 struct Row<Control: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     var subtitle: String? = nil
     var first: Bool = false
@@ -675,6 +780,10 @@ struct Row<Control: View>: View {
 /// и за то, какую роль вывести из `tone`. Подпись вызова прежняя — её
 /// используют 39 мест, ломать их незачем.
 struct PillButton: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let title: String
     var icon: IntactIconKind? = nil
     /// Семантика действия: `.danger` для удаления, `.success` для подтверждения.
@@ -710,6 +819,10 @@ struct PillButton: View {
 
 /// Бейдж горячей клавиши (например, ⌥ Opt, ⌘V).
 struct KeyCapBadge: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let text: String
 
     var body: some View {
@@ -734,6 +847,10 @@ struct KeyCapBadge: View {
 /// - Плавающий поповер со списком элементов, увеличенными отступами,
 ///   выделением выбранного элемента галочкой слева, плавным ховером и отличной читаемостью.
 struct WisprDropdown<T: Hashable, Label: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @Binding var selection: T
     let options: [T]
     @ViewBuilder let label: (T) -> Label
@@ -789,6 +906,10 @@ struct WisprDropdown<T: Hashable, Label: View>: View {
 }
 
 struct WisprDropdownItemRow<Label: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let isSelected: Bool
     let action: () -> Void
     @ViewBuilder let content: () -> Label
@@ -827,6 +948,10 @@ struct WisprDropdownItemRow<Label: View>: View {
 
 /// Ползунок в правой части строки — с аккуратной подписью значения.
 struct SliderControl: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @Binding var value: Double
     let range: ClosedRange<Double>
     let step: Double
@@ -847,6 +972,10 @@ struct SliderControl: View {
 
 /// Выпадающий список выбора языка с быстрым многоязычным поиском (без флагов)
 struct SearchableLanguageDropdown: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     @Binding var selection: String
     @State private var isOpen = false
     @State private var search = ""
@@ -1027,6 +1156,10 @@ struct SearchableLanguageDropdown: View {
 /// словарь терминов диктовки. `LazyVGrid` тут не подходит: ширина меток
 /// разная, а фиксированная сетка оставляет дыры.
 struct FlowTags: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     let items: [String]
     let onRemove: (String) -> Void
 

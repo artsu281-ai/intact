@@ -22,6 +22,10 @@ enum Layout {
 /// так контент остаётся пристыкованным к боковому меню и не «уплывает»
 /// на широком экране.
 struct ContentColumn<Content: View>: View {
+    // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
+    // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
+    @ThemeReader var themeStamp
+
     var maxWidth: CGFloat = Layout.reading
     var gutter: CGFloat = Layout.gutter
     @ViewBuilder var content: Content
