@@ -190,16 +190,84 @@ final class DictationController: ObservableObject {
 
     // MARK: - Движок
 
-    /// Поднимает whisper-server заранее, чтобы первая же диктовка была быстрой.
+    /// Нужен ли локальный whisper-server хоть одному способу диктовки,
+    /// который сейчас реально можно запустить.
+    ///
+    /// Раньше сервер грелся всегда, когда был включён `streaming` (а он включён
+    /// по умолчанию), — не спрашивая, пользуется ли им кто-нибудь. При всех
+    /// пайплайнах на Gemini это значило держать в памяти `ggml-large-v3`
+    /// ради диктовки, которую нельзя начать: сервер поднимался на каждый запуск
+    /// приложения, то есть при «Запускать при входе» — на каждый вход в систему.
+    ///
+    /// Потребителей ровно два:
+    /// - включённый пайплайн с движком `whisperLocal`;
+    /// - обычная диктовка на глобальном движке `whisperLocal` — но только если
+    ///   её клавишу не забрал пайплайн. На сочетании клавиш она пайплайнам не
+    ///   уступает никогда, на удержании модификатора — уступает.
+    ///
+    /// Откат с Gemini на Whisper («Gemini STT не стартовал…») сюда не входит
+    /// намеренно: он работает и без сервера — финальная расшифровка идёт
+    /// разово через `Transcriber`, пропадает только живой черновик. Держать
+    /// гигабайты в памяти ради редкого отката — не та цена.
+    var whisperServerNeeded: Bool {
+        let manager = PipelineManager.shared
+        if manager.pipelines.contains(where: { $0.enabled && $0.sttEngine == .whisperLocal }) {
+            return true
+        }
+        guard settings.sttEngine == .whisperLocal else { return false }
+        switch settings.activationMode {
+        case .hotKeyHold, .hotKeyToggle:
+            return true
+        case .modifierHold:
+            return manager.claimedModifierKeyCodes.isDisjoint(with: settings.triggerKey.keyCodes)
+        }
+    }
+
+    /// Поднимает whisper-server заранее, чтобы первая же диктовка была быстрой, —
+    /// если он кому-то нужен.
     func warmUp() {
-        if settings.streaming, WhisperServer.shared.isAvailable {
+        let needed = whisperServerNeeded
+        if settings.streaming, WhisperServer.shared.isAvailable, needed {
+            if !WhisperServer.shared.isRunning {
+                Log.write("whisper-server: поднимаю — нужен локальному распознаванию (модель \(URL(fileURLWithPath: settings.modelPath).lastPathComponent))")
+            }
             WhisperServer.shared.ensureRunning(settings: settings) { ok in
                 DispatchQueue.main.async { self.engineReady = ok }
             }
         } else {
-            DispatchQueue.main.async { self.engineReady = false }
+            if WhisperServer.shared.isRunning {
+                WhisperServer.shared.stop()
+                Log.write("whisper-server: остановлен — локальным распознаванием сейчас никто не пользуется")
+            }
+            // «Готов» здесь значит «грузить нечего». Если локальный Whisper
+            // никому не нужен, диктовка идёт через Gemini и сервера не ждёт —
+            // а `false` повесил бы в боковике вечное «Модель загружается…».
+            // Если же он нужен, но сервер невозможен (выключен `streaming` или
+            // нет бинаря), оставляем прежнее `false`: там диктовка платит
+            // загрузку модели на каждый раз.
+            DispatchQueue.main.async { self.engineReady = !needed }
         }
         warmUpLocalAI()
+    }
+
+    /// Сверяет сервер с тем, кому он нужен, после смены пайплайнов или способа
+    /// активации — чтобы сервер поднимался, когда появляется потребитель, и
+    /// гас, когда последний уходит, а не ждал перезапуска приложения.
+    ///
+    /// Сознательно не зовёт `warmUp()`, когда сервер уже запущен: у
+    /// `ensureRunning` быстрый путь отвечает «готов», как только запущен
+    /// процесс, ещё до загрузки модели, и повторный вызов посреди загрузки
+    /// выставил бы `engineReady` раньше времени.
+    func reconcileWhisperServer() {
+        let needed = whisperServerNeeded
+        let running = WhisperServer.shared.isRunning
+        if needed && !running {
+            warmUp()
+        } else if !needed && running {
+            WhisperServer.shared.stop()
+            Log.write("whisper-server: остановлен — последний способ диктовки, которому он был нужен, отключён")
+            DispatchQueue.main.async { self.engineReady = true }
+        }
     }
 
     /// Поднимает локальные llama-server заранее — иначе первая же AI-причёсанная

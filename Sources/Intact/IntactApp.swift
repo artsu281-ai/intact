@@ -196,8 +196,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = AppSettings.shared
 
-        settings.onHotKeyChange = { [weak self] in self?.applyActivation() }
-        PipelineManager.shared.onChange = { [weak self] in self?.applyActivation() }
+        // После смены клавиш или пайплайнов меняется и то, кому нужен локальный
+        // whisper-server, — сверяем сразу, а не при следующем запуске.
+        settings.onHotKeyChange = { [weak self] in
+            self?.applyActivation()
+            DictationController.shared.reconcileWhisperServer()
+        }
+        PipelineManager.shared.onChange = { [weak self] in
+            self?.applyActivation()
+            DictationController.shared.reconcileWhisperServer()
+        }
         settings.onEngineChange = { DictationController.shared.restartEngine() }
         settings.onAIProviderChange = { DictationController.shared.warmUpLocalAI() }
         // Прибираем за прошлым запуском до того, как поднимем свои серверы.
@@ -355,11 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // ветки, спорили за микрофон и за состояние контроллера. Пайплайн — более общий
         // механизм (свой движок распознавания и своё действие на выходе), поэтому
         // при пересечении клавиш он выигрывает, а легаси-монитор молча уступает.
-        let pipelineKeyCodes: Set<Int64> = PipelineManager.shared.pipelines
-            .filter { $0.enabled }
-            .reduce(into: Set<Int64>()) { codes, pipeline in
-                if case .modifierKey(let key) = pipeline.trigger { codes.formUnion(key.keyCodes) }
-            }
+        let pipelineKeyCodes = PipelineManager.shared.claimedModifierKeyCodes
 
         switch s.activationMode {
         case .modifierHold:

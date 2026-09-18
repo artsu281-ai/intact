@@ -183,6 +183,22 @@ public final class PipelineManager: ObservableObject {
     /// глобальные клавиши, иначе новый триггер начинал работать только после перезапуска.
     public var onChange: (() -> Void)?
 
+    /// Модификаторы, которые забрали включённые пайплайны.
+    ///
+    /// Обычная диктовка на удержании модификатора уступает такую клавишу
+    /// пайплайну (`IntactApp.applyActivation`). От этого же набора зависит,
+    /// нужен ли вообще локальный whisper-server (`DictationController.whisperServerNeeded`),
+    /// поэтому он вычисляется в одном месте — два независимых вычисления
+    /// рано или поздно разошлись бы, и сервер поднимался бы для диктовки,
+    /// которую уже нельзя запустить.
+    public var claimedModifierKeyCodes: Set<Int64> {
+        pipelines
+            .filter { $0.enabled }
+            .reduce(into: Set<Int64>()) { codes, pipeline in
+                if case .modifierKey(let key) = pipeline.trigger { codes.formUnion(key.keyCodes) }
+            }
+    }
+
     private var fileURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let dir = appSupport.appendingPathComponent("Intact", isDirectory: true)
