@@ -120,6 +120,13 @@ final class DictationController: ObservableObject {
     /// Идёт ли текущая запись через микрофон Gemini. Нужен, чтобы остановка и отмена
     /// знали, кого именно глушить, и чтобы не дёргать Gemini на Whisper-диктовках.
     private var usingGeminiSTT = false
+    /// Запись запрашивала сессию у Gemini — даже если та потом отказала. По отмене этой
+    /// сессии служба решает, будить ли Gemini ради следующих диктовок, поэтому отмену
+    /// надо передать и после отказа, когда `usingGeminiSTT` уже сброшен.
+    private var geminiSessionRequested = false
+    /// Подсказка «поднимаю/открываю Gemini в фоне» показана этой записи. Если запись
+    /// потом отменили, Gemini никто будить не станет — и подсказка должна исчезнуть.
+    private var geminiWakeHintShown = false
     /// Поколение записи: отменённая/прерванная попытка запускает новое поколение,
     /// и черновик, который досчитывается в фоне уже после отмены, узнаёт об этом
     /// по несовпадению номеров и не перезаписывает состояние следующей диктовки.
@@ -361,6 +368,10 @@ final class DictationController: ObservableObject {
     private func startEngine(_ engine: STTEngineType) {
         engineFellBack = false
         engineLabel = engine.badgeName
+        // Флаг прошлой сессии не должен отправить Whisper-диктовку за текстом к Gemini.
+        usingGeminiSTT = false
+        geminiSessionRequested = false
+        geminiWakeHintShown = false
 
         switch engine {
         case .whisperLocal:
@@ -368,29 +379,65 @@ final class DictationController: ObservableObject {
 
         case .geminiNative:
             usingGeminiSTT = true
+            geminiSessionRequested = true
+            let generation = recordingGeneration
             GeminiSTTService.shared.start(
                 onDraft: { [weak self] draft in
                     guard let self, self.state == .recording, !draft.isEmpty else { return }
                     self.draftText = draft
                 },
-                completion: { [weak self] started in
+                completion: { [weak self] outcome in
                     guard let self else { return }
-                    guard started else {
-                        // Микрофон Gemini не включился — самая частая причина — не выдано
-                        // разрешение на микрофон самому приложению Gemini (у копии
-                        // Double Bubble оно своё, отдельное от основного приложения).
+                    // Старт прошлой, уже брошенной сессии не должен трогать текущую:
+                    // раньше его поздний ответ сбрасывал usingGeminiSTT у следующей диктовки.
+                    guard generation == self.recordingGeneration else { return }
+                    switch outcome {
+                    case .started:
+                        guard self.state == .recording else { return }
+                        if self.settings.playSounds { NSSound(named: "Tink")?.play() }
+                    case .abandoned:
+                        return
+                    case .failed(let reason):
                         self.usingGeminiSTT = false
                         self.noteFallbackToWhisper()
-                        Log.write("Gemini STT не стартовал — продолжаю локальным Whisper")
-                        self.lastError = T("Gemini не начал запись — проверьте доступ к микрофону у Gemini в «Конфиденциальность и безопасность». Диктовка идёт локально.",
-                                           "Gemini did not start recording — check Gemini's microphone access under Privacy & Security. Dictating locally instead.")
+                        Log.write("Gemini STT не стартовал (\(reason.logText)) — продолжаю локальным Whisper")
+                        self.lastError = Self.geminiStartMessage(reason)
+                        if case .launching = reason { self.geminiWakeHintShown = true }
+                        if case .windowClosed = reason { self.geminiWakeHintShown = true }
                         guard self.state == .recording else { return }
                         self.startDrafting()
-                        return
                     }
-                    if self.settings.playSounds { NSSound(named: "Tink")?.play() }
                 }
             )
+        }
+    }
+
+    /// Подсказка по причине отказа. Раньше на любой отказ советовали проверить
+    /// разрешение на микрофон, хотя по логу все отказы были закрытым окном Gemini.
+    private static func geminiStartMessage(_ reason: GeminiSTTService.StartFailure) -> String? {
+        switch reason {
+        case .notInstalled:
+            return T("Приложение Gemini не найдено — диктовка идёт локально.",
+                     "Gemini app not found — dictating locally instead.")
+        case .launching:
+            return T("Gemini не был запущен — поднимаю его в фоне. Эта диктовка идёт локально, следующие пойдут через Gemini.",
+                     "Gemini wasn't running — starting it in the background. This dictation is local; the next ones go through Gemini.")
+        case .windowClosed:
+            return T("Окно Gemini было закрыто — открываю его в фоне, не активируя. Эта диктовка идёт локально, следующие пойдут через Gemini.",
+                     "Gemini's window was closed — reopening it in the background without activating it. This dictation is local; the next ones go through Gemini.")
+        case .composerUnavailable:
+            return T("Поле ввода Gemini сейчас недоступно (окно свёрнуто, на другом рабочем столе или ещё загружается) — диктовка идёт локально.",
+                     "Gemini's input field isn't available right now (window minimised, on another desktop, or still loading) — dictating locally instead.")
+        case .late:
+            // Разовая задержка, не требует от пользователя ничего.
+            return nil
+        case .micButtonNotFound:
+            return T("Не нашёл кнопку микрофона в окне Gemini — возможно, изменился интерфейс. Диктовка идёт локально.",
+                     "Couldn't find the microphone button in Gemini's window — its interface may have changed. Dictating locally instead.")
+        case .notConfirmed:
+            // У копии Double Bubble разрешение на микрофон своё, отдельное от основного приложения.
+            return T("Gemini не начал запись — проверьте доступ к микрофону у Gemini в «Конфиденциальность и безопасность». Диктовка идёт локально.",
+                     "Gemini did not start recording — check Gemini's microphone access under Privacy & Security. Dictating locally instead.")
         }
     }
 
@@ -399,8 +446,9 @@ final class DictationController: ObservableObject {
     /// СВОЮ запись локальным Whisper: сказанное не должно пропасть из-за чужого приложения.
     private func finishWithGemini(duration: TimeInterval, deliver: @escaping (String, TimeInterval) -> Void) {
         usingGeminiSTT = false
+        geminiSessionRequested = false
         let started = Date()
-        GeminiSTTService.shared.stop { [weak self] recognized in
+        GeminiSTTService.shared.stop(recordedSeconds: duration) { [weak self] recognized in
             guard let self else { return }
             let text = recognized.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
@@ -440,6 +488,19 @@ final class DictationController: ObservableObject {
     private func noteFallbackToWhisper() {
         engineFellBack = true
         engineLabel = STTEngineType.whisperLocal.badgeName
+    }
+
+    /// Отмена Gemini-сессии текущей записи: глушит его микрофон, если тот успел включиться,
+    /// и не даёт службе будить Gemini из-за сочетания клавиш или короткого нажатия.
+    private func cancelGeminiSession() {
+        guard geminiSessionRequested || usingGeminiSTT else { return }
+        geminiSessionRequested = false
+        usingGeminiSTT = false
+        GeminiSTTService.shared.cancel()
+        if geminiWakeHintShown {
+            geminiWakeHintShown = false
+            lastError = nil
+        }
     }
 
     /// Разовая локальная расшифровка уже сделанной записи — используется как страховка.
@@ -483,6 +544,9 @@ final class DictationController: ObservableObject {
             indicator.hide()
             state = .idle
             draftText = ""
+            // Микрофон Gemini мог успеть включиться — глушим, как и в stopPipeline:
+            // без этого он оставался писать без хозяина.
+            cancelGeminiSession()
             return
         }
 
@@ -527,10 +591,7 @@ final class DictationController: ObservableObject {
         activePipeline = nil
         // Микрофон Gemini выключаем первым делом: иначе он продолжит писать
         // в композер уже после того, как пользователь отменил диктовку.
-        if usingGeminiSTT {
-            usingGeminiSTT = false
-            GeminiSTTService.shared.cancel()
-        }
+        cancelGeminiSession()
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -554,10 +615,7 @@ final class DictationController: ObservableObject {
         activePipeline = nil
         // Микрофон Gemini выключаем первым делом: иначе он продолжит писать
         // в композер уже после того, как пользователь отменил диктовку.
-        if usingGeminiSTT {
-            usingGeminiSTT = false
-            GeminiSTTService.shared.cancel()
-        }
+        cancelGeminiSession()
         MediaController.shared.end()
         recorder.stop()
         stopTicker()
@@ -1014,10 +1072,7 @@ final class DictationController: ObservableObject {
             draftText = ""
             // Микрофон Gemini мог успеть включиться — обязательно глушим,
             // иначе он останется писать после отменённой диктовки.
-            if usingGeminiSTT {
-                usingGeminiSTT = false
-                GeminiSTTService.shared.cancel()
-            }
+            cancelGeminiSession()
             return
         }
 

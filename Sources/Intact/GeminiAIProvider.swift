@@ -78,6 +78,16 @@ final class GeminiAIProvider: AIProvider {
                 return
             }
 
+            // Поле ввода у нас с распознаванием общее. Брошенная диктовка ещё может
+            // выключать микрофон Gemini и чистить поле — наш запрос не должен попасть под эту уборку.
+            GeminiSTTService.shared.waitUntilIdle()
+            // Пока ждали, запрос могли отменить (⎋ или страховочный таймер) — тогда
+            // в Gemini не пишем вовсе.
+            if isCancelled {
+                finish(.failure(.timeout))
+                return
+            }
+
             let bundleId = GeminiBridgeService.bundleIdentifier
             let currentActiveApp = NSWorkspace.shared.frontmostApplication
             var geminiApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first

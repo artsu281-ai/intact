@@ -187,6 +187,8 @@ final class GeminiBridgeService: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
+            // Поле ввода общее с распознаванием: сначала пусть оно закончит уборку.
+            GeminiSTTService.shared.waitUntilIdle()
 
             let success = self.performDirectAXDelivery(prompt: cleanPrompt, autoSubmit: autoSubmit, newChat: newChat, background: background)
 
