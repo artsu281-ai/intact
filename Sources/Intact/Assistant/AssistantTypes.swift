@@ -287,7 +287,12 @@ enum AssistantCard: Equatable {
 
     var title: String {
         switch self {
-        case .summary: return T("Готово", "Done")
+        case .summary(let lines, _):
+            // Заголовок — по итогу строк: «Готово» над строкой «окно на другом рабочем
+            // столе» было той же неправдой, что и «Открыто».
+            if lines.allSatisfy(\.ok) { return T("Готово", "Done") }
+            if lines.contains(where: \.ok) { return T("Сделано частично", "Partly done") }
+            return T("Не получилось", "Didn't work")
         case .answer: return T("Ответ", "Answer")
         case .confirm: return T("Понял так:", "Here's the plan:")
         case .clarify: return T("Уточните", "One question")

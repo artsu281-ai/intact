@@ -217,6 +217,10 @@ final class GeminiAIProvider: AIProvider {
             // Accessibility, и «25 секунд» из настроек превращались в минуту с лишним.
             var previousFullText = ""
             var unchangedCount = 0
+            var lastChange = Date()
+            var sawStop = false
+            var pollsWithoutStop = 0
+            var answerWasAnchored = false
             let pollInterval: TimeInterval = 0.15
             let deadline = Date().addingTimeInterval(request.timeout)
 
@@ -231,6 +235,16 @@ final class GeminiAIProvider: AIProvider {
                 // тому приложению, в котором работал пользователь
                 if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid {
                     currentActiveApp?.activate()
+                }
+
+                // Конец генерации — по сигналу самого Gemini: «Остановить генерацию» была и
+                // пропала. Кнопка «Скопировать» (якорь) появляется и у ответа, который ещё
+                // пишется, а паузы между кусками бывают дольше секунды (раздел 4.4).
+                if Self.button(in: window, identifier: "stop_button") != nil {
+                    sawStop = true
+                    pollsWithoutStop = 0
+                } else {
+                    pollsWithoutStop += 1
                 }
 
                 // Текст последнего ответа берём по якорю — кнопке «Скопировать ответ»:
@@ -270,16 +284,21 @@ final class GeminiAIProvider: AIProvider {
                             }
                             previousFullText = answerCandidate
                             unchangedCount = 0
+                            lastChange = Date()
                             onDelta(delta)
                         } else {
                             unchangedCount += 1
                         }
+                        answerWasAnchored = anchored != nil
 
                         // Фиксируем результат ТОЛЬКО по якорному тексту: предпросмотр
                         // без якоря — это ещё не ответ, а то, что успело отрисоваться.
-                        // Плюс ждём, что текст перестал расти: кнопка «Скопировать»
-                        // появляется и у ещё дописываемого ответа.
-                        if anchored != nil && unchangedCount >= 3 && !previousFullText.isEmpty {
+                        // И только когда генерация кончилась: «Остановить» пропала на два
+                        // опроса, текст не менялся; если её так и не увидели — 6 с тишины.
+                        let generationEnded = sawStop
+                            ? pollsWithoutStop >= 2 && unchangedCount >= 1
+                            : Date().timeIntervalSince(lastChange) >= 6
+                        if anchored != nil && generationEnded && !previousFullText.isEmpty {
                             finish(.success(previousFullText))
                             return
                         }
@@ -287,9 +306,27 @@ final class GeminiAIProvider: AIProvider {
                 }
             }
 
-            if !previousFullText.isEmpty {
-                finish(.success(previousFullText))
+            // Дедлайн: засчитываем только якорный ответ, генерация которого закончилась.
+            // Раньше отдавался любой непустой текст — вплоть до случайного предпросмотра
+            // (заголовок размышления, чип), и он вставлялся вместо причёсанной диктовки.
+            if Self.button(in: window, identifier: "stop_button") == nil,
+               let raw = self.latestAnswerText(in: window),
+               self.answerBlockCount(in: window) > baselineAnswerCount || raw != baselineAnswer {
+                // Генерация кончилась между опросами — перечитываем, чтобы не потерять
+                // последний кусок, пришедший после предыдущего опроса.
+                let final = self.cleanGeminiAnswer(raw)
+                if !final.isEmpty {
+                    if final != previousFullText {
+                        onDelta(final.hasPrefix(previousFullText) ? String(final.dropFirst(previousFullText.count)) : final)
+                    }
+                    finish(.success(final))
+                } else if answerWasAnchored, !previousFullText.isEmpty {
+                    finish(.success(previousFullText))
+                } else {
+                    finish(.failure(.timeout))
+                }
             } else {
+                Log.write("Gemini: дедлайн — ответ не дописан или без якоря, возвращаю ошибку, а не обрывок")
                 finish(.failure(.timeout))
             }
         }

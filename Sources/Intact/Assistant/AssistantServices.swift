@@ -916,16 +916,92 @@ enum AppIndex {
         return .notFound
     }
 
-    /// Запускает программу и выводит её вперёд; ждёт не дольше 5 с.
-    /// true — программа запущена; вперёд она выводится по возможности
-    /// (кооперативная активация macOS 14+ может отказать фоновому Intact).
-    static func open(url: URL) -> Bool {
+    /// Чем кончилось «открой X» — по тому, что человек ВИДИТ, а не по ответу системы.
+    enum OpenOutcome: Equatable {
+        /// Программа впереди, её окно на этом рабочем столе.
+        case visible
+        /// Программа без окон по устройству (живёт в строке меню или передаёт работу
+        /// другому процессу и сразу выходит) — запущена, окна ждать нечего.
+        case launched
+        /// Программа впереди, но её окна только на другом рабочем столе, а система
+        /// настроена туда не переходить (`AppleSpacesSwitchOnActivate` = 0).
+        case otherSpace
+        /// Программа запущена, но окна так и не показала.
+        case noWindow
+        /// Программа запущена, но вперёд её не пустили.
+        case notFrontmost
+        case failed
+    }
+
+    /// Запускает программу и добивается видимого окна; ждёт не дольше ~6 с.
+    ///
+    /// Раньше успехом считалось «программа запущена и впереди». Так «Открой Телеграм»
+    /// отвечало «Открыто», а на экране не менялось ничего: окно Telegram было на
+    /// другом рабочем столе, и активация лишь переключила строку меню (замер 25.09).
+    /// Теперь результат — наблюдение: см. `WindowVisibility`.
+    static func open(url: URL) -> OpenOutcome {
         let bundleID = Bundle(url: url)?.bundleIdentifier
         guard !isExcluded(url, bundleID: bundleID) else {
             Log.write("ассистент: отказ открыть мост Gemini или сам Intact")
-            return false
+            return .failed
         }
-        let deadline = Date().addingTimeInterval(5)
+        let wasRunning = bundleID.map { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty } ?? false
+        guard let app = launch(url, bundleID: bundleID) else { return .failed }
+        let pid = app.processIdentifier
+        let name = app.localizedName ?? bundleID ?? "?"
+
+        // Холодный запуск тяжёлой программы (Xcode, Office): отсчёт ожидания окна начинаем,
+        // когда она закончила запускаться, — иначе «не открылось» при медленном старте.
+        if !wasRunning, !waitUntil(15, { app.isFinishedLaunching || app.isTerminated }) {
+            Log.write("ассистент: «\(name)» всё ещё запускается")
+        }
+        // Программы без окон по устройству (строка меню; «Снимок экрана» передаёт работу
+        // другому процессу и выходит): окна от них не дождаться, и это не ошибка.
+        let windowless = { app.isTerminated || app.activationPolicy != .regular }
+        if windowless() {
+            Log.write("ассистент: «\(name)» — программа без окон, запущена")
+            return .launched
+        }
+
+        // 1. Ждём факт: программа впереди и её окно на этом столе.
+        if waitUntil(3.0, { windowless() || (isFrontmost(pid) && WindowVisibility.visibleWindows(of: pid) > 0) }) {
+            return windowless() ? .launched : .visible
+        }
+
+        if !isFrontmost(pid) {
+            DispatchQueue.main.async { app.activate() }
+            if waitUntil(1.5, { isFrontmost(pid) && WindowVisibility.visibleWindows(of: pid) > 0 }) { return .visible }
+            if !isFrontmost(pid) {
+                Log.write("ассистент: «\(name)» запущена, но вперёд не вышла")
+                return .notFrontmost
+            }
+        }
+
+        // 2. Впереди, но окна не видно. Свёрнутое — разворачиваем: человек сам попросил
+        //    открыть эту программу.
+        if WindowVisibility.unminimizeWindows(of: pid),
+           waitUntil(1.5, { WindowVisibility.visibleWindows(of: pid) > 0 }) {
+            Log.write("ассистент: «\(name)» — развернул свёрнутое окно")
+            return .visible
+        }
+        // 3. Окна закрыты или на другом столе — просим программу открыть окно (событие
+        //    reopen, как клик по значку в Dock): многие открывают его на текущем столе.
+        _ = launch(url, bundleID: bundleID)
+        if waitUntil(2.0, { WindowVisibility.visibleWindows(of: pid) > 0 }) {
+            Log.write("ассистент: «\(name)» — окно показано после повторного открытия")
+            return .visible
+        }
+        // 4. Окна только на другом рабочем столе — туда система по настройке не переходит,
+        //    а переносить чужие окна между столами публичного API нет. Говорим честно.
+        if WindowVisibility.offscreenWindows(of: pid) > 0, WindowVisibility.axWindowCount(of: pid) == 0 {
+            Log.write("ассистент: «\(name)» — окно на другом рабочем столе (переход на стол при активации \(WindowVisibility.switchesSpaceOnActivate ? "включён" : "выключен"))")
+            return .otherSpace
+        }
+        Log.write("ассистент: «\(name)» впереди, но окна не показала")
+        return .noWindow
+    }
+
+    private static func launch(_ url: URL, bundleID: String?) -> NSRunningApplication? {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         let done = DispatchSemaphore(value: 0)
@@ -939,24 +1015,25 @@ enum AppIndex {
         let answered = done.wait(timeout: .now() + 5) == .success
         if answered, let failure {
             Log.write("ассистент: программа не открылась, код \((failure as NSError).code)")
-            return false
+            return nil
         }
         let app = (answered ? launched : nil)
             ?? bundleID.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
-        guard let app else {
-            Log.write("ассистент: программа не запустилась за 5 с")
-            return false
-        }
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier {
-            DispatchQueue.main.async { app.activate() }
-            while Date() < deadline, NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier {
-                usleep(20_000)
-            }
-        }
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier {
-            Log.write("ассистент: программа запущена, но вперёд не вышла")
-        }
-        return true
+        if app == nil { Log.write("ассистент: программа не запустилась за 5 с") }
+        return app
+    }
+
+    private static func isFrontmost(_ pid: pid_t) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+    }
+
+    private static func waitUntil(_ seconds: TimeInterval, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        repeat {
+            if condition() { return true }
+            usleep(60_000)
+        } while Date() < deadline
+        return condition()
     }
 
     /// Сбросить кэш, например после установки программы.
@@ -1290,6 +1367,14 @@ enum SystemVolume {
     /// У выхода без регулятора `set volume` молча ничего не делает, поэтому
     /// сначала проверяем, что громкость вообще читается: карточка не должна
     /// сказать «Громкость · 50%», когда ничего не поменялось.
+    /// Выключен ли звук — чтобы «звук выключен» проверялось чтением, а не верой.
+    static func isMuted() -> Bool? {
+        var error: NSDictionary?
+        let result = NSAppleScript(source: "output muted of (get volume settings)")?.executeAndReturnError(&error)
+        guard error == nil, let result else { return nil }
+        return result.booleanValue
+    }
+
     static func set(_ level: Int) throws {
         guard get() != nil else {
             Log.write("ассистент: у выхода звука нет регулятора громкости")
@@ -1445,5 +1530,67 @@ enum AssistantURLPolicy {
             n += 1
         }
         return String(output)
+    }
+}
+
+/// Видит ли человек окна программы — единственный честный признак, что «открыть»
+/// удалось. Код возврата `openApplication` и даже «программа впереди» об этом не говорят.
+enum WindowVisibility {
+    /// Меньше этого — служебные окна (полоски под строкой меню, панели), а не окна программы.
+    private static let minWidth: CGFloat = 120
+    private static let minHeight: CGFloat = 80
+
+    /// Окна программы на экране сейчас (на текущем рабочем столе).
+    static func visibleWindows(of pid: pid_t) -> Int {
+        windows(of: pid, options: [.optionOnScreenOnly, .excludeDesktopElements]).count
+    }
+
+    /// Окна программы вне экрана: свёрнутые или на других рабочих столах.
+    static func offscreenWindows(of pid: pid_t) -> Int {
+        windows(of: pid, options: [.optionAll, .excludeDesktopElements])
+            .filter { ($0[kCGWindowIsOnscreen as String] as? Bool) != true }
+            .count
+    }
+
+    /// Окна, которые видит дерево доступности. Окна других рабочих столов туда не попадают.
+    static func axWindowCount(of pid: pid_t) -> Int {
+        var ref: CFTypeRef?
+        AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXWindowsAttribute as CFString, &ref)
+        return (ref as? [AXUIElement])?.count ?? 0
+    }
+
+    /// Разворачивает свёрнутые окна программы. true — было что разворачивать.
+    static func unminimizeWindows(of pid: pid_t) -> Bool {
+        var ref: CFTypeRef?
+        AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXWindowsAttribute as CFString, &ref)
+        var any = false
+        for window in (ref as? [AXUIElement]) ?? [] {
+            var minimized: CFTypeRef?
+            AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimized)
+            guard (minimized as? Bool) == true else { continue }
+            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            any = true
+        }
+        return any
+    }
+
+    /// «При переключении на приложение переходить на рабочий стол с его открытыми окнами».
+    static var switchesSpaceOnActivate: Bool {
+        // `UserDefaults(suiteName: globalDomain)` возвращает nil (глобальный домен не суит),
+        // и значение всегда было бы «включено». Стандартный поиск глобальный домен включает.
+        UserDefaults.standard.object(forKey: "AppleSpacesSwitchOnActivate") as? Bool ?? true
+    }
+
+    private static func windows(of pid: pid_t, options: CGWindowListOption) -> [[String: Any]] {
+        let all = (CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]]) ?? []
+        return all.filter { window in
+            guard (window[kCGWindowOwnerPID as String] as? Int32) == pid,
+                  (window[kCGWindowLayer as String] as? Int) == 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
+                  let height = (bounds["Height"] as? NSNumber)?.doubleValue else { return false }
+            return width >= minWidth && height >= minHeight
+        }
     }
 }

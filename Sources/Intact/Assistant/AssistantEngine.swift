@@ -11,13 +11,22 @@ protocol AssistantHost: AnyObject {
     /// Доставить текст в приложение, где нажимали клавишу. `mayActivate: false` — не
     /// выдёргивать его вперёд (ответ пришёл через секунды). Состояние диктовки не трогает:
     /// если уже идёт новая запись, отказывает (`done(false)`), и текст уходит на карточку.
-    func assistantDeliverText(_ text: String, target: NSRunningApplication?, mayActivate: Bool, done: @escaping (Bool) -> Void)
+    func assistantDeliverText(_ text: String, target: NSRunningApplication?, mayActivate: Bool, done: @escaping (AssistantDelivery) -> Void)
     /// [Повторить]: новый прогон через контроллер — с пилюлей, ⎋ и сторожем.
     func assistantRetry(utterance: String, context: AssistantContext)
     /// Показать карточку (nil — убрать). `seconds` — через сколько она закроется сама.
     func assistantPresent(_ card: AssistantCard?, seconds: Int)
     /// Одна запись в истории и «последних ответах».
     func assistantRecord(question: String, answer: String)
+}
+
+/// Чем кончилась доставка текста — по факту, а не по «вызов не упал».
+enum AssistantDelivery {
+    /// Вставлено в поле и подтверждено (InsertionEngine сверил поле или ⌘V забрали).
+    case inserted
+    /// Режим вывода «только в буфер»: текст в буфере, в поле его нет.
+    case copied
+    case failed
 }
 
 /// Один прогон ассистента: его можно отменить ⎋.
@@ -255,6 +264,10 @@ final class AssistantEngine {
         switch verdict {
         case .noPlan(let prose):
             host.assistantGoIdle()
+            if Self.claimsUnexecutedAction(utterance: utterance, answer: prose) {
+                claimedButNotDone(utterance: utterance, run: run)
+                return
+            }
             showAnswer(prose, query: utterance, context: context)
 
         case .stale:
@@ -275,7 +288,11 @@ final class AssistantEngine {
         case .plan(let plan):
             if plan.steps.isEmpty {
                 host.assistantGoIdle()
-                showAnswer(plan.say.isEmpty ? T("Готово.", "Done.") : plan.say, query: utterance, context: context)
+                if plan.say.isEmpty || Self.claimsUnexecutedAction(utterance: utterance, answer: plan.say) {
+                    claimedButNotDone(utterance: utterance, run: run)
+                    return
+                }
+                showAnswer(plan.say, query: utterance, context: context)
                 return
             }
             if let question = plan.steps.compactMap({ step -> String? in
@@ -300,6 +317,49 @@ final class AssistantEngine {
             }
             execute(plan, context: context, utterance: utterance, run: run)
         }
+    }
+
+    /// Просили действие, а Gemini ответил словами «готово / поставила / открыла» без плана.
+    /// На Mac ничего не произошло — сказать это прямо, а не показывать его слова как итог.
+    private func claimedButNotDone(utterance: String, run: AssistantRun) {
+        Log.write("Ассистент[\(run.number)]: Gemini сообщил о выполнении, но плана не прислал")
+        present(.error(message: T("Gemini ответил, что сделал, но плана действий не прислал — на Mac ничего не выполнено.",
+                                  "Gemini said it was done but sent no plan — nothing was done on the Mac."),
+                       query: utterance, permission: nil), seconds: 12, query: utterance)
+        playSound("Basso")
+    }
+
+    /// Команда («открой», «поставь», «напомни»…) и ответ, который начинается с отчёта о
+    /// сделанном. Только по первому слову с обеих сторон: «Эйнштейн создал…» — не отчёт.
+    static func claimsUnexecutedAction(utterance: String, answer: String) -> Bool {
+        func words(_ text: String) -> [String] {
+            text.lowercased().replacingOccurrences(of: "ё", with: "е")
+                .components(separatedBy: CharacterSet.letters.inverted)
+                .filter { !$0.isEmpty }
+        }
+        // Вопрос («Напомни, когда день рождения Пушкина?») — это просьба ответить, а не сделать.
+        if utterance.contains("?") { return false }
+        let fillers: Set<String> = ["пожалуйста", "слушай", "можешь", "можно", "давай", "ну", "а", "и", "please", "can", "could", "you"]
+        let command = words(utterance).drop(while: { fillers.contains($0) })
+        let commandStems = ["открой", "запусти", "поставь", "напомни", "создай", "запиши", "добавь", "включи", "выключи",
+                            "удали", "убери", "отмени", "перенеси", "установи", "заведи", "разбуди", "open", "set",
+                            "remind", "create", "add", "turn", "delete", "remove", "launch"]
+        guard let first = command.first, commandStems.contains(where: { first.hasPrefix($0) }) else { return false }
+        let questionWords: Set<String> = ["когда", "как", "что", "где", "кто", "сколько", "какой", "какая", "какое", "какие",
+                                          "почему", "зачем", "куда", "откуда", "what", "when", "where", "who", "how", "which", "why"]
+        if command.dropFirst().first.map(questionWords.contains) == true { return false }
+        // Ответ: пропускаем «хорошо, конечно» и названия инструментов, смотрим следующие слова.
+        let acknowledgements: Set<String> = ["хорошо", "конечно", "окей", "ок", "да", "так", "sure", "okay", "ok", "yes",
+                                             "таймер", "напоминание", "заметка", "событие", "встреча", "timer", "reminder", "note", "event"]
+        let report = words(answer).drop(while: { acknowledgements.contains($0) }).prefix(2)
+        // Только прошедшее и причастия: «напомню», «ставлю» начинают и обычные ответы.
+        let reportWords: Set<String> = ["готово", "сделано", "открыл", "открыла", "открыт", "открыто", "запустил", "запустила",
+                                        "поставил", "поставила", "поставлен", "поставлено", "создал", "создала", "создано", "создана",
+                                        "записал", "записала", "записано", "добавил", "добавила", "добавлено", "включил", "включила",
+                                        "выключил", "выключила", "удалил", "удалила", "удалено", "отменил", "отменила", "перенес",
+                                        "перенесла", "перенесено", "установил", "установила", "done", "opened", "created", "added",
+                                        "deleted", "removed"]
+        return report.contains(where: reportWords.contains)
     }
 
     private func needsConfirmation(_ plan: AssistantPlan, context: AssistantContext) -> Bool {
@@ -337,11 +397,15 @@ final class AssistantEngine {
         toolQueue.async { [weak self] in
             guard let self else { return }
             var receipts: [AssistantReceipt] = []
-            for step in actionSteps {
-                if run.cancelled { break }
+            var skipped: [AssistantStep] = []
+            for (index, step) in actionSteps.enumerated() {
+                if run.cancelled { skipped = Array(actionSteps[index...]); break }
                 let receipt = self.perform(step, context: context, journal: journalSnapshot)
                 receipts.append(receipt)
-                if !receipt.ok { break }   // остановка на первой ошибке
+                if !receipt.ok {   // остановка на первой ошибке; оставшееся — «не выполнено»
+                    skipped = Array(actionSteps[(index + 1)...])
+                    break
+                }
             }
             // Текстовый шаг — последним и только если всё до него удалось.
             let canDeliverText = receipts.allSatisfy(\.ok) && !run.cancelled
@@ -357,22 +421,28 @@ final class AssistantEngine {
                 replaceStillValid = sameWindow && sameSelection
             }
             DispatchQueue.main.async {
-                self.finishExecution(plan: plan, receipts: receipts, textStep: canDeliverText ? textStep : nil,
-                                     replaceStillValid: replaceStillValid, utterance: utterance, context: context, run: run)
+                self.finishExecution(plan: plan, receipts: receipts, skipped: skipped, textStep: textStep,
+                                     canDeliverText: canDeliverText, replaceStillValid: replaceStillValid,
+                                     utterance: utterance, context: context, run: run)
             }
         }
     }
 
-    private func finishExecution(plan: AssistantPlan, receipts: [AssistantReceipt], textStep: AssistantStep?,
-                                 replaceStillValid: Bool, utterance: String, context: AssistantContext, run: AssistantRun) {
-        // Журнал: у каждого удавшегося шага с обратной операцией — своя ссылка.
+    private func finishExecution(plan: AssistantPlan, receipts: [AssistantReceipt], skipped: [AssistantStep],
+                                 textStep: AssistantStep?, canDeliverText: Bool, replaceStillValid: Bool,
+                                 utterance: String, context: AssistantContext, run: AssistantRun) {
+        // Журнал: у каждого шага, после которого в мире что-то осталось (даже если проверка
+        // результата не сошлась), — своя ссылка, чтобы «отмени» могло это убрать.
         var refs: [String] = []
-        var journaled: [AssistantReceipt] = []
         for receipt in receipts where receipt.ok {
             if case .undo(let ref) = receipt.step { journal.removeAll { $0.ref == ref } }
+            if case .edit(let ref, _, _, _, _) = receipt.step, let summary = receipt.memorySummary,
+               let index = journal.firstIndex(where: { $0.ref == ref }) {
+                journal[index].summary = summary
+            }
         }
         for var receipt in receipts {
-            if receipt.ok, let undo = receipt.undo {
+            if let undo = receipt.undo {
                 refCounter += 1
                 let ref = "A\(refCounter)"
                 receipt.ref = ref
@@ -381,7 +451,6 @@ final class AssistantEngine {
                                             guardBox: receipt.guardBox))
                 refs.append(ref)
             }
-            journaled.append(receipt)
         }
         // «Отмени» — про последний выполненный запрос, даже если отменять в нём нечего.
         lastRunRefs = refs
@@ -395,71 +464,97 @@ final class AssistantEngine {
             }
         }
 
-        var lines = journaled.map { AssistantCardLine(ok: $0.ok, text: $0.ok ? $0.line : ($0.error?.message ?? $0.line)) }
-        let failedPermission = journaled.first(where: { !$0.ok })?.error?.permission
+        // Строки карточки — из квитанций. Черновик и вопрос ничего не делают на Mac: это
+        // не «успех», в строках и в подсчёте их нет.
+        let meaningful = receipts.filter { !($0.ok && $0.line.isEmpty) }
+        var lines = meaningful.map { AssistantCardLine(ok: $0.ok, text: $0.ok ? $0.line : ($0.error?.message ?? $0.line)) }
+        lines += skipped.filter { $0.baseRisk >= .local }.map { AssistantCardLine(ok: false, text: T("Не выполнено: ", "Not done: ") + preview($0)) }
+        let failedPermission = meaningful.first(where: { !$0.ok })?.error?.permission
+        let anySucceeded = meaningful.contains { $0.ok }
         let drafts = plan.steps.compactMap { step -> (String, String)? in
             if case .messageDraft(let to, let text) = step { return (to, text) } else { return nil }
         }
+        let text: String? = textStep.flatMap { step in
+            switch step {
+            case .textInsert(let t), .textReplace(let t): return t
+            default: return nil
+            }
+        }
 
-        let complete: (Bool?) -> Void = { [weak self] textLanded in
+        let complete: (AssistantDelivery?) -> Void = { [weak self] delivery in
             guard let self else { return }
-            if let landed = textLanded {
-                lines.append(AssistantCardLine(ok: landed, text: landed
-                    ? (textStep.map { if case .textReplace = $0 { return T("Выделение заменено · ⌘Z — вернуть", "Selection replaced · ⌘Z to undo") } else { return T("Текст вставлен", "Text inserted") } } ?? "")
-                    : T("Вставить не удалось — текст на карточке", "Couldn't insert — the text is on the card")))
+            if let delivery, let textStep {
+                let isReplace: Bool = { if case .textReplace = textStep { return true } else { return false } }()
+                switch delivery {
+                case .inserted:
+                    lines.append(AssistantCardLine(ok: true, text: isReplace ? T("Выделение заменено · ⌘Z — вернуть", "Selection replaced · ⌘Z to undo")
+                                                                   : T("Текст вставлен", "Text inserted")))
+                case .copied:
+                    lines.append(AssistantCardLine(ok: true, text: T("Текст в буфере — вставьте ⌘V (режим «только в буфер»)", "The text is on the clipboard — paste with ⌘V (clipboard-only mode)")))
+                case .failed:
+                    break   // до сюда не доходит: неудача идёт через textFallback
+                }
+            }
+            // Текстовый шаг не дошёл до очереди — раньше что-то не удалось. Текст не теряем,
+            // и про буфер говорим на той карточке, которую покажем.
+            var clipboardNote: String?
+            if delivery == nil, let text, !canDeliverText {
+                Clipboard.write(text, transient: false, session: nil)
+                if NSPasteboard.general.string(forType: .string) == text {
+                    clipboardNote = T("Текст не вставлен — он в буфере", "The text wasn't inserted — it's on the clipboard")
+                    lines.append(AssistantCardLine(ok: false, text: clipboardNote!))
+                }
             }
             let anyFailed = lines.contains { !$0.ok }
-            let anySucceeded = journaled.contains { $0.ok }
-            if let (to, text) = drafts.first, lines.isEmpty || !anyFailed {
-                self.present(.draft(to: to, text: text), seconds: 30, text: text)
+            if let (to, draftText) = drafts.first, !anyFailed, lines.isEmpty {
+                self.present(.draft(to: to, text: draftText), seconds: 30, text: draftText)
                 self.playSound("Purr")
             } else if !lines.isEmpty {
+                if let (to, draftText) = drafts.first, !anyFailed, delivery != .copied {
+                    // Черновик рядом с выполненными действиями: итог с [Отменить], а текст
+                    // черновика — в буфер, чтобы он не пропал.
+                    Clipboard.write(draftText, transient: false, session: nil)
+                    lines.append(AssistantCardLine(ok: true, text: T("Черновик для \(to) — в буфере", "Draft for \(to) — on the clipboard")))
+                }
                 if let permission = failedPermission, !anySucceeded {
                     // Ничего не выполнено — карточка ошибки с [Разрешить].
-                    let message = journaled.first(where: { !$0.ok })?.error?.message ?? ""
+                    var message = meaningful.first(where: { !$0.ok })?.error?.message ?? ""
+                    if let clipboardNote { message += "\n" + clipboardNote }
                     self.present(.error(message: message, query: utterance, permission: permission), seconds: 15, query: utterance)
                 } else {
-                    // Часть выполнена — итог со всеми строками и [Отменить]; повтор всего плана
-                    // создал бы уже сделанное второй раз.
-                    self.present(.summary(lines: lines, canUndo: !refs.isEmpty), seconds: refs.isEmpty ? 4 : (anyFailed ? 10 : 6))
+                    // Итог со всеми строками и [Отменить]; повтор всего плана создал бы
+                    // уже сделанное второй раз.
+                    self.present(.summary(lines: lines, canUndo: !refs.isEmpty), seconds: refs.isEmpty ? (anyFailed ? 10 : 4) : (anyFailed ? 10 : 6))
                 }
                 self.playSound(anyFailed ? "Basso" : "Glass")
             }
-            let summary = lines.filter(\.ok).map(\.text).joined(separator: "; ")
-            // Вставленный текст — то, что потом ищут в истории, если поле оказалось не тем.
-            let delivered: String? = {
-                guard textLanded == true, let textStep else { return nil }
-                switch textStep {
-                case .textInsert(let t), .textReplace(let t): return t
-                default: return nil
-                }
-            }()
-            let answer = delivered ?? (plan.say.isEmpty ? summary : plan.say)
+            // В историю и память — что сделано на самом деле. «say» Gemini написан ДО
+            // выполнения («Открываю Telegram») и верен, только если всё удалось.
+            let delivered: String? = (delivery == .inserted || delivery == .copied) ? text : nil
+            let outcome = lines.map { ($0.ok ? "✓ " : "✗ ") + $0.text }.joined(separator: "; ")
+            let answer = delivered ?? ((!anyFailed && !plan.say.isEmpty) ? plan.say : outcome)
             self.memory.lastExchange = AssistantExchange(question: utterance, answer: answer, at: Date())
             self.host?.assistantRecord(question: utterance, answer: answer)
-            Log.write("Ассистент[\(run.number)]: выполнено \(journaled.filter(\.ok).count) из \(plan.steps.count) шаг(ов)"
-                      + (textLanded.map { $0 ? ", текст доставлен" : ", текст не доставлен" } ?? ""))
+            Log.write("Ассистент[\(run.number)]: выполнено \(meaningful.filter(\.ok).count) из \(plan.steps.count) шаг(ов)"
+                      + (skipped.isEmpty ? "" : ", пропущено \(skipped.count)")
+                      + (delivery.map { ", текст: \($0)" } ?? ""))
         }
 
-        guard let textStep else { complete(nil); return }
-        let text: String
-        switch textStep {
-        case .textInsert(let t), .textReplace(let t): text = t
-        default: complete(nil); return
-        }
+        guard let textStep, let text, canDeliverText else { complete(nil); return }
         if !replaceStillValid {
             Log.write("Ассистент[\(run.number)]: окно или выделение сменились — текст на карточке")
             textFallback(text, lines: &lines, reason: T("Окно сменилось", "The window changed"), utterance: utterance, refs: refs, plan: plan)
             return
         }
-        host?.assistantDeliverText(text, target: context.targetApp, mayActivate: false) { [weak self] landed in
+        _ = textStep
+        host?.assistantDeliverText(text, target: context.targetApp, mayActivate: false) { [weak self] delivery in
             guard let self else { return }
-            if landed {
-                complete(true)
-            } else {
+            if delivery == .failed {
                 // Некуда вставить (ушли в другое приложение, поле пропало, идёт новая
                 // диктовка) — текст не теряем.
                 self.textFallback(text, lines: &lines, reason: T("Вставить не удалось", "Couldn't insert"), utterance: utterance, refs: refs, plan: plan)
+            } else {
+                complete(delivery)
             }
         }
     }
@@ -473,7 +568,10 @@ final class AssistantEngine {
         memory.lastExchange = AssistantExchange(question: utterance, answer: text, at: Date())
         if lines.contains(where: \.ok) {
             Clipboard.write(text, transient: false, session: nil)
-            lines.append(AssistantCardLine(ok: false, text: T("\(reason) — текст скопирован в буфер", "\(reason) — the text is on the clipboard")))
+            let onClipboard = NSPasteboard.general.string(forType: .string) == text
+            lines.append(AssistantCardLine(ok: false, text: onClipboard
+                ? T("\(reason) — текст скопирован в буфер", "\(reason) — the text is on the clipboard")
+                : T("\(reason), и в буфер положить не удалось", "\(reason), and it couldn't be put on the clipboard")))
             present(.summary(lines: lines, canUndo: !refs.isEmpty), seconds: 10)
         } else {
             present(.answer(query: utterance, text: text, canInsert: false), seconds: 40, text: text, query: utterance)
@@ -493,37 +591,47 @@ final class AssistantEngine {
             switch step {
             case .reminderAdd(let title, let due):
                 let id = try AssistantEvents.addReminder(title: title, due: due, listName: settings.voiceRemindersList, timeZone: tz)
-                let box = ItemGuard(); box.reminder = try? AssistantEvents.snapshotReminder(id: id)
+                let box = ItemGuard()
+                let check = Verify.reminder(id: id, due: due)
+                box.reminder = check.observed
                 let when = due.map { Self.format($0, tz: tz) } ?? T("без срока", "no due date")
-                return AssistantReceipt(step: step, ok: true,
-                                        line: T("Напоминание · \(title) · \(when)", "Reminder · \(title) · \(when)"),
-                                        memorySummary: "напоминание «\(title)»" + (due.map { " на \(Self.iso($0, tz: tz))" } ?? ""),
-                                        undo: { try Self.undoReminder(id: id, box: box) }, itemID: id, guardBox: box)
+                return Verify.receipt(check, step: step,
+                                      line: T("Напоминание · \(title) · \(when)", "Reminder · \(title) · \(when)"),
+                                      memorySummary: "напоминание «\(title)»" + (due.map { " на \(Self.iso($0, tz: tz))" } ?? ""),
+                                      undo: { try Self.undoReminder(id: id, box: box) }, itemID: id, guardBox: box)
 
             case .calendarAdd(let title, let start, let end, let place):
                 let id = try AssistantEvents.addEvent(title: title, start: start, end: end, place: place)
-                let box = ItemGuard(); box.event = try? AssistantEvents.snapshotEvent(id: id)
-                return AssistantReceipt(step: step, ok: true,
-                                        line: T("Событие · \(title) · \(Self.format(start, tz: tz))", "Event · \(title) · \(Self.format(start, tz: tz))"),
-                                        memorySummary: "событие «\(title)» на \(Self.iso(start, tz: tz))",
-                                        undo: { try Self.undoEvent(id: id, box: box) }, itemID: id, guardBox: box)
+                let box = ItemGuard()
+                let check = Verify.event(id: id, start: start)
+                box.event = check.observed
+                return Verify.receipt(check, step: step,
+                                      line: T("Событие · \(title) · \(Self.format(start, tz: tz))", "Event · \(title) · \(Self.format(start, tz: tz))"),
+                                      memorySummary: "событие «\(title)» на \(Self.iso(start, tz: tz))",
+                                      undo: { try Self.undoEvent(id: id, box: box) }, itemID: id, guardBox: box)
 
             case .noteAdd(let title, let body):
                 let created = try AssistantNotes.create(title: title, body: body, folder: settings.voiceNotesFolder)
-                let box = ItemGuard(); box.noteModified = try? AssistantNotes.modificationDate(id: created.id)
+                let box = ItemGuard()
+                let check = Verify.note(id: created.id)
+                box.noteModified = check.observed
                 let folderNote = created.folder == settings.voiceNotesFolder ? "" : T(" (в папке «\(created.folder)»)", " (in “\(created.folder)”)")
-                return AssistantReceipt(step: step, ok: true,
-                                        line: T("Заметка · \(title)", "Note · \(title)") + folderNote,
-                                        memorySummary: "заметка «\(title)»",
-                                        undo: {
-                                            // Заметку, которую успели поправить, не удаляем.
-                                            guard let current = try AssistantNotes.modificationDate(id: created.id) else { return }
-                                            if let expected = box.noteModified, abs(current.timeIntervalSince(expected)) > 5 {
-                                                throw AssistantToolError(message: T("Заметку уже меняли — не трогаю", "The note was edited — leaving it alone"))
-                                            }
-                                            try AssistantNotes.delete(id: created.id, expectedFolder: created.folder)
-                                        },
-                                        itemID: created.id, guardBox: box)
+                return Verify.receipt(check, step: step,
+                                      line: T("Заметка · \(title)", "Note · \(title)") + folderNote,
+                                      memorySummary: "заметка «\(title)»",
+                                      undo: {
+                                          // Заметку, которую успели поправить, не удаляем.
+                                          guard let current = try AssistantNotes.modificationDate(id: created.id) else {
+                                              throw AssistantToolError(message: T("Не нашёл заметку — проверьте в «Заметках»", "Couldn't find the note — check Notes"))
+                                          }
+                                          if let expected = box.noteModified, abs(current.timeIntervalSince(expected)) > 5 {
+                                              throw AssistantToolError(message: T("Заметку уже меняли — не трогаю", "The note was edited — leaving it alone"))
+                                          }
+                                          // Удалённая заметка лежит в «Недавно удалённых» и по id находится —
+                                          // итог удаления сообщает сам `delete` (он сверяет папку).
+                                          try AssistantNotes.delete(id: created.id, expectedFolder: created.folder)
+                                      },
+                                      itemID: created.id, guardBox: box)
 
             case .timerSet(let seconds, let label):
                 let name = label ?? T("таймер", "timer")
@@ -531,27 +639,50 @@ final class AssistantEngine {
                     // Внутренний таймер не переживёт перезапуск Intact — длинный ставим напоминанием.
                     let due = AssistantDate(date: Date().addingTimeInterval(TimeInterval(seconds)), hasTime: true)
                     let id = try AssistantEvents.addReminder(title: name, due: due, listName: settings.voiceRemindersList, timeZone: tz)
-                    let box = ItemGuard(); box.reminder = try? AssistantEvents.snapshotReminder(id: id)
-                    return AssistantReceipt(step: step, ok: true,
-                                            line: T("Напоминание-таймер · \(name) · \(Self.format(due, tz: tz))", "Timer reminder · \(name) · \(Self.format(due, tz: tz))"),
-                                            memorySummary: "таймер-напоминание «\(name)» на \(Self.iso(due, tz: tz))",
-                                            undo: { try Self.undoReminder(id: id, box: box) }, itemID: id, guardBox: box)
+                    let box = ItemGuard()
+                    let check = Verify.reminder(id: id, due: due)
+                    box.reminder = check.observed
+                    return Verify.receipt(check, step: step,
+                                          line: T("Напоминание-таймер · \(name) · \(Self.format(due, tz: tz))", "Timer reminder · \(name) · \(Self.format(due, tz: tz))"),
+                                          memorySummary: "таймер-напоминание «\(name)» на \(Self.iso(due, tz: tz))",
+                                          undo: { try Self.undoReminder(id: id, box: box) }, itemID: id, guardBox: box)
                 }
                 let id = try AssistantTimers.shared.start(seconds: seconds, label: label) { [weak self] item in
                     self?.timerFired(label: item.label ?? name)
                 }
+                guard AssistantTimers.shared.active.contains(where: { $0.id == id }) else {
+                    return fail(AssistantToolError(message: T("Таймер не запустился", "The timer didn't start")))
+                }
                 return AssistantReceipt(step: step, ok: true,
                                         line: T("Таймер · \(name) · \(Self.duration(seconds)) (пока Intact запущен)", "Timer · \(name) · \(Self.duration(seconds)) (while Intact runs)"),
                                         memorySummary: "таймер «\(name)» на \(Self.duration(seconds))",
-                                        undo: { _ = AssistantTimers.shared.cancel(id: id) }, itemID: id)
+                                        undo: {
+                                            guard AssistantTimers.shared.cancel(id: id) else {
+                                                throw AssistantToolError(message: T("Таймер уже сработал — отменять нечего", "The timer already went off"))
+                                            }
+                                        }, itemID: id)
 
             case .appOpen(let name):
                 switch AppIndex.resolve(name) {
                 case .found(let url, let displayName):
-                    guard AppIndex.open(url: url) else {
+                    // Строка карточки — по тому, что видно на экране, а не по «запустилось».
+                    switch AppIndex.open(url: url) {
+                    case .visible:
+                        return AssistantReceipt(step: step, ok: true, line: T("Открыто · \(displayName)", "Opened · \(displayName)"))
+                    case .launched:
+                        return AssistantReceipt(step: step, ok: true, line: T("Запущено · \(displayName)", "Launched · \(displayName)"))
+                    case .otherSpace:
+                        return fail(AssistantToolError(message: WindowVisibility.switchesSpaceOnActivate
+                            ? T("«\(displayName)» активна, но её окно на другом рабочем столе", "“\(displayName)” is active, but its window is on another desktop")
+                            : T("«\(displayName)» активна, но окно на другом рабочем столе, а переход туда выключен (Рабочий стол и Dock → «переходить на стол с окнами приложения»)",
+                                "“\(displayName)” is active, but its window is on another desktop and switching there is off (Desktop & Dock → “switch to a Space with open windows”)")))
+                    case .noWindow:
+                        return fail(AssistantToolError(message: T("«\(displayName)» запущена, но окно не показала", "“\(displayName)” is running but didn't show a window")))
+                    case .notFrontmost:
+                        return fail(AssistantToolError(message: T("«\(displayName)» запущена, но macOS не дала вывести её вперёд", "“\(displayName)” is running, but macOS didn't let it come forward")))
+                    case .failed:
                         return fail(AssistantToolError(message: T("Не удалось открыть «\(displayName)»", "Couldn't open “\(displayName)”")))
                     }
-                    return AssistantReceipt(step: step, ok: true, line: T("Открыто · \(displayName)", "Opened · \(displayName)"))
                 case .ambiguous(let names):
                     return fail(AssistantToolError(message: T("Какую программу открыть: \(names.prefix(4).joined(separator: ", "))?",
                                                               "Which app: \(names.prefix(4).joined(separator: ", "))?")))
@@ -560,17 +691,40 @@ final class AssistantEngine {
                 }
 
             case .urlOpen(let url):
-                let opened = DispatchQueue.main.sync { NSWorkspace.shared.open(url) }
-                guard opened else { return fail(AssistantToolError(message: T("Не удалось открыть ссылку", "Couldn't open the link"))) }
-                return AssistantReceipt(step: step, ok: true, line: T("Открыта ссылка · \(AssistantURLPolicy.displayHost(url))", "Opened · \(AssistantURLPolicy.displayHost(url))"))
+                let host = AssistantURLPolicy.displayHost(url)
+                // «Открыто» — только если окно, куда легла ссылка, на этом столе впереди:
+                // иначе вкладка открылась там, куда человек не смотрит.
+                switch Verify.openLink(url) {
+                case .confirmed:
+                    return AssistantReceipt(step: step, ok: true, line: T("Открыта ссылка · \(host)", "Opened · \(host)"))
+                case .unverified(let note):
+                    return AssistantReceipt(step: step, ok: true, line: T("Открыта ссылка · \(host)", "Opened · \(host)") + " · " + note)
+                case .contradicted(let message, _):
+                    return fail(AssistantToolError(message: message))
+                }
 
             case .volumeSet(let level):
                 let previous = SystemVolume.get()
                 try SystemVolume.set(level)
+                // У HDMI и части внешних устройств громкость системой не управляется: команда
+                // проходит молча, а звук не меняется. Читаем обратно.
+                if level > 0, let now = SystemVolume.get(), abs(now - level) > 3 {
+                    return fail(AssistantToolError(message: T("Громкость не изменилась: у этого устройства вывода её регулирует само устройство",
+                                                              "The volume didn't change: this output device controls its own volume")))
+                }
+                if level == 0, SystemVolume.isMuted() == false {
+                    return fail(AssistantToolError(message: T("Звук не выключился: у этого устройства вывода его регулирует само устройство",
+                                                              "Sound didn't turn off: this output device controls its own volume")))
+                }
                 return AssistantReceipt(step: step, ok: true,
                                         line: level == 0 ? T("Звук выключен", "Sound off") : T("Громкость · \(level)%", "Volume · \(level)%"),
                                         memorySummary: "громкость \(level)%",
-                                        undo: previous.map { prev in { try SystemVolume.set(prev) } })
+                                        undo: previous.map { prev in {
+                                            try SystemVolume.set(prev)
+                                            if let now = SystemVolume.get(), abs(now - prev) > 3 {
+                                                throw AssistantToolError(message: T("Громкость не вернулась", "The volume wasn't restored"))
+                                            }
+                                        } })
 
             case .edit(let ref, let title, let due, let start, let end):
                 guard let entry = journal.first(where: { $0.ref == ref }) else {
@@ -585,7 +739,12 @@ final class AssistantEngine {
                         return fail(AssistantToolError(message: T("Напоминание уже меняли — не трогаю", "The reminder was edited — leaving it alone")))
                     }
                     try AssistantEvents.updateReminder(id: itemID, title: title, due: due ?? start, timeZone: tz)
-                    entry.guardBox?.reminder = try? AssistantEvents.snapshotReminder(id: itemID)
+                    do {
+                        entry.guardBox?.reminder = try AssistantEvents.snapshotReminder(id: itemID)
+                    } catch {
+                        entry.guardBox?.reminder = nil
+                        return AssistantReceipt(step: step, ok: true, line: T("Изменено · не перепроверено", "Changed · not re-checked"))
+                    }
                     return nil
                 }
                 switch entry.step {
@@ -599,12 +758,31 @@ final class AssistantEngine {
                         return fail(AssistantToolError(message: T("Событие уже меняли — не трогаю", "The event was edited — leaving it alone")))
                     }
                     try AssistantEvents.updateEvent(id: itemID, title: title, start: start ?? due, end: end)
-                    entry.guardBox?.event = try? AssistantEvents.snapshotEvent(id: itemID)
+                    do {
+                        entry.guardBox?.event = try AssistantEvents.snapshotEvent(id: itemID)
+                    } catch {
+                        entry.guardBox?.event = nil
+                        return AssistantReceipt(step: step, ok: true, line: T("Изменено · не перепроверено", "Changed · not re-checked"))
+                    }
                 default:
                     return fail(AssistantToolError(message: T("Это действие не поправить — отмените и скажите заново", "This can't be changed — undo and say it again")))
                 }
-                let when = (due ?? start).map { " · " + Self.format($0, tz: tz) } ?? ""
-                return AssistantReceipt(step: step, ok: true, line: T("Изменено\(when)", "Changed\(when)"))
+                // Карточка и журнал — по тому, что сохранилось, а не по тому, что просили.
+                let stored: (title: String, date: Date?, hasTime: Bool)? = {
+                    if let r = entry.guardBox?.reminder { return (r.title, r.due, r.dueHasTime) }
+                    if let e = entry.guardBox?.event { return (e.title, e.start, !e.isAllDay) }
+                    return nil
+                }()
+                guard let stored else {
+                    return AssistantReceipt(step: step, ok: true, line: T("Изменено · не перепроверено", "Changed · not re-checked"))
+                }
+                if let requested = (start ?? due), requested.hasTime, let saved = stored.date, abs(saved.timeIntervalSince(requested.date)) > 60 {
+                    return fail(AssistantToolError(message: T("Изменение сохранилось не так, как просили — проверьте", "The change wasn't saved as asked — please check")))
+                }
+                let when = stored.date.map { " · " + Self.format(AssistantDate(date: $0, hasTime: stored.hasTime), tz: tz) } ?? ""
+                let kind: String = { if case .calendarAdd = entry.step { return "событие" } else { return "напоминание" } }()
+                return AssistantReceipt(step: step, ok: true, line: T("Изменено · \(stored.title)\(when)", "Changed · \(stored.title)\(when)"),
+                                        memorySummary: "\(kind) «\(stored.title)»" + (stored.date.map { " на \(Self.iso(AssistantDate(date: $0, hasTime: stored.hasTime), tz: tz))" } ?? ""))
 
             case .undo(let ref):
                 guard let index = journal.firstIndex(where: { $0.ref == ref }) else {
@@ -651,9 +829,9 @@ final class AssistantEngine {
             DispatchQueue.main.async {
                 self.journal.removeAll { refs.contains($0.ref) }
                 self.lastRunRefs.removeAll { refs.contains($0) }
-                Log.write("Ассистент[\(run.number)]: отменено \(lines.filter(\.ok).count) действий" + (fromVoice ? " голосом" : " кнопкой"))
-                self.present(.summary(lines: lines, canUndo: false), seconds: 4)
-                self.playSound("Pop")
+                Log.write("Ассистент[\(run.number)]: отменено \(lines.filter(\.ok).count) из \(lines.count)" + (fromVoice ? " голосом" : " кнопкой"))
+                self.present(.summary(lines: lines, canUndo: false), seconds: lines.allSatisfy(\.ok) ? 4 : 8)
+                self.playSound(lines.allSatisfy(\.ok) ? "Pop" : "Basso")
             }
         }
     }
@@ -670,10 +848,15 @@ final class AssistantEngine {
             let query = cardQuery ?? ""
             closeCard()
             // Клик — явное согласие: здесь приложение можно вывести вперёд.
-            host?.assistantDeliverText(text, target: lastTarget, mayActivate: true) { [weak self] landed in
-                guard !landed else { return }
-                self?.present(.answer(query: query, text: text, canInsert: false), seconds: 40, text: text, query: query)
-                self?.playSound("Basso")
+            host?.assistantDeliverText(text, target: lastTarget, mayActivate: true) { [weak self] delivery in
+                switch delivery {
+                case .inserted: break
+                case .copied:
+                    self?.present(.summary(lines: [AssistantCardLine(ok: true, text: T("Текст в буфере — вставьте ⌘V", "The text is on the clipboard — paste with ⌘V"))], canUndo: false), seconds: 4)
+                case .failed:
+                    self?.present(.answer(query: query, text: text, canInsert: false), seconds: 40, text: text, query: query)
+                    self?.playSound("Basso")
+                }
             }
         case .copy:
             if let text = cardText ?? cardQuery { Clipboard.write(text, transient: false, session: nil) }
@@ -867,21 +1050,166 @@ extension AssistantEngine {
     /// Отмена напоминания: только если его с тех пор не меняли (синхронизация iCloud
     /// двигает дату изменения, поэтому сверяем поля, а не `lastModifiedDate`).
     fileprivate static func undoReminder(id: String, box: ItemGuard) throws {
-        guard let current = try AssistantEvents.snapshotReminder(id: id) else { return }   // уже удалено
+        // Не нашлось — это не «отменено»: id мог смениться после синхронизации, а
+        // напоминание осталось. Честно говорим, что не нашли.
+        guard let current = try AssistantEvents.snapshotReminder(id: id) else {
+            throw AssistantToolError(message: T("Не нашёл напоминание — проверьте в «Напоминаниях»", "Couldn't find the reminder — check Reminders"))
+        }
         if let expected = box.reminder, current != expected {
             throw AssistantToolError(message: T("Напоминание уже меняли — не трогаю", "The reminder was edited — leaving it alone"))
         }
         try AssistantEvents.removeReminder(id: id)
+        if try AssistantEvents.snapshotReminder(id: id) != nil {
+            throw AssistantToolError(message: T("Напоминание не удалилось", "The reminder wasn't removed"))
+        }
     }
 
     fileprivate static func undoEvent(id: String, box: ItemGuard) throws {
-        guard let current = try AssistantEvents.snapshotEvent(id: id) else { return }
+        guard let current = try AssistantEvents.snapshotEvent(id: id) else {
+            throw AssistantToolError(message: T("Не нашёл событие — проверьте в «Календаре»", "Couldn't find the event — check Calendar"))
+        }
         if let expected = box.event, current != expected {
             throw AssistantToolError(message: T("Событие уже меняли — не трогаю", "The event was edited — leaving it alone"))
         }
         try AssistantEvents.removeEvent(id: id)
+        if try AssistantEvents.snapshotEvent(id: id) != nil {
+            throw AssistantToolError(message: T("Событие не удалилось", "The event wasn't removed"))
+        }
     }
 }
+
+/// Проверка результата после действия: «готово» на карточке — только если результат
+/// виден в мире (перечитан из EventKit, найден в Заметках, окно на экране), а не потому,
+/// что вызов не бросил ошибку. Тот же принцип, что у вставки (AGENTS_SYNC 7.1.2).
+enum Verify {
+    enum Check<Value> {
+        /// Результат наблюдён и совпал с просьбой.
+        case confirmed(Value)
+        /// Наблюдение противоречит просьбе (не нашлось, время другое, окно не там).
+        case contradicted(String, Value?)
+        /// Посмотреть не удалось (чтение не ответило) — действие, скорее всего, сделано.
+        case unverified(String)
+
+        /// Что увидели — и при совпадении, и при расхождении: по этому снимку отмена потом
+        /// проверяет, что элемент с тех пор не трогали руками.
+        var observed: Value? {
+            switch self {
+            case .confirmed(let value): return value
+            case .contradicted(_, let value): return value
+            case .unverified: return nil
+            }
+        }
+    }
+
+    private static var notRechecked: String { T("не перепроверено", "not re-checked") }
+
+    static func reminder(id: String, due: AssistantDate?) -> Check<AssistantEvents.ReminderSnapshot> {
+        let snapshot: AssistantEvents.ReminderSnapshot?
+        do { snapshot = try AssistantEvents.snapshotReminder(id: id) } catch { return .unverified(notRechecked) }
+        guard let snapshot else {
+            return .contradicted(T("Напоминание не нашлось после сохранения", "The reminder wasn't found after saving"), nil)
+        }
+        if let due, due.hasTime, let saved = snapshot.due, abs(saved.timeIntervalSince(due.date)) > 60 {
+            return .contradicted(T("Напоминание сохранилось с другим временем — проверьте в «Напоминаниях»",
+                                   "The reminder was saved with a different time — check Reminders"), snapshot)
+        }
+        return .confirmed(snapshot)
+    }
+
+    static func event(id: String, start: AssistantDate) -> Check<AssistantEvents.EventSnapshot> {
+        let snapshot: AssistantEvents.EventSnapshot?
+        do { snapshot = try AssistantEvents.snapshotEvent(id: id) } catch { return .unverified(notRechecked) }
+        guard let snapshot else {
+            return .contradicted(T("Событие не нашлось после сохранения", "The event wasn't found after saving"), nil)
+        }
+        if start.hasTime, abs(snapshot.start.timeIntervalSince(start.date)) > 60 {
+            return .contradicted(T("Событие сохранилось с другим временем — проверьте в «Календаре»",
+                                   "The event was saved with a different time — check Calendar"), snapshot)
+        }
+        return .confirmed(snapshot)
+    }
+
+    static func note(id: String) -> Check<Date> {
+        let modified: Date?
+        do { modified = try AssistantNotes.modificationDate(id: id) } catch { return .unverified(notRechecked) }
+        guard let modified else {
+            return .contradicted(T("Заметка не нашлась после сохранения", "The note wasn't found after saving"), nil)
+        }
+        return .confirmed(modified)
+    }
+
+    /// Квитанция по проверке. Если элемент в мире остался (подтверждён, не перепроверен
+    /// или сохранён «не так»), квитанция несёт отмену — «отмени» должно его достать.
+    static func receipt<Value>(_ check: Check<Value>, step: AssistantStep, line: String, memorySummary: String,
+                               undo: @escaping () throws -> Void, itemID: String, guardBox: ItemGuard) -> AssistantReceipt {
+        switch check {
+        case .confirmed:
+            return AssistantReceipt(step: step, ok: true, line: line, memorySummary: memorySummary,
+                                    undo: undo, itemID: itemID, guardBox: guardBox)
+        case .unverified(let note):
+            return AssistantReceipt(step: step, ok: true, line: line + " · " + note, memorySummary: memorySummary,
+                                    undo: undo, itemID: itemID, guardBox: guardBox)
+        case .contradicted(let message, let value):
+            let error = AssistantToolError(message: message)
+            return AssistantReceipt(step: step, ok: false, line: message, memorySummary: memorySummary,
+                                    undo: value == nil ? nil : undo, itemID: itemID, guardBox: guardBox, error: error)
+        }
+    }
+
+    /// Открыть ссылку и убедиться, что её окно на этом столе впереди. Приложение, которое
+    /// её приняло, берём из ответа системы (универсальные ссылки открываются не браузером).
+    static func openLink(_ url: URL) -> Check<Void> {
+        let expected = NSWorkspace.shared.urlForApplication(toOpen: url).flatMap { Bundle(url: $0)?.bundleIdentifier }
+        let before = expected.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }
+        let titleBefore = before.flatMap { focusedWindowTitle(pid: $0.processIdentifier) }
+        let countBefore = before.map { WindowVisibility.visibleWindows(of: $0.processIdentifier) } ?? 0
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        let done = DispatchSemaphore(value: 0)
+        var handler: NSRunningApplication?
+        var failure: Error?
+        NSWorkspace.shared.open(url, configuration: configuration) { app, error in
+            handler = app
+            failure = error
+            done.signal()
+        }
+        guard done.wait(timeout: .now() + 5) == .success else { return .unverified(T("не перепроверено", "not re-checked")) }
+        if failure != nil { return .contradicted(T("Не удалось открыть ссылку", "Couldn't open the link"), nil) }
+        guard let app = handler ?? expected.flatMap({ NSRunningApplication.runningApplications(withBundleIdentifier: $0).first }) else {
+            return .unverified(T("не перепроверено", "not re-checked"))
+        }
+        let pid = app.processIdentifier
+        let name = app.localizedName ?? "браузер"
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+               WindowVisibility.visibleWindows(of: pid) > 0 {
+                // Окно впереди — но то ли, куда легла ссылка? Новое окно или новая вкладка
+                // меняют заголовок окна в фокусе (или добавляют окно).
+                let changed = before?.processIdentifier != pid
+                    || focusedWindowTitle(pid: pid) != titleBefore
+                    || WindowVisibility.visibleWindows(of: pid) > countBefore
+                if changed { return .confirmed(()) }
+            }
+            usleep(100_000)
+        }
+        Log.write("ассистент: ссылка открыта, но её окна на этом столе не видно")
+        return .contradicted(T("Ссылка открыта в «\(name)», но его окна с ней нет на этом рабочем столе",
+                               "The link opened in “\(name)”, but that window isn't on this desktop"), nil)
+    }
+
+    private static func focusedWindowTitle(pid: pid_t) -> String? {
+        let app = AXUIElementCreateApplication(pid)
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &window) == .success,
+              let window, CFGetTypeID(window) == AXUIElementGetTypeID() else { return nil }
+        var title: CFTypeRef?
+        AXUIElementCopyAttributeValue(window as! AXUIElement, kAXTitleAttribute as CFString, &title)
+        return title as? String
+    }
+}
+
 
 /// Каким элемент был сразу после создания (или последней своей правки) — «отмени» и
 /// «поправь» трогают только нетронутое.
@@ -900,7 +1228,7 @@ private struct PendingPlan {
 
 private struct JournalEntry {
     let ref: String
-    let summary: String
+    var summary: String
     let at: Date
     let step: AssistantStep
     let undo: () throws -> Void

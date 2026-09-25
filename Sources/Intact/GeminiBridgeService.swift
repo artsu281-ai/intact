@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import ApplicationServices
 import Foundation
 
@@ -206,7 +207,9 @@ final class GeminiBridgeService: ObservableObject {
 
             if success {
                 DispatchQueue.main.async {
-                    let successMsg = background
+                    let successMsg = !autoSubmit
+                        ? T("Текст вставлен в поле Gemini — отправьте его сами", "The text is in Gemini's field — send it yourself")
+                        : background
                         ? T("Запрос отправлен в Gemini в фоновом режиме!", "Sent to Gemini in the background!")
                         : T("Запрос успешно отправлен в Gemini!", "Sent to Gemini successfully!")
                     self.lastStatusMessage = successMsg
@@ -220,6 +223,39 @@ final class GeminiBridgeService: ObservableObject {
                                                 newChat: newChat, background: background, completion: completion)
             }
         }
+    }
+
+    /// Текст поля ввода Gemini, если его удаётся прочитать.
+    private static func composerText(of app: NSRunningApplication) -> String? {
+        guard let field = composerField(of: app) else { return nil }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(field, kAXValueAttribute as CFString, &value) == .success else { return nil }
+        let text = value as? String ?? ""
+        for placeholder in ["Спросить Gemini", "Ask Gemini"] where text == placeholder { return "" }
+        return text
+    }
+
+    /// Поле ввода Gemini (первый AXTextArea вне списка сообщений).
+    private static func composerField(of app: NSRunningApplication) -> AXUIElement? {
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        var windowsRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &windowsRef)
+        func find(_ node: AXUIElement, _ depth: Int) -> AXUIElement? {
+            if depth > 40 { return nil }
+            var roleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(node, kAXRoleAttribute as CFString, &roleRef)
+            let role = roleRef as? String ?? ""
+            if role == "AXTextArea" { return node }
+            if role == "AXOutline" || role == "AXRow" { return nil }
+            var kids: CFTypeRef?
+            AXUIElementCopyAttributeValue(node, kAXChildrenAttribute as CFString, &kids)
+            for child in (kids as? [AXUIElement]) ?? [] { if let found = find(child, depth + 1) { return found } }
+            return nil
+        }
+        for window in (windowsRef as? [AXUIElement]) ?? [] {
+            if let field = find(window, 0) { return field }
+        }
+        return nil
     }
 
     /// Прямая доставка текста в поле ввода Gemini через macOS Accessibility API (с поддержкой фона)
@@ -337,25 +373,47 @@ final class GeminiBridgeService: ObservableObject {
 
         Thread.sleep(forTimeInterval: 0.1)
 
-        // Если включена автоотправка — нажимаем кнопку «Отправить»
+        // Если включена автоотправка — нажимаем «Отправить» и проверяем факт: поле опустело.
+        // Раньше успехом считалось «нажатие не вернуло ошибку» на кнопке, найденной по
+        // подстроке «Отправить», — под неё подходили «Отправить отзыв» и старые сообщения
+        // с этим словом, а в ответ звучало «Отправлено в Gemini» (AGENTS_SYNC 4.7).
         if autoSubmit {
-            if let sendBtn = findElement(in: window, role: "AXButton", descMatch: ["Отправить", "Send", "submit"]) {
-                let pressRes = AXUIElementPerformAction(sendBtn, kAXPressAction as CFString)
-                if pressRes == .success {
-                    if background { currentActiveApp?.activate() }
-                    return true
-                }
+            func sent() -> Bool {
+                var ref: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &ref) == .success else { return false }
+                return ((ref as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
-
-            // Резервная эмуляция клавиши Enter
-            let src = CGEventSource(stateID: .combinedSessionState)
-            let keyDown = CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: true)
-            let keyUp = CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: false)
-            keyDown?.postToPid(pid)
-            keyUp?.postToPid(pid)
+            func waitSent() -> Bool {
+                for _ in 0..<15 {
+                    Thread.sleep(forTimeInterval: 0.1)
+                    if sent() { return true }
+                }
+                return false
+            }
+            var delivered = false
+            if let sendBtn = GeminiAIProvider.button(in: window, identifier: "send_button")
+                ?? GeminiAIProvider.button(in: window, exactDescription: ["Отправить", "Send"]) {
+                AXUIElementPerformAction(sendBtn, kAXPressAction as CFString)
+                delivered = waitSent()
+            }
+            if !delivered {
+                // Резервная эмуляция клавиши Enter — и снова по факту.
+                let src = CGEventSource(stateID: .combinedSessionState)
+                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: true)?.postToPid(pid)
+                CGEvent(keyboardEventSource: src, virtualKey: 36, keyDown: false)?.postToPid(pid)
+                delivered = waitSent()
+            }
+            if background { GeminiAIProvider.restoreFocusIfStolen(pid: pid, previous: currentActiveApp) }
+            guard delivered else {
+                // Не ушло — убираем свой текст, чтобы запасной путь не вставил его второй раз.
+                _ = GeminiAIProvider.insertAsUserInput("", into: textArea)
+                Log.write("Джеминай: запрос в поле, но не отправился — поле очищено")
+                return false
+            }
+            return true
         }
 
-        if background { currentActiveApp?.activate() }
+        if background { GeminiAIProvider.restoreFocusIfStolen(pid: pid, previous: currentActiveApp) }
         return true
     }
 
@@ -418,6 +476,39 @@ final class GeminiBridgeService: ObservableObject {
             return
         }
 
+        func report(_ ok: Bool, _ message: String) {
+            DispatchQueue.main.async {
+                self.lastStatusMessage = message
+                completion?(ok, message)
+            }
+        }
+
+        // 1. Вывести Gemini вперёд — и проверить, что это видно: нажатия клавиш уходят в
+        //    активное окно, и если окно Gemini на другом рабочем столе, скрыто или включён
+        //    защищённый ввод, они улетят не туда (или никуда), а «скрипт без ошибок» —
+        //    не доказательство отправки.
+        var errorDict: NSDictionary?
+        NSAppleScript(source: """
+        tell application id "\(Self.bundleIdentifier)" to activate
+        delay 0.4
+        tell application "System Events" to set frontmost of (first process whose bundle identifier is "\(Self.bundleIdentifier)") to true
+        delay 0.1
+        """)?.executeAndReturnError(&errorDict)
+        if let error = errorDict {
+            report(false, Self.appleScriptFailure(error))
+            return
+        }
+        guard let gemini = NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleIdentifier).first,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier == gemini.processIdentifier,
+              WindowVisibility.visibleWindows(of: gemini.processIdentifier) > 0 else {
+            report(false, T("Окно Gemini не вышло на этот рабочий стол — не отправляю вслепую", "Gemini's window didn't come to this desktop — not typing blind"))
+            return
+        }
+        guard !IsSecureEventInputEnabled() else {
+            report(false, T("Включён защищённый ввод — нажатия клавиш не дойдут до Gemini", "Secure input is on — keystrokes won't reach Gemini"))
+            return
+        }
+
         // Через общую машинерию буфера, а не руками.
         //
         // Здесь сохранялась только строка и возвращалась безусловно через
@@ -426,43 +517,76 @@ final class GeminiBridgeService: ObservableObject {
         // сам за эту секунду. `Clipboard` уже умеет и полный снимок, и охрану
         // по токену сессии: возврат случится, только если в буфере всё ещё
         // наше.
+        func keys(_ script: String) -> Bool {
+            var error: NSDictionary?
+            NSAppleScript(source: "tell application \"System Events\"\n\(script)\nend tell")?.executeAndReturnError(&error)
+            if let error {
+                report(false, Self.appleScriptFailure(error))
+                return false
+            }
+            return true
+        }
+        if newChat {
+            guard keys("keystroke \"n\" using {command down}") else { return }
+            Thread.sleep(forTimeInterval: 0.4)
+        }
+        // Фокус — прямо в поле ввода: ⌘V уходит в сфокусированный элемент, а после смены
+        // чата или клика по ответу это может быть не поле.
+        if let field = Self.composerField(of: gemini) {
+            AXUIElementSetAttributeValue(field, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        }
         let session = UUID().uuidString
         let saved = Clipboard.userSnapshot()
         Clipboard.write(prompt, transient: true, session: session)
-
-        let newChatCmd = newChat ? "delay 0.2\nkeystroke \"n\" using {command down}\ndelay 0.2" : ""
-        let submitCmd = autoSubmit ? "delay 0.15\nkey code 36" : ""
-
-        let script = """
-        tell application id "\(Self.bundleIdentifier)" to activate
-        delay 0.4
-        tell application "System Events"
-            set frontmost of (first process whose bundle identifier is "\(Self.bundleIdentifier)") to true
-            delay 0.1
-            \(newChatCmd)
-            keystroke "v" using {command down}
-            \(submitCmd)
-        end tell
-        """
-
-        var errorDict: NSDictionary?
-        if let appleScript = NSAppleScript(source: script) {
-            appleScript.executeAndReturnError(&errorDict)
-        }
-
+        let pasted = keys("keystroke \"v\" using {command down}")
         Clipboard.restore(saved, session: session, fallback: prompt, after: 1.0)
+        guard pasted else { return }
 
-        DispatchQueue.main.async {
-            if let error = errorDict {
-                let errorMsg = error[NSAppleScript.errorMessage] as? String ?? T("Ошибка отправки", "Failed to send")
-                self.lastStatusMessage = errorMsg
-                completion?(false, errorMsg)
-            } else {
-                let okMsg = T("Отправлено в Gemini", "Sent to Gemini")
-                self.lastStatusMessage = okMsg
-                completion?(true, okMsg)
-            }
+        // 2. Вставка — по факту: запрос в поле. Иначе Return не жмём: вставка ушла не туда,
+        //    а пустое поле потом читалось бы как «отправлено».
+        Thread.sleep(forTimeInterval: 0.3)
+        let marker = String(prompt.trimmingCharacters(in: .whitespacesAndNewlines).prefix(24))
+        let afterPaste = Self.composerText(of: gemini)
+        if let afterPaste, !afterPaste.contains(marker) {
+            report(false, T("Вставка не дошла до поля Gemini", "The paste didn't reach Gemini's field"))
+            return
         }
+        guard autoSubmit else {
+            report(afterPaste != nil,
+                   afterPaste != nil ? T("Текст вставлен в поле Gemini — отправьте его сами", "The text is in Gemini's field — send it yourself")
+                                     : T("Вставка в Gemini не подтвердилась", "Couldn't confirm the paste into Gemini"))
+            return
+        }
+
+        // 3. Отправка — по факту: поле с запросом опустело. Поле не читается — Return всё
+        //    равно жмём (Gemini впереди, так было и раньше), но успехом это не называем.
+        guard keys("key code 36") else { return }
+        Thread.sleep(forTimeInterval: 0.6)
+        switch Self.composerText(of: gemini) {
+        case .some(let text) where text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && afterPaste != nil:
+            report(true, T("Отправлено в Gemini", "Sent to Gemini"))
+        case .some(let text) where text.contains(marker):
+            report(false, T("Запрос в поле Gemini, но не отправился", "The request is in Gemini's field but wasn't sent"))
+        case .some:
+            report(false, T("Отправка в Gemini не подтвердилась", "Couldn't confirm it was sent to Gemini"))
+        case .none:
+            report(false, T("Отправка в Gemini не подтвердилась", "Couldn't confirm it was sent to Gemini"))
+        }
+    }
+
+    /// Текст ошибки AppleScript — с подсказкой для запрета «Автоматизации».
+    private static func appleScriptFailure(_ error: NSDictionary) -> String {
+        let number = error[NSAppleScript.errorNumber] as? Int ?? 0
+        let message = error[NSAppleScript.errorMessage] as? String ?? T("Ошибка AppleScript", "AppleScript error")
+        if number == -1743 {
+            return T("Нет разрешения управлять Gemini: Системные настройки → Конфиденциальность и безопасность → Автоматизация → Intact",
+                     "No permission to control Gemini: System Settings → Privacy & Security → Automation → Intact")
+        }
+        if number == 1002 || number == -25211 {
+            return T("Нет разрешения на нажатия клавиш: Системные настройки → Конфиденциальность и безопасность → Универсальный доступ → Intact",
+                     "No permission to send keystrokes: System Settings → Privacy & Security → Accessibility → Intact")
+        }
+        return message + " (\(number))"
     }
 
     /// Тестовая отправка запроса в Gemini

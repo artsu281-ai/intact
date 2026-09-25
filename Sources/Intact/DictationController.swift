@@ -1893,24 +1893,30 @@ extension DictationController: AssistantHost {
     /// Доставка текста ассистента. В отличие от `deliverPipelineResult`, НЕ трогает
     /// состояние диктовки: пока инструменты работали, пользователь мог начать новую
     /// запись, и сброс state/activePipeline оставил бы её без хозяина.
-    func assistantDeliverText(_ text: String, target: NSRunningApplication?, mayActivate: Bool, done: @escaping (Bool) -> Void) {
+    func assistantDeliverText(_ text: String, target: NSRunningApplication?, mayActivate: Bool, done: @escaping (AssistantDelivery) -> Void) {
         if assistantCard != nil { assistantPresent(nil, seconds: 0) }
         guard state == .idle else {
             Log.write("Ассистент: идёт новая диктовка — текст не вставляю, он будет на карточке")
-            done(false)
+            done(.failed)
             return
         }
         let clean = text.trimmingCharacters(in: .newlines)
-        guard !clean.isEmpty else { done(false); return }
-        if settings.outputMode != .clipboard, let why = FocusInspector.refusalReason(for: target) {
+        guard !clean.isEmpty else { done(.failed); return }
+        // Режим «только в буфер»: вставки нет, и называть это «вставлено» нельзя.
+        if settings.outputMode == .clipboard {
+            Clipboard.write(clean, transient: false, session: nil)
+            done(NSPasteboard.general.string(forType: .string) == clean ? .copied : .failed)
+            return
+        }
+        if let why = FocusInspector.refusalReason(for: target) {
             Log.write("Ассистент: вставка отменена политикой: \(why)")
-            done(false)
+            done(.failed)
             return
         }
         let sound = assistantPipeline?.soundFinish ?? ""
         TextInserter.deliver(clean, mode: settings.outputMode, targetApp: target, mayActivate: mayActivate) { [weak self] ok in
             if ok, let self, self.settings.playSounds, !sound.isEmpty { NSSound(named: sound)?.play() }
-            done(ok)
+            done(ok ? .inserted : .failed)
         }
     }
 

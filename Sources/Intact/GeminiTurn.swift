@@ -117,7 +117,13 @@ extension GeminiAIProvider {
 
             // Отправка. Кнопка по идентификатору; поиск по подстроке «Отправить» ловил
             // «Отправить отзыв». Проверка — поле опустело.
-            func sentNow() -> Bool { Self.value(of: textArea).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            // «Отправлено» — поле прочитано И пустое: неудачное чтение AX тоже даёт пустую
+            // строку, и его нельзя принять за отправку.
+            func sentNow() -> Bool {
+                var ref: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &ref) == .success else { return false }
+                return ((ref as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
             var sent = false
             if let send = Self.button(in: window, identifier: "send_button") ?? Self.button(in: window, exactDescription: ["Отправить", "Send"]) {
                 AXUIElementPerformAction(send, kAXPressAction as CFString)
@@ -154,6 +160,7 @@ extension GeminiAIProvider {
             // Опрос ответа. Генерация закончилась, когда «Остановить» была видна и пропала;
             // если её так и не увидели — ждём 6 с стабильности (раздел 4.4).
             var sawStop = false
+            var pollsWithoutStop = 0
             var last = ""
             var stablePolls = 0
             var lastChange = Date()
@@ -162,7 +169,7 @@ extension GeminiAIProvider {
                 Thread.sleep(forTimeInterval: 0.15)
                 Self.restoreFocusIfStolen(pid: pid, previous: previousFrontmost)
                 let stop = Self.button(in: window, identifier: "stop_button")
-                if stop != nil { sawStop = true }
+                if stop != nil { sawStop = true; pollsWithoutStop = 0 } else { pollsWithoutStop += 1 }
 
                 if cancelFlag.isSet || Date() > deadline {
                     // Свой ход обрываем: иначе Gemini допишет ответ, которого никто не ждёт,
@@ -187,7 +194,9 @@ extension GeminiAIProvider {
                 guard !answer.isEmpty else { continue }
 
                 let generating = stop != nil
-                let done = (sawStop && !generating && stablePolls >= 1)
+                // Генерация кончилась — «Остановить» пропала на два опроса подряд (один
+                // промах AX ещё не конец) и текст не менялся.
+                let done = (sawStop && pollsWithoutStop >= 2 && stablePolls >= 1)
                     || (!sawStop && Date().timeIntervalSince(lastChange) >= 6)
                 // Ранний приём: план с нашим id уже валиден и не менялся между опросами.
                 let early = stablePolls >= 1 && isComplete(answer)

@@ -222,13 +222,17 @@ struct AskAITab: View {
                             PillButton(
                                 title: L10n.geminiTestButton,
                                 icon: .aiStar,
-                                tone: testResult != nil ? .success : nil
+                                // Кнопка нейтральная, итог — в подписи со ✓/✗: раньше и ошибка
+                                // подсвечивала кнопку зелёным, как успех.
+                                tone: nil
                             ) {
                                 isTestingGemini = true
                                 testResult = nil
                                 geminiBridge.testSend { success, msg in
                                     isTestingGemini = false
-                                    testResult = success ? T("✓ Успешно отправлено!", "✓ Sent successfully!") : (msg ?? "Ошибка")
+                                    let text = msg ?? (success ? T("Успешно отправлено!", "Sent successfully!") : T("Ошибка", "Error"))
+                                    let body = text.hasPrefix("✓") || text.hasPrefix("✗") ? String(text.dropFirst()).trimmingCharacters(in: .whitespaces) : text
+                                    testResult = (success ? "✓ " : "✗ ") + body
                                 }
                             }
                         }
