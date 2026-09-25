@@ -2,24 +2,39 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>                 <string>Intact</string>
-    <key>CFBundleDisplayName</key>          <string>Intact</string>
-    <key>CFBundleIdentifier</key>           <string>com.artsu.intact</string>
-    <key>CFBundleExecutable</key>           <string>Intact</string>
-    <key>CFBundleIconFile</key>             <string>AppIcon</string>
-    <key>CFBundlePackageType</key>          <string>APPL</string>
-    <key>CFBundleShortVersionString</key>   <string>1.0</string>
-    <key>CFBundleVersion</key>              <string>1</string>
-    <key>LSMinimumSystemVersion</key>       <string>14.0</string>
-    <key>LSUIElement</key>                  <true/>
-    <key>NSHighResolutionCapable</key>      <true/>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Записывает вашу речь, чтобы распознать её локально на этом Mac и вставить текстом.</string>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Нужно для вставки распознанного текста в активное приложение и создания заметок.</string>
-    <key>NSRemindersUsageDescription</key>
-    <string>Нужно для создания задач и напоминаний по голосовым командам.</string>
-    <key>NSRemindersFullAccessUsageDescription</key>
-    <string>Нужно для создания задач и напоминаний по голосовым командам в Apple Reminders.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Intact</string>
+	<key>CFBundleExecutable</key>
+	<string>Intact</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.artsu.intact</string>
+	<key>CFBundleName</key>
+	<string>Intact</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Нужно для вставки распознанного текста в активное приложение и создания заметок.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Нужно, чтобы ассистент ставил события в Календарь по голосовой команде и мог отменить только что созданное.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Нужно, чтобы ассистент ставил события в Календарь по голосовой команде.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Записывает вашу речь, чтобы распознать её локально на этом Mac и вставить текстом.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Нужно для создания задач и напоминаний по голосовым командам в Apple Reminders.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Нужно для создания задач и напоминаний по голосовым командам.</string>
 </dict>
 </plist>

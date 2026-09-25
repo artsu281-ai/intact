@@ -90,6 +90,10 @@ struct IndicatorView: View {
             return NSSize(width: 256, height: 34)
 
         case .answeringAI:
+            if let line = controller.assistantStatusLine {
+                let tw = measureTextWidth("Gemini Assistant · " + line, font: .systemFont(ofSize: 11.5, weight: .medium))
+                return NSSize(width: max(242, min(460, tw + 70)), height: 34)
+            }
             return NSSize(width: 242, height: 34)
 
         case .idle:
@@ -116,7 +120,12 @@ struct IndicatorView: View {
     var body: some View {
         let curSize = Self.listeningSize(for: controller)
         Group {
-            if let pending = controller.pendingText {
+            if let card = controller.assistantCard {
+                // Фон, рамку и размер карточка рисует сама (AssistantCardView.size).
+                AssistantCardView(card: card, remaining: controller.assistantCardRemaining) { button in
+                    AssistantEngine.shared.handleButton(button)
+                }
+            } else if let pending = controller.pendingText {
                 noPlaceToInsert(text: pending)
                     .padding(Self.copyPad)
                     .frame(width: Self.copySize(for: pending).width,
@@ -228,11 +237,19 @@ struct IndicatorView: View {
                     ThinkingDots(size: 14)
                         .foregroundStyle(Palette.hudIcon(theme: settings.appTheme))
 
-                    Text("\(engineBadge) · \(T("думаю…", "Thinking…"))")
+                    Text("\(engineBadge) · \(controller.assistantStatusLine ?? T("думаю…", "Thinking…"))")
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(Palette.hudText(theme: settings.appTheme))
                         .lineLimit(1)
-                        .fixedSize()
+                        .truncationMode(.middle)
+
+                    if controller.assistantStatusLine != nil {
+                        Text("⎋")
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundStyle(Palette.hudTextMuted(theme: settings.appTheme))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
 
                 case .idle:
                     EmptyView()
@@ -584,13 +601,22 @@ final class IndicatorPanel {
     func show(controller: DictationController, interactive: Bool = false) {
         let size: NSSize
         if interactive {
-            size = IndicatorView.copySize(for: controller.pendingText ?? "")
+            if let card = controller.assistantCard {
+                let cardSize = AssistantCardView.size(for: card)
+                size = NSSize(width: cardSize.width, height: cardSize.height)
+            } else {
+                size = IndicatorView.copySize(for: controller.pendingText ?? "")
+            }
         } else {
             size = IndicatorView.listeningSize(for: controller)
         }
 
+        // Карточка ассистента не берёт клавиатуру: клик по кнопке не должен уводить ввод
+        // из приложения пользователя. Карточка «Скопировать» — как и раньше.
+        let acceptsKey = interactive && controller.assistantCard == nil
         if let p = panel {
             if interactive == isInteractive {
+                (p as? KeyablePanel)?.acceptsKey = acceptsKey
                 updateFrame(for: p, newSize: size)
                 return
             }
@@ -600,7 +626,7 @@ final class IndicatorPanel {
         // Пилюля — отдельное окно (NSPanel), а не часть главного дерева,
         // поэтому отпечаток темы ей надо раздать своим корнем: окружение
         // через границу окна не проходит.
-        let hosting = NSHostingView(rootView: IndicatorView(controller: controller).themedRoot())
+        let hosting = FirstMouseHostingView(rootView: IndicatorView(controller: controller).themedRoot())
         let isDark = AppSettings.shared.isDarkMode
         let targetAppearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
         hosting.appearance = targetAppearance
@@ -612,7 +638,7 @@ final class IndicatorPanel {
                              styleMask: [.borderless, .nonactivatingPanel],
                              backing: .buffered, defer: false)
         p.appearance = targetAppearance
-        p.acceptsKey = interactive
+        p.acceptsKey = acceptsKey
         p.contentView = hosting
         p.isOpaque = false
         p.backgroundColor = .clear
@@ -671,6 +697,12 @@ final class IndicatorPanel {
         panel = nil
         isInteractive = false
     }
+}
+
+/// Кнопки карточки ассистента нажимаются первым же кликом: панель не становится
+/// ключевой, и без `acceptsFirstMouse` первый клик мог уйти на «активацию».
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 final class KeyablePanel: NSPanel {

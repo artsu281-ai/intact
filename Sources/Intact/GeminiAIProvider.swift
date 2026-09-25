@@ -67,9 +67,11 @@ final class GeminiAIProvider: AIProvider {
             // поток просто выходил из цикла — вызывающий код ждал ответа вечно, и индикатор
             // диктовки висел на экране до перезапуска приложения.
             var reported = false
+            var gateHeld = false
             let finish: (Result<String, AIError>) -> Void = { result in
                 guard !reported else { return }
                 reported = true
+                if gateHeld { GeminiComposerGate.shared.release() }
                 completion(result)
             }
 
@@ -87,156 +89,45 @@ final class GeminiAIProvider: AIProvider {
                 finish(.failure(.timeout))
                 return
             }
+            // Один пишущий в поле за раз (ассистент, чат, сводка): иначе два запроса
+            // перезаписывали бы друг другу промпт между записью и «Отправить».
+            guard GeminiComposerGate.shared.acquire("stream", timeout: max(10, request.timeout / 2)) else {
+                Log.write("Gemini: поле занято другим запросом (\(GeminiComposerGate.shared.holder)) — запрос не отправлен")
+                finish(.failure(.providerUnavailable))
+                return
+            }
+            gateHeld = true
+            if isCancelled {
+                finish(.failure(.timeout))
+                return
+            }
 
-            let bundleId = GeminiBridgeService.bundleIdentifier
             let currentActiveApp = NSWorkspace.shared.frontmostApplication
-            var geminiApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first
-
-            if geminiApp == nil {
-                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
-                    finish(.failure(.providerUnavailable))
-                    return
-                }
-                let config = NSWorkspace.OpenConfiguration()
-                config.activates = false
-                config.hides = true
-                let sema = DispatchSemaphore(value: 0)
-                NSWorkspace.shared.openApplication(at: url, configuration: config) { app, _ in
-                    geminiApp = app
-                    sema.signal()
-                }
-                sema.wait()
-                Thread.sleep(forTimeInterval: 0.8)
-            }
-
-            guard let app = geminiApp ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first else {
-                finish(.failure(.providerUnavailable))
-                return
-            }
-
-            let pid = app.processIdentifier
-            let appElement = AXUIElementCreateApplication(pid)
-
-            var windowsRef: CFTypeRef?
-            AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
-            var wins = windowsRef as? [AXUIElement] ?? []
-
-            // Сохранённая с прошлого раза ссылка идёт первой: она работает и со
-            // свёрнутым окном, так что в обычной жизни мы вообще ничего не трогаем.
-            if let remembered = self.rememberedWindow,
-               self.findElement(in: remembered, role: "AXTextArea") != nil {
-                wins.insert(remembered, at: 0)
-            }
-
-            if wins.isEmpty {
-                // Окно живёт на другом рабочем столе или свёрнуто: kAXWindows его не
-                // отдаёт, но main-окно доступно напрямую. Раньше здесь был AppleScript
-                // reopen — он активировал Gemini и вытаскивал его на передний план.
-                var mainRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue(appElement, kAXMainWindowAttribute as CFString, &mainRef) == .success,
-                   let main = mainRef as! AXUIElement? {
-                    wins = [main]
-                }
-            }
-
-            if wins.isEmpty {
-                // Окон нет вообще (закрыто на крестик) — только тогда открываем новое,
-                // и строго без активации
-                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                    // Стартуем СКРЫТЫМ: без этого флага запуск Gemini выкидывает
-                    // его окно на экран — пользователь видит «вызвался полноценный
-                    // Gemini». Замерено: скрытый запуск не мешает — поле ввода
-                    // доступно, окно на экране не появляется.
-                    let config = NSWorkspace.OpenConfiguration()
-                    config.activates = false
-                    config.hides = true
-                    NSWorkspace.shared.openApplication(at: url, configuration: config)
-                }
-                var retries = 10
-                while retries > 0 {
-                    Thread.sleep(forTimeInterval: 0.2)
-                    if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef) == .success,
-                       let newWins = windowsRef as? [AXUIElement], !newWins.isEmpty {
-                        wins = newWins
-                        break
-                    }
-                    retries -= 1
-                }
-                currentActiveApp?.activate()
-            }
-
-            // Предпочитаем неминимизированное окно
-            let pickedWindow = wins.first(where: { w in
-                var m: CFTypeRef?
-                AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute as CFString, &m)
-                return (m as? Bool) != true
-            }) ?? wins.first
-
-            guard let initialWindow = pickedWindow else {
-                finish(.failure(.providerUnavailable))
-                return
-            }
-            // Переменная: после восстановления окна ссылка может смениться, и весь
-            // дальнейший код (отправка, чтение ответа) обязан работать с новой.
-            var window = initialWindow
-
-            // Свёрнутое окно (и окно на другом рабочем столе) не принимает запись через
-            // AX: kAXValue выставляется «успешно», но дерево заморожено, текст в поле не
-            // появляется, и потом мы вычитываем как «ответ» остатки прошлой переписки —
-            // отсюда обрывки в 1–3 символа.
-            //
-            // Определять это состояние по атрибутам нельзя, обе попытки провалились на
-            // живом приложении: kAXMinimized у свёрнутого окна отвечает false, а список
-            // kAXWindows то пуст, то нет. Единственный честный признак — поведение:
-            // отдаёт ли дерево поле ввода и доходит ли до него запись.
-            // Окно пользователя не разворачиваем и на передний план не тащим.
-            // Если дерево всё же заморожено (например, Gemini свернули ещё до того,
-            // как мы впервые взяли ссылку), просим систему восстановить окна событием
-            // reopen БЕЗ активации: проверено — окно возвращается, но фокус остаётся
-            // у пользователя, Gemini не становится активным приложением.
-            var foundTextArea = self.findElement(in: window, role: "AXTextArea")
-            if foundTextArea == nil {
-                Log.write("Gemini: дерево окна заморожено — прошу восстановить окно без активации")
-                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
-                    let cfg = NSWorkspace.OpenConfiguration()
-                    cfg.activates = false
-                    cfg.hides = true
-                    let sem = DispatchSemaphore(value: 0)
-                    NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in sem.signal() }
-                    _ = sem.wait(timeout: .now() + 3)
-                    Thread.sleep(forTimeInterval: 1.0)
-                }
-                // Забираем окно заново: после восстановления ссылка могла смениться.
-                var freshRef: CFTypeRef?
-                AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &freshRef)
-                let freshWins = freshRef as? [AXUIElement] ?? []
-                if let live = freshWins.first(where: { self.findElement(in: $0, role: "AXTextArea") != nil }) {
-                    window = live
-                    foundTextArea = self.findElement(in: live, role: "AXTextArea")
-                } else {
-                    foundTextArea = self.findElement(in: window, role: "AXTextArea")
-                }
-                // Фокус мог дрогнуть — возвращаем его пользователю.
-                currentActiveApp?.activate()
-            }
-            guard foundTextArea != nil else {
-                Log.write("Gemini: поле ввода недоступно даже после восстановления — запрос отменён")
-                finish(.failure(.providerUnavailable))
-                return
-            }
-            // Запоминаем рабочее окно: пока эта ссылка жива, сворачивание Gemini
-            // жёлтой кнопкой перестаёт мешать — писать в него можно и свёрнутым.
-            self.rememberedWindow = window
-
             // Новый чат НЕ создаём: работаем в том диалоге, который открыт у пользователя.
             // Нажатие «Новый чат» перестраивало страницу целиком, и ссылка на поле
             // ввода, взятая до нажатия, указывала на уже удалённый элемент — запись
             // в него молча не проходила. Именно из-за этого вопрос к ИИ срывался
             // «через раз», а причёсывание маскировало сбой тем, что вставляло
             // распознанный текст как запасной вариант.
-            guard let textArea = foundTextArea else {
+            guard let composer = self.acquireComposer(previousFrontmost: currentActiveApp) else {
                 finish(.failure(.providerUnavailable))
                 return
+            }
+            let pid = composer.pid
+            let window = composer.window
+            let textArea = composer.textArea
+
+            // Шлюз отпускают и тогда, когда генерация предыдущего писателя ещё
+            // дописывается: снимок «до запроса» с чужим недописанным ответом дал бы
+            // его хвост за наш ответ. Ждём до 3 с, пока «Остановить» не пропадёт.
+            let busyDeadline = Date().addingTimeInterval(3)
+            while Self.button(in: window, identifier: "stop_button") != nil {
+                if Date() > busyDeadline || isCancelled {
+                    Log.write("Gemini: идёт чужая генерация — запрос не отправлен")
+                    finish(.failure(.providerUnavailable))
+                    return
+                }
+                Thread.sleep(forTimeInterval: 0.15)
             }
 
             // Запоминаем исходные тексты в окне ДО отправки нового запроса
@@ -404,6 +295,149 @@ final class GeminiAIProvider: AIProvider {
         }
 
         return task
+    }
+
+    /// Окно Gemini с живым полем ввода — общий путь для `stream` и `runTurn`.
+    /// Сохранённая ссылка, kAXWindows, main-окно, скрытый запуск, reopen без активации
+    /// при замёрзшем дереве — подробности в комментариях ниже и в AGENTS_SYNC 4.1–4.3.
+    func acquireComposer(previousFrontmost currentActiveApp: NSRunningApplication?)
+        -> (pid: pid_t, window: AXUIElement, textArea: AXUIElement)? {
+        let bundleId = GeminiBridgeService.bundleIdentifier
+        var geminiApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first
+
+        if geminiApp == nil {
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
+                return nil
+            }
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = false
+            config.hides = true
+            let sema = DispatchSemaphore(value: 0)
+            NSWorkspace.shared.openApplication(at: url, configuration: config) { app, _ in
+                geminiApp = app
+                sema.signal()
+            }
+            sema.wait()
+            Thread.sleep(forTimeInterval: 0.8)
+        }
+
+        guard let app = geminiApp ?? NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).first else {
+            return nil
+        }
+
+        let pid = app.processIdentifier
+        let appElement = AXUIElementCreateApplication(pid)
+
+        var windowsRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
+        var wins = windowsRef as? [AXUIElement] ?? []
+
+        // Сохранённая с прошлого раза ссылка идёт первой: она работает и со
+        // свёрнутым окном, так что в обычной жизни мы вообще ничего не трогаем.
+        if let remembered = self.rememberedWindow,
+           self.findElement(in: remembered, role: "AXTextArea") != nil {
+            wins.insert(remembered, at: 0)
+        }
+
+        if wins.isEmpty {
+            // Окно живёт на другом рабочем столе или свёрнуто: kAXWindows его не
+            // отдаёт, но main-окно доступно напрямую. Раньше здесь был AppleScript
+            // reopen — он активировал Gemini и вытаскивал его на передний план.
+            var mainRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(appElement, kAXMainWindowAttribute as CFString, &mainRef) == .success,
+               let main = mainRef as! AXUIElement? {
+                wins = [main]
+            }
+        }
+
+        if wins.isEmpty {
+            // Окон нет вообще (закрыто на крестик) — только тогда открываем новое,
+            // и строго без активации
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                // Стартуем СКРЫТЫМ: без этого флага запуск Gemini выкидывает
+                // его окно на экран — пользователь видит «вызвался полноценный
+                // Gemini». Замерено: скрытый запуск не мешает — поле ввода
+                // доступно, окно на экране не появляется.
+                let config = NSWorkspace.OpenConfiguration()
+                config.activates = false
+                config.hides = true
+                NSWorkspace.shared.openApplication(at: url, configuration: config)
+            }
+            var retries = 10
+            while retries > 0 {
+                Thread.sleep(forTimeInterval: 0.2)
+                if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+                   let newWins = windowsRef as? [AXUIElement], !newWins.isEmpty {
+                    wins = newWins
+                    break
+                }
+                retries -= 1
+            }
+            currentActiveApp?.activate()
+        }
+
+        // Предпочитаем неминимизированное окно
+        let pickedWindow = wins.first(where: { w in
+            var m: CFTypeRef?
+            AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute as CFString, &m)
+            return (m as? Bool) != true
+        }) ?? wins.first
+
+        guard let initialWindow = pickedWindow else {
+            return nil
+        }
+        // Переменная: после восстановления окна ссылка может смениться, и весь
+        // дальнейший код (отправка, чтение ответа) обязан работать с новой.
+        var window = initialWindow
+
+        // Свёрнутое окно (и окно на другом рабочем столе) не принимает запись через
+        // AX: kAXValue выставляется «успешно», но дерево заморожено, текст в поле не
+        // появляется, и потом мы вычитываем как «ответ» остатки прошлой переписки —
+        // отсюда обрывки в 1–3 символа.
+        //
+        // Определять это состояние по атрибутам нельзя, обе попытки провалились на
+        // живом приложении: kAXMinimized у свёрнутого окна отвечает false, а список
+        // kAXWindows то пуст, то нет. Единственный честный признак — поведение:
+        // отдаёт ли дерево поле ввода и доходит ли до него запись.
+        // Окно пользователя не разворачиваем и на передний план не тащим.
+        // Если дерево всё же заморожено (например, Gemini свернули ещё до того,
+        // как мы впервые взяли ссылку), просим систему восстановить окна событием
+        // reopen БЕЗ активации: проверено — окно возвращается, но фокус остаётся
+        // у пользователя, Gemini не становится активным приложением.
+        var foundTextArea = self.findElement(in: window, role: "AXTextArea")
+        if foundTextArea == nil {
+            Log.write("Gemini: дерево окна заморожено — прошу восстановить окно без активации")
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+                let cfg = NSWorkspace.OpenConfiguration()
+                cfg.activates = false
+                cfg.hides = true
+                let sem = DispatchSemaphore(value: 0)
+                NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in sem.signal() }
+                _ = sem.wait(timeout: .now() + 3)
+                Thread.sleep(forTimeInterval: 1.0)
+            }
+            // Забираем окно заново: после восстановления ссылка могла смениться.
+            var freshRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &freshRef)
+            let freshWins = freshRef as? [AXUIElement] ?? []
+            if let live = freshWins.first(where: { self.findElement(in: $0, role: "AXTextArea") != nil }) {
+                window = live
+                foundTextArea = self.findElement(in: live, role: "AXTextArea")
+            } else {
+                foundTextArea = self.findElement(in: window, role: "AXTextArea")
+            }
+            // Фокус мог дрогнуть — возвращаем его пользователю.
+            currentActiveApp?.activate()
+        }
+        guard foundTextArea != nil else {
+            Log.write("Gemini: поле ввода недоступно даже после восстановления — запрос отменён")
+            return nil
+        }
+        // Запоминаем рабочее окно: пока эта ссылка жива, сворачивание Gemini
+        // жёлтой кнопкой перестаёт мешать — писать в него можно и свёрнутым.
+        self.rememberedWindow = window
+        guard let textArea = foundTextArea else { return nil }
+        return (pid, window, textArea)
     }
 
     /// Текст последнего ответа Gemini, найденный по якорю — кнопке «Скопировать ответ».

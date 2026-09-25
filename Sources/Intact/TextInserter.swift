@@ -21,7 +21,7 @@ enum TextInserter {
     ///   дошёл ли он, — и при неудаче получалось «звук вставки, потом карточка
     ///   „скопировать“», хотя вставлять было некуда.
     static func deliver(_ text: String, mode: OutputMode, targetApp: NSRunningApplication? = nil,
-                        completion: ((Bool) -> Void)? = nil) {
+                        mayActivate: Bool = true, completion: ((Bool) -> Void)? = nil) {
         guard mode == .clipboard || Permissions.accessibility else {
             Clipboard.write(text, transient: false, session: nil)
             Log.write("текст в буфере, но вставить нельзя: нет «Универсального доступа»")
@@ -29,7 +29,7 @@ enum TextInserter {
             return
         }
 
-        InsertionEngine.deliver(text, mode: mode, targetApp: targetApp) { outcome in
+        InsertionEngine.deliver(text, mode: mode, targetApp: targetApp, mayActivate: mayActivate) { outcome in
             if outcome.landed {
                 Log.write("Вставлено через \(outcome.via)")
             } else {

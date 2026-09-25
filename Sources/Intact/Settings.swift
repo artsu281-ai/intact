@@ -410,6 +410,13 @@ final class AppSettings: ObservableObject {
     @Published var geminiAutoSubmit: Bool { didSet { d.set(geminiAutoSubmit, forKey: "geminiAutoSubmit") } }
     @Published var geminiCreateNewChat: Bool { didSet { d.set(geminiCreateNewChat, forKey: "geminiCreateNewChat") } }
     @Published var geminiVoiceCommandEnabled: Bool { didSet { d.set(geminiVoiceCommandEnabled, forKey: "geminiVoiceCommandEnabled") } }
+    /// Ассистент (правый ⌘): отправлять ли в Gemini выделенный текст — без него не работают
+    /// «сделай официальнее» и «переведи». Пароли, ключи и менеджеры паролей отсекаются всегда.
+    @Published var assistantSendSelection: Bool { didSet { d.set(assistantSendSelection, forKey: "assistantSendSelection") } }
+    /// Отправлять ли заголовок окна — только когда фраза на него указывает («ответь ему», «это письмо»).
+    @Published var assistantSendWindowContext: Bool { didSet { d.set(assistantSendWindowContext, forKey: "assistantSendWindowContext") } }
+    /// Подтверждать каждое действие ассистента, а не выполнять сразу с [Отменить].
+    @Published var assistantConfirmAll: Bool { didSet { d.set(assistantConfirmAll, forKey: "assistantConfirmAll") } }
 
     /// Вызывается, когда меняется способ активации — чтобы перепривязать клавиши.
     var onHotKeyChange: (() -> Void)?
@@ -544,6 +551,9 @@ final class AppSettings: ObservableObject {
         geminiAutoSubmit = d.object(forKey: "geminiAutoSubmit") == nil ? true : d.bool(forKey: "geminiAutoSubmit")
         geminiCreateNewChat = d.bool(forKey: "geminiCreateNewChat")
         geminiVoiceCommandEnabled = d.object(forKey: "geminiVoiceCommandEnabled") == nil ? true : d.bool(forKey: "geminiVoiceCommandEnabled")
+        assistantSendSelection = d.object(forKey: "assistantSendSelection") == nil ? true : d.bool(forKey: "assistantSendSelection")
+        assistantSendWindowContext = d.object(forKey: "assistantSendWindowContext") == nil ? true : d.bool(forKey: "assistantSendWindowContext")
+        assistantConfirmAll = d.bool(forKey: "assistantConfirmAll")
         applyTheme()
 
         DistributedNotificationCenter.default().addObserver(

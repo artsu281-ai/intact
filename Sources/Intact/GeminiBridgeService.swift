@@ -189,6 +189,18 @@ final class GeminiBridgeService: ObservableObject {
             guard let self else { return }
             // Поле ввода общее с распознаванием: сначала пусть оно закончит уборку.
             GeminiSTTService.shared.waitUntilIdle()
+            // И с ассистентом, чатом и сводкой — один пишущий за раз. Без шлюза не пишем
+            // вовсе, в том числе запасным AppleScript: он тоже печатает в то же поле.
+            guard GeminiComposerGate.shared.acquire("bridge", timeout: 15) else {
+                let msg = T("Gemini занят другим запросом — повторите чуть позже", "Gemini is busy with another request — try again shortly")
+                Log.write("Джеминай: поле занято (\(GeminiComposerGate.shared.holder)) — не отправляю")
+                DispatchQueue.main.async {
+                    self.lastStatusMessage = msg
+                    completion?(false, msg)
+                }
+                return
+            }
+            defer { GeminiComposerGate.shared.release() }
 
             let success = self.performDirectAXDelivery(prompt: cleanPrompt, autoSubmit: autoSubmit, newChat: newChat, background: background)
 

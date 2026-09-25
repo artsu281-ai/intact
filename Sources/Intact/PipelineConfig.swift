@@ -122,6 +122,17 @@ public struct VoicePipeline: Codable, Identifiable, Equatable {
     public var trigger: TriggerSource
     public var sttEngine: STTEngineType
     public var postProcessing: PostProcessingMode
+    /// Режим ассистента поверх «Вопроса к ИИ»: Gemini составляет план, Intact его
+    /// выполняет (напоминания, события, таймеры, замена выделения…).
+    ///
+    /// Отдельный необязательный флаг, а не новое значение `PostProcessingMode`:
+    /// `PipelineManager.load` при незнакомом значении сбрасывает ВЕСЬ файл к
+    /// умолчаниям, и откат на старую сборку стёр бы пайплайны. Незнакомый ключ
+    /// старая сборка просто пропустит, и кнопка останется «Вопросом к ИИ».
+    public var assistantMode: Bool? = nil
+
+    public var isAssistant: Bool { postProcessing == .promptAnswer && assistantMode == true }
+
     /// Что показывать в пилюле.
     ///
     /// Считается из движка и этапа, а не берётся из `uiBadge` вслепую. Причина:
@@ -138,7 +149,7 @@ public struct VoicePipeline: Codable, Identifiable, Equatable {
         switch postProcessing {
         case .none:         stage = "Voice"
         case .cleanup:      stage = "Cleanup"
-        case .promptAnswer: stage = "Answer"
+        case .promptAnswer: stage = isAssistant ? "Assistant" : "Answer"
         }
         let generated = STTEngineType.allCases.map(\.badgeName) + ["ChatGPT"]
         let looksGenerated = generated.contains { uiBadge.hasPrefix($0 + " ") }

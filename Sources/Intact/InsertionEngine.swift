@@ -50,9 +50,13 @@ enum InsertionEngine {
 
     // MARK: - Точка входа
 
+    /// - Parameter mayActivate: `false` — не выводить целевое приложение вперёд. Ассистент
+    ///   отвечает через 5–10 с, и за это время пользователь мог уйти в другое окно:
+    ///   выдёргивать его обратно нельзя, текст тогда уходит на карточку.
     static func deliver(_ text: String,
                         mode: OutputMode,
                         targetApp: NSRunningApplication?,
+                        mayActivate: Bool = true,
                         completion: ((Outcome) -> Void)? = nil) {
         guard !text.isEmpty else {
             completion?(Outcome(landed: false, via: "—", reason: T("пустой текст", "empty text")))
@@ -65,16 +69,27 @@ enum InsertionEngine {
         // пришедшие в это окно, теряются. Это самая частая клавиша в
         // приложении, терять её нельзя.
         queue.async {
-            let outcome = run(text, mode: mode, targetApp: targetApp)
+            let outcome = run(text, mode: mode, targetApp: targetApp, mayActivate: mayActivate)
             DispatchQueue.main.async { completion?(outcome) }
         }
     }
 
-    private static func run(_ text: String, mode: OutputMode, targetApp: NSRunningApplication?) -> Outcome {
+    private static func run(_ text: String, mode: OutputMode, targetApp: NSRunningApplication?,
+                            mayActivate: Bool) -> Outcome {
         // Приложение могли закрыть, пока шло распознавание. У завершённого
         // `processIdentifier` равен −1, и все дальнейшие вопросы к нему
         // бессмысленны.
         let targetApp = (targetApp?.isTerminated == false) ? targetApp : nil
+
+        if !mayActivate {
+            // Без права на активацию вставляем только туда, где пользователь и сейчас.
+            // Неизвестная цель — тоже отказ: угадывать поле нельзя.
+            guard let targetApp,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == targetApp.processIdentifier else {
+                return Outcome(landed: false, via: "—",
+                               reason: T("пользователь ушёл в другое приложение", "the user switched to another app"))
+            }
+        }
 
         if mode == .clipboard {
             Clipboard.write(text, transient: false, session: nil)

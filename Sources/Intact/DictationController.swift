@@ -28,6 +28,10 @@ final class DictationController: ObservableObject {
             if settings.showIndicator {
                 indicator.update(controller: self)
             }
+            // Карточка ассистента, пришедшая во время диктовки (сработал таймер), — сейчас.
+            if state == .idle, oldValue != .idle, deferredAssistantCard != nil {
+                DispatchQueue.main.async { [weak self] in self?.presentDeferredAssistantCard() }
+            }
         }
     }
     @Published var level: Float = 0
@@ -58,6 +62,17 @@ final class DictationController: ObservableObject {
     @Published var geminiSentText: String? = nil
     /// Активный голосовой пайплайн
     @Published var activePipeline: VoicePipeline? = nil
+    /// Карточка ассистента правого ⌘ (итог, ответ, подтверждение…); nil — карточки нет.
+    @Published var assistantCard: AssistantCard? = nil
+    @Published var assistantCardRemaining: Int = 0
+    /// Строка пилюли, пока ассистент думает: «"напомни через час…" · думаю…».
+    @Published var assistantStatusLine: String? = nil
+    private var assistantCardTimer: Timer?
+    private var deferredAssistantCard: (card: AssistantCard, seconds: Int, at: Date)?
+    /// Контекст ассистента снимается в момент отпускания клавиши (что за окно, что выделено).
+    private let assistantContextBox = AssistantContextBox()
+    /// Пайплайн ассистента, для которого идёт доставка текста — имя для лога и звук.
+    private var assistantPipeline: VoicePipeline?
 
     /// Каким движком идёт эта диктовка на самом деле.
     ///
@@ -346,6 +361,7 @@ final class DictationController: ObservableObject {
                 self.recordingGeneration += 1
                 self.elapsedText = "0:00"
                 self.pendingText = nil
+                self.dropAssistantCardForNewSession(keepPending: self.activePipeline?.isAssistant == true)
                 self.pendingTimer?.invalidate()
                 if self.settings.showIndicator { self.indicator.show(controller: self) }
                 if self.settings.playSounds { NSSound(named: "Tink")?.play() }
@@ -950,6 +966,11 @@ final class DictationController: ObservableObject {
             switch result {
             case .success(let refined):
                 let cleaned = refined.trimmingCharacters(in: .whitespacesAndNewlines)
+                if Self.looksLikeAssistantLeak(cleaned) {
+                    Log.write("AI-причёсывание: утечка формата ассистента — использую исходный текст")
+                    settle(text)
+                    return
+                }
                 settle(cleaned.isEmpty ? text : cleaned)
             case .failure(let error):
                 Log.write("AI-причёсывание не удалось (\(error.localizedDescription)) — использую исходный текст")
@@ -1022,6 +1043,7 @@ final class DictationController: ObservableObject {
                 self.recordingGeneration += 1
                 self.elapsedText = "0:00"
                 self.pendingText = nil
+                self.dropAssistantCardForNewSession(keepPending: self.activePipeline?.isAssistant == true)
                 self.pendingTimer?.invalidate()
                 if self.settings.showIndicator { self.indicator.show(controller: self) }
                 if self.settings.playSounds, !pipeline.soundStart.isEmpty {
@@ -1076,6 +1098,12 @@ final class DictationController: ObservableObject {
             return
         }
 
+        // Ассистенту нужен контекст ровно на момент отпускания: какое приложение, есть ли
+        // поле, что выделено. Снимаем в фоне, пока Gemini дорасшифровывает (5–150 мс).
+        if pipeline.isAssistant {
+            assistantContextBox.capture(target: targetApp, sendSelection: settings.assistantSendSelection)
+        }
+
         // Распознавание идёт в Gemini — забираем расшифровку у него, дальше всё
         // как обычно: постобработка пайплайна, доставка, карточка «Скопировать».
         if usingGeminiSTT {
@@ -1128,6 +1156,9 @@ final class DictationController: ObservableObject {
                              prompt: { Self.cleanupPrompt(clean, tier: $0) },
                              role: .cleanup, timeout: 20)
 
+        case .promptAnswer where pipeline.isAssistant:
+            runAssistant(clean, pipeline: pipeline)
+
         case .promptAnswer:
             state = .answeringAI
             pendingQuestion = clean
@@ -1137,6 +1168,13 @@ final class DictationController: ObservableObject {
                              prompt: { Self.answerPrompt(clean, tier: $0) },
                              role: .quickAnswer, timeout: 35)
         }
+    }
+
+    static func looksLikeAssistantLeak(_ output: String) -> Bool {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("[INTACT ") { return true }
+        guard trimmed.hasPrefix("{") || trimmed.hasPrefix("```json") else { return false }
+        return trimmed.contains("\"steps\"") || trimmed.contains("\"id\":\"")
     }
 
     /// Запрашивает модель и ровно один раз доводит результат до вставки:
@@ -1174,6 +1212,17 @@ final class DictationController: ObservableObject {
 
         let aiTask = requestPipelineAI(prompt: prompt, role: role, timeout: timeout) { [weak self] output in
             let ms = Int(Date().timeIntervalSince(startedAt) * 1000)
+            // В общем чате Gemini теперь есть ходы ассистента: если модель ответила их
+            // форматом, JSON в документ не вставляем — вставляем распознанное.
+            if let output, Self.looksLikeAssistantLeak(output) {
+                Log.write("Пайплайн: утечка формата ассистента за \(ms) мс — вставляю распознанный текст")
+                DispatchQueue.main.async {
+                    self?.lastError = T("Gemini ответил в формате ассистента — вставлен распознанный текст",
+                                        "Gemini answered in the assistant's format — the transcript was inserted instead")
+                }
+                settle(fallback)
+                return
+            }
             if let output, !output.isEmpty {
                 Log.write("Пайплайн: ответ модели за \(ms) мс (\(output.count) симв.)")
                 settle(output)
@@ -1302,9 +1351,9 @@ final class DictationController: ObservableObject {
 
         // Звук — только по подтверждённой вставке: иначе на неудаче получалось
         // «звук вставки, следом карточка „скопировать“».
-        TextInserter.deliver(processed, mode: settings.outputMode, targetApp: targetApp) { [weak self] landed in
+        TextInserter.deliver(processed, mode: settings.outputMode, targetApp: targetApp) { [weak self] ok in
             guard let self else { return }
-            guard landed else {
+            guard ok else {
                 self.offerCopy(self.lastResult, isAnswer: kind == .aiAnswer)
                 return
             }
@@ -1368,7 +1417,13 @@ final class DictationController: ObservableObject {
         AIRouter.shared.complete(role: .quickAnswer, system: prompt.system, user: prompt.user) { result in
             switch result {
             case .success(let answer):
-                settle(answer.trimmingCharacters(in: .whitespacesAndNewlines), nil)
+                let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+                if Self.looksLikeAssistantLeak(trimmed) {
+                    Log.write("AI-ответ: утечка формата ассистента — ответ не вставляю")
+                    settle(nil, nil)
+                    return
+                }
+                settle(trimmed, nil)
             case .failure(let error):
                 Log.write("AI-ответ не получен (\(error.localizedDescription))")
                 settle(nil, error)
@@ -1689,6 +1744,9 @@ final class DictationController: ObservableObject {
         pendingRemainingSeconds = 0
         pendingText = nil
         indicator.hide()
+        if deferredAssistantCard != nil {
+            DispatchQueue.main.async { [weak self] in self?.presentDeferredAssistantCard() }
+        }
     }
 
     private func postProcess(_ raw: String) -> String {
@@ -1743,5 +1801,191 @@ final class DictationController: ObservableObject {
         blink = false
         level = 0
         waveform = []
+    }
+}
+
+
+// MARK: - Ассистент правого ⌘
+
+extension DictationController: AssistantHost {
+
+    /// Вместо «ответа, который вставится под курсор» — план от Gemini, который Intact
+    /// выполняет сам (AGENTS_SYNC 4.7). Вставка текста — один из шагов плана.
+    fileprivate func runAssistant(_ utterance: String, pipeline: VoicePipeline) {
+        assistantPipeline = pipeline
+        var context = assistantContextBox.take(timeout: 0.2) ?? AssistantContext.empty()
+        if context.targetApp == nil { context.targetApp = targetApp }
+        let problem: String? = {
+            guard GeminiAIProvider.shared.isReady else {
+                return T("Ассистенту нужно приложение Gemini — оно не найдено.", "The assistant needs the Gemini app — it wasn't found.")
+            }
+            // Промпт несёт выделение и заголовок окна: в личный Gemini — никогда.
+            guard GeminiBridgeService.bundleIdentifier != GeminiBridgeService.mainBundleIdentifier else {
+                let chosen = settings.geminiBundleIdentifier
+                return chosen.isEmpty || chosen == GeminiBridgeService.mainBundleIdentifier
+                    ? T("Ассистенту нужна отдельная копия Gemini — выберите её в настройках Gemini.",
+                        "The assistant needs a separate Gemini copy — choose it in the Gemini settings.")
+                    : T("Выбранная копия Gemini не найдена — в основной Gemini ассистент не пишет.",
+                        "The chosen Gemini copy wasn't found — the assistant won't write to your main Gemini.")
+            }
+            return nil
+        }()
+        if let problem {
+            state = .idle
+            activePipeline = nil
+            draftText = ""
+            indicator.hide()
+            AssistantEngine.shared.showProblem(problem, utterance: utterance, context: context, host: self)
+            return
+        }
+        beginAssistantRun(utterance: utterance, context: context)
+    }
+
+    /// Прогон ассистента под контроллером: состояние «думаю», пилюля, ⎋ и сторож.
+    /// Общий путь для нажатия и для [Повторить].
+    fileprivate func beginAssistantRun(utterance: String, context: AssistantContext) {
+        state = .answeringAI
+        if settings.showIndicator { indicator.show(controller: self) }
+        // Крючок ⎋ — ДО handle: локальные фразы («да», «отмени») возвращают в покой
+        // синхронно, и goIdle должен его снять, а не мы поставить его после.
+        skipAIStage = { AssistantEngine.shared.cancelCurrent() }
+        let run = AssistantEngine.shared.handle(utterance: utterance, context: context, host: self)
+        // Сторож: шлюз 8 с + чужая генерация 3 с + ход 35 с; через 55 с — в покой.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 55) { [weak run] in
+            guard let run else { return }
+            AssistantEngine.shared.timeOut(run)
+        }
+    }
+
+    /// Новая запись начинается — карточка ассистента уступает место пилюле.
+    /// Ожидающее подтверждение при этом живёт до своего срока в движке.
+    fileprivate func dropAssistantCardForNewSession(keepPending: Bool) {
+        // Другая клавиша при ожидающем подтверждении — это «нет» (по умолчанию запрет).
+        if !keepPending { AssistantEngine.shared.dropPending() }
+        guard let card = assistantCard else { return }
+        // Правый ⌘ как модификатор (⌘-Tab) или случайный чирк не должен молча прятать
+        // подтверждение: карточка вернётся, если сказанное её не решило.
+        if keepPending, case .confirm = card {
+            deferredAssistantCard = (card, max(3, assistantCardRemaining), Date())
+        }
+        assistantCardTimer?.invalidate()
+        assistantCardTimer = nil
+        assistantCard = nil
+        assistantCardRemaining = 0
+        AssistantTimers.shared.silence()
+    }
+
+    func assistantStatus(_ line: String?) {
+        assistantStatusLine = line
+        if state == .answeringAI, settings.showIndicator { indicator.update(controller: self) }
+    }
+
+    func assistantGoIdle() {
+        assistantStatusLine = nil
+        skipAIStage = nil
+        guard state == .answeringAI else { return }
+        state = .idle
+        activePipeline = nil
+        draftText = ""
+        if assistantCard == nil, pendingText == nil { indicator.hide() }
+    }
+
+    /// Доставка текста ассистента. В отличие от `deliverPipelineResult`, НЕ трогает
+    /// состояние диктовки: пока инструменты работали, пользователь мог начать новую
+    /// запись, и сброс state/activePipeline оставил бы её без хозяина.
+    func assistantDeliverText(_ text: String, target: NSRunningApplication?, mayActivate: Bool, done: @escaping (Bool) -> Void) {
+        if assistantCard != nil { assistantPresent(nil, seconds: 0) }
+        guard state == .idle else {
+            Log.write("Ассистент: идёт новая диктовка — текст не вставляю, он будет на карточке")
+            done(false)
+            return
+        }
+        let clean = text.trimmingCharacters(in: .newlines)
+        guard !clean.isEmpty else { done(false); return }
+        if settings.outputMode != .clipboard, let why = FocusInspector.refusalReason(for: target) {
+            Log.write("Ассистент: вставка отменена политикой: \(why)")
+            done(false)
+            return
+        }
+        let sound = assistantPipeline?.soundFinish ?? ""
+        TextInserter.deliver(clean, mode: settings.outputMode, targetApp: target, mayActivate: mayActivate) { [weak self] ok in
+            if ok, let self, self.settings.playSounds, !sound.isEmpty { NSSound(named: sound)?.play() }
+            done(ok)
+        }
+    }
+
+    func assistantRetry(utterance: String, context: AssistantContext) {
+        guard state == .idle else {
+            Log.write("Ассистент: [Повторить] во время диктовки — пропускаю")
+            return
+        }
+        beginAssistantRun(utterance: utterance, context: context)
+    }
+
+    func assistantPresent(_ card: AssistantCard?, seconds: Int) {
+        assistantCardTimer?.invalidate()
+        assistantCardTimer = nil
+        guard let card else {
+            assistantCard = nil
+            assistantCardRemaining = 0
+            if state == .idle, pendingText == nil, deferredAssistantCard != nil {
+                DispatchQueue.main.async { [weak self] in self?.presentDeferredAssistantCard() }
+            }
+            if pendingText != nil {
+                indicator.show(controller: self, interactive: true)
+            } else if state == .idle {
+                indicator.hide()
+            } else if settings.showIndicator {
+                indicator.show(controller: self)
+            }
+            return
+        }
+        // Идёт запись или расшифровка — карточку не показываем поверх пилюли (например,
+        // сработал таймер): откладываем до конца диктовки. Таймер важнее прочих карточек.
+        guard state == .idle else {
+            if case .timer = deferredAssistantCard?.card, !isTimerCard(card) { return }
+            deferredAssistantCard = (card, seconds, Date())
+            Log.write("Ассистент: карточка отложена — идёт диктовка")
+            return
+        }
+        if pendingText != nil { dismissPending() }
+        assistantCard = card
+        assistantCardRemaining = max(1, seconds)
+        indicator.show(controller: self, interactive: true)
+        assistantCardTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.assistantCardRemaining -= 1
+            if self.assistantCardRemaining <= 0 {
+                timer.invalidate()
+                AssistantEngine.shared.cardExpired()
+            }
+        }
+    }
+
+    private func isTimerCard(_ card: AssistantCard) -> Bool {
+        if case .timer = card { return true } else { return false }
+    }
+
+    fileprivate func presentDeferredAssistantCard() {
+        guard state == .idle, assistantCard == nil, pendingText == nil,
+              let deferred = deferredAssistantCard else { return }
+        deferredAssistantCard = nil
+        // Отложенная карточка не должна всплыть устаревшей: подтверждение — только пока
+        // план ещё ждёт «да»; прочие — пока не истёк их собственный срок.
+        let age = Int(Date().timeIntervalSince(deferred.at))
+        if case .confirm = deferred.card, !AssistantEngine.shared.hasPendingConfirmation { return }
+        if !isTimerCard(deferred.card), age >= deferred.seconds { return }
+        assistantPresent(deferred.card, seconds: max(3, deferred.seconds - (isTimerCard(deferred.card) ? 0 : age)))
+    }
+
+    func assistantRecord(question: String, answer: String) {
+        let entry = QuickAnswer(question: question, answer: answer, model: "Gemini", date: Date())
+        recentAnswers.insert(entry, at: 0)
+        if recentAnswers.count > recentAnswersLimit {
+            recentAnswers.removeLast(recentAnswers.count - recentAnswersLimit)
+        }
+        if settings.keepHistory {
+            History.shared.add(HistoryEntry(text: answer, kind: .aiAnswer, seconds: 0, model: T("Ассистент", "Assistant")))
+        }
     }
 }

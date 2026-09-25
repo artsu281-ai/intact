@@ -27,6 +27,45 @@ struct AskAITab: View {
         + MouseButtonType.allCases.map { TriggerSource.mouseButton($0) }
 
     /// Правка одного поля пайплайна прямо в списке.
+    /// Действие пайплайна в списке: три режима обработки плюс «Ассистент», который
+    /// хранится как «Вопрос к ИИ» с флагом `assistantMode` (см. VoicePipeline).
+    private enum PipelineAction: Hashable, CaseIterable {
+        case none, cleanup, promptAnswer, assistant
+
+        var title: String {
+            switch self {
+            case .none: return PostProcessingMode.none.title
+            case .cleanup: return PostProcessingMode.cleanup.title
+            case .promptAnswer: return PostProcessingMode.promptAnswer.title
+            case .assistant: return T("Ассистент: ответы и действия", "Assistant: answers and actions")
+            }
+        }
+    }
+
+    private func actionBinding(_ pipeline: VoicePipeline) -> Binding<PipelineAction> {
+        Binding(
+            get: {
+                let current = pipelineManager.pipelines.first { $0.id == pipeline.id } ?? pipeline
+                if current.isAssistant { return .assistant }
+                switch current.postProcessing {
+                case .none: return .none
+                case .cleanup: return .cleanup
+                case .promptAnswer: return .promptAnswer
+                }
+            },
+            set: { action in
+                var updated = pipelineManager.pipelines.first { $0.id == pipeline.id } ?? pipeline
+                switch action {
+                case .none: updated.postProcessing = .none; updated.assistantMode = nil
+                case .cleanup: updated.postProcessing = .cleanup; updated.assistantMode = nil
+                case .promptAnswer: updated.postProcessing = .promptAnswer; updated.assistantMode = nil
+                case .assistant: updated.postProcessing = .promptAnswer; updated.assistantMode = true
+                }
+                pipelineManager.updatePipeline(updated)
+            }
+        )
+    }
+
     private func pipelineBinding<V: Equatable>(
         _ pipeline: VoicePipeline,
         _ keyPath: WritableKeyPath<VoicePipeline, V>
@@ -57,6 +96,10 @@ struct AskAITab: View {
             .padding(.bottom, 2)
 
             pipelinesCard
+
+            if pipelineManager.pipelines.contains(where: { $0.enabled && $0.isAssistant }) {
+                assistantCard
+            }
 
             if !aiReady {
                 Card(header: nil) {
@@ -201,6 +244,61 @@ struct AskAITab: View {
 
     // MARK: - Модульные голосовые пайплайны и органы управления
 
+    // MARK: - Ассистент
+
+    /// Состояние доступа к Календарю читается при каждой отрисовке: система меняет его
+    /// в Настройках без уведомления, а запрос идёт только по кнопке, не посреди действия.
+    @State private var calendarAccessStamp = 0
+
+    private var assistantCard: some View {
+        Card(header: T("АССИСТЕНТ", "ASSISTANT")) {
+            Row(title: T("Что уходит в Gemini", "What goes to Gemini"),
+                subtitle: T("Фраза, дата и время, название программы. Выделенный текст и заголовок окна — если включено ниже. Пароли, ключи и менеджеры паролей не уходят никогда.",
+                            "Your phrase, date and time, the app name. Selected text and the window title — if enabled below. Passwords, keys and password managers never leave."),
+                first: true) { EmptyView() }
+
+            Row(title: T("Отправлять выделенный текст", "Send the selected text"),
+                subtitle: T("Нужно для «сделай официальнее», «переведи», «сократи»", "Needed for “make it formal”, “translate”, “shorten”")) {
+                Toggle("", isOn: $settings.assistantSendSelection)
+                    .toggleStyle(WisprToggleStyle())
+            }
+
+            Row(title: T("Отправлять заголовок окна", "Send the window title"),
+                subtitle: T("Только когда фраза на него указывает: «ответь ему», «это письмо»", "Only when the phrase points at it: “reply to him”, “this email”")) {
+                Toggle("", isOn: $settings.assistantSendWindowContext)
+                    .toggleStyle(WisprToggleStyle())
+            }
+
+            Row(title: T("Подтверждать каждое действие", "Confirm every action"),
+                subtitle: T("Иначе напоминания, события, заметки и таймеры ставятся сразу — с кнопкой «Отменить» и словом «отмени»",
+                            "Otherwise reminders, events, notes and timers are created at once — with an Undo button and the word “undo”")) {
+                Toggle("", isOn: $settings.assistantConfirmAll)
+                    .toggleStyle(WisprToggleStyle())
+            }
+
+            let access = AssistantEvents.calendarAccess
+            let _ = calendarAccessStamp
+            Row(title: T("Доступ к Календарю", "Calendar access"),
+                subtitle: access == .granted
+                    ? T("Есть — ассистент ставит события и может отменить только что созданное", "Granted — the assistant can add events and undo the ones it just created")
+                    : T("Нужен для «поставь встречу…»", "Needed for “schedule a meeting…”")) {
+                if access == .granted {
+                    Text(T("Выдан", "Granted"))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Palette.textSecondary)
+                } else if access == .notDetermined || access == .writeOnly {
+                    PillButton(title: T("Разрешить", "Allow"), icon: .settingsPage) {
+                        AssistantEvents.requestCalendarAccess { _ in calendarAccessStamp += 1 }
+                    }
+                } else {
+                    PillButton(title: T("Открыть настройки", "Open Settings"), icon: .settingsPage) {
+                        if let url = AssistantPermission.calendars.settingsURL { NSWorkspace.shared.open(url) }
+                    }
+                }
+            }
+        }
+    }
+
     private var pipelinesCard: some View {
         Card(header: T("ГОЛОСОВЫЕ ПАЙПЛАЙНЫ И ОРГАНЫ УПРАВЛЕНИЯ", "VOICE PIPELINES & CONTROLS")) {
             ForEach(Array(pipelineManager.pipelines.enumerated()), id: \.element.id) { index, pipeline in
@@ -248,10 +346,10 @@ struct AskAITab: View {
                             .frame(width: 62, alignment: .leading)
 
                         WisprDropdown(
-                            selection: pipelineBinding(pipeline, \.postProcessing),
-                            options: PostProcessingMode.allCases
-                        ) { mode in
-                            Text(mode.title)
+                            selection: actionBinding(pipeline),
+                            options: PipelineAction.allCases
+                        ) { action in
+                            Text(action.title)
                         }
                     }
 

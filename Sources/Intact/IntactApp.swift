@@ -248,7 +248,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else if controller.canSkipAIStage {
                 // Причёсывание уже идёт — отдаём то, что распознал Whisper,
                 // вместо того чтобы ждать модель до конца таймаута.
+                // Для ассистента это отмена хода: ничего не выполнится и не вставится.
                 DispatchQueue.main.async { controller.skipAIAndInsert() }
+            } else if controller.assistantCard != nil {
+                // Карточка ассистента: закрыть; для подтверждения это «нет».
+                DispatchQueue.main.async { AssistantEngine.shared.dismissCard() }
             }
         }
 

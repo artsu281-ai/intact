@@ -171,6 +171,9 @@ struct AssistantContext {
     let isTerminal: Bool
     /// Почему выделение не взяли — только для лога, без содержимого.
     let selectionDropReason: String?
+    /// Приложение, в котором была нажата клавиша: текст ассистента идёт только туда.
+    /// Заполняет `AssistantContextBox`, а не снимок AX.
+    var targetApp: NSRunningApplication? = nil
 
     static func empty(now: Date = Date()) -> AssistantContext {
         AssistantContext(now: now, timeZone: .current, appName: nil, bundleID: nil, windowTitle: nil,
@@ -242,6 +245,10 @@ struct AssistantReceipt {
     var memorySummary: String? = nil
     /// Обратная операция. Вызывается вне главного потока.
     var undo: (() throws -> Void)? = nil
+    /// Идентификатор созданного элемента (EventKit, Заметки, таймер) — для `edit`.
+    var itemID: String? = nil
+    /// Каким элемент был сразу после создания: отмена и правка трогают только нетронутое.
+    var guardBox: ItemGuard? = nil
     var error: AssistantToolError? = nil
 }
 
