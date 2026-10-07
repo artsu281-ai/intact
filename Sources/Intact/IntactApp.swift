@@ -43,6 +43,7 @@ struct MenuContent: View {
     @ObservedObject private var history = History.shared
     @ObservedObject private var modelManager = ModelManager.shared
     @ObservedObject private var llmManager = LLMModelManager.shared
+    @ObservedObject private var updater = AppUpdater.shared
 
     var body: some View {
         Text(statusLine)
@@ -157,8 +158,29 @@ struct MenuContent: View {
         Button(T("Настройки…", "Settings…")) { SettingsWindow.shared.show() }
             .keyboardShortcut(",")
 
+        updateButton
+
         Button(T("Выйти", "Quit")) { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    @ViewBuilder private var updateButton: some View {
+        switch updater.state {
+        case .available(let v):
+            Button(T("Обновить до \(v)", "Update to \(v)")) { Task { await updater.install() } }
+        case .installing:
+            Text(T("Обновляю…", "Updating…"))
+        case .checking:
+            Text(T("Проверяю обновления…", "Checking for updates…"))
+        case .upToDate:
+            Button(T("Версия \(AppUpdater.currentVersion) — актуальная", "Version \(AppUpdater.currentVersion) is up to date")) {
+                Task { await updater.check() }
+            }
+        case .failed(let msg):
+            Button(T("Обновление не удалось: \(msg)", "Update failed: \(msg)")) { Task { await updater.check() } }
+        case .idle:
+            Button(T("Проверить обновления", "Check for updates")) { Task { await updater.check() } }
+        }
     }
 
     /// Короткое имя модели чата — в строке меню длинное не помещается.
@@ -195,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let settings = AppSettings.shared
+        AppUpdater.shared.checkInBackground()
 
         // После смены клавиш или пайплайнов меняется и то, кому нужен локальный
         // whisper-server, — сверяем сразу, а не при следующем запуске.
