@@ -125,7 +125,7 @@ final class WhisperServer {
         guard isRunning, let url = URL(string: "http://127.0.0.1:\(port)/inference") else {
             throw TranscribeError.binaryMissing
         }
-        let boundary = "----voiceinput-\(UUID().uuidString)"
+        let boundary = "----intact-\(UUID().uuidString)"
         var body = Data()
 
         func field(_ name: String, _ value: String) {

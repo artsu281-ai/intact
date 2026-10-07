@@ -10,7 +10,7 @@ enum LoginItem {
                 if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
             }
         } catch {
-            NSLog("VoiceInput: автозапуск не настроен — \(error.localizedDescription)")
+            NSLog("Intact: автозапуск не настроен — \(error.localizedDescription)")
         }
     }
 

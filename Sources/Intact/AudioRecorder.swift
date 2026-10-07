@@ -193,7 +193,7 @@ final class AudioRecorder {
         let input = engine.inputNode
         let inFormat = input.inputFormat(forBus: 0)
         guard inFormat.sampleRate > 0 else {
-            throw NSError(domain: "VoiceInput", code: 1, userInfo: [
+            throw NSError(domain: "Intact", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: T("Микрофон недоступен. Проверь разрешение в «Конфиденциальность и безопасность → Микрофон».",
                                             "The microphone is unavailable. Check the permission under Privacy & Security → Microphone.")
             ])
