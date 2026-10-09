@@ -37,6 +37,10 @@ enum Permissions {
         open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
     }
 
+    static func openMicrophoneSettings() {
+        open("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+    }
+
     // MARK: - Общее
 
     static var allGranted: Bool { inputMonitoring && accessibility }

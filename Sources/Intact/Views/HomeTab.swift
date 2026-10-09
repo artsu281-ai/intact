@@ -88,7 +88,7 @@ struct HomeTab: View {
     }
 
     private var attention: Attention? {
-        if !models.hasAnyModelInstalled {
+        if !models.hasAnyModelInstalled && !GeminiBridgeService.isAppAvailable {
             return Attention(text: T("Модель распознавания не установлена — диктовка не заработает", "No recognition model installed — dictation will not work"),
                              action: T("Скачать модель", "Download a model"), section: .models)
         }

@@ -8,6 +8,8 @@ struct AIModelPicker: View {
 
     var role: AIRole? = nil
     var compact: Bool = false
+    /// Скруглённый прямоугольник с обводкой, как у соседних плашек шапки чата.
+    var outlined: Bool = false
     var onOpenSettings: () -> Void = {}
     var onOpenModels: () -> Void = {}
 
@@ -75,8 +77,16 @@ struct AIModelPicker: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hovering || isOpen ? Palette.pillHover : Color.clear)
+                Group {
+                    if outlined {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(hovering || isOpen ? Palette.pillHover : Palette.pill)
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
+                    } else {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(hovering || isOpen ? Palette.pillHover : Color.clear)
+                    }
+                }
             )
             .contentShape(Rectangle())
         }
@@ -315,6 +325,7 @@ struct AIRoleRow: View {
             first: first) {
             VStack(alignment: .trailing, spacing: 6) {
                 AIModelPicker(role: role,
+                              outlined: true,
                               onOpenSettings: onOpenSettings,
                               onOpenModels: onOpenModels)
                 if let privacy {

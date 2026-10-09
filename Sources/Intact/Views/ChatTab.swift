@@ -3,7 +3,28 @@ import SwiftUI
 
 /// Вкладка диалога с персональным ИИ-ассистентом и контекстного анализа
 /// голосовых записей, заметок и напоминаний.
+/// Круглая кнопка композера: лёгкая подсветка при наведении и нажатии,
+/// одинаковая у вложения, Gemini, микрофона и отправки.
+private struct ComposerButtonStyle: ButtonStyle {
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .overlay(Circle().fill(Color.white.opacity(hovering && isEnabled ? 0.07 : 0)))
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: hovering)
+            .onHover { hovering = $0 }
+    }
+}
+
 struct ChatTab: View {
+    /// Высота всех элементов шапки — модель, облако, контекст, настройки.
+    static let headerChipHeight: CGFloat = 26
+    /// Сторона круглых кнопок композера и минимальная высота поля ввода.
+    static let composerSide: CGFloat = 40
+
     // Подписка на тему: см. `ThemeReader` в Theme.swift. Без неё вид
     // останется в старых цветах при смене темы. Не удалять как неиспользуемое.
     @ThemeReader var themeStamp
@@ -203,6 +224,8 @@ struct ChatTab: View {
                         .font(.system(size: 12))
                 }
                 .foregroundStyle(Palette.textTertiary)
+                .frame(height: 24)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(T("Сохранить весь диалог в файл Markdown", "Save the whole conversation to a Markdown file"))
@@ -216,8 +239,11 @@ struct ChatTab: View {
                         .font(.system(size: 12))
                 }
                 .foregroundStyle(Palette.textTertiary)
+                .frame(height: 24)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .padding(.leading, 6)
         }
     }
 
@@ -311,7 +337,7 @@ struct ChatTab: View {
             } label: {
                 IntactIcon(kind: railVisible ? .chevronLeft : .chevronRight, size: 12)
                     .foregroundStyle(Palette.textTertiary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: Self.headerChipHeight, height: Self.headerChipHeight)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -319,9 +345,11 @@ struct ChatTab: View {
 
             AIModelPicker(
                 role: .chat,
+                outlined: true,
                 onOpenSettings: { onOpenSection?(.settings) },
                 onOpenModels:   { onOpenSection?(.models) }
             )
+            .frame(height: Self.headerChipHeight)
 
             if isCloudChat {
                 HStack(spacing: 4) {
@@ -334,13 +362,13 @@ struct ChatTab: View {
                     }
                 }
                 .foregroundStyle(Palette.iconWarning)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(Palette.iconWarning.opacity(0.12)))
+                .padding(.horizontal, 9)
+                .frame(height: Self.headerChipHeight)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.iconWarning.opacity(0.12)))
                 .help(T("Сообщения, диктовки, заметки и содержимое прикреплённых файлов отправляются на серверы Google", "Messages, dictations, notes and the contents of attached files are sent to Google's servers"))
             }
 
-            Rectangle().fill(Palette.hairline).frame(width: 1, height: 14)
+            Rectangle().fill(Palette.hairline).frame(width: 1, height: 16)
 
             // Кнопка контекста с кастомным поповером
             Button {
@@ -354,12 +382,12 @@ struct ChatTab: View {
                         .fixedSize()
                 }
                 .foregroundStyle(Palette.textSecondary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 4.5)
+                .padding(.horizontal, 10)
+                .frame(height: Self.headerChipHeight)
                 .background(
-                    Capsule()
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Palette.pill)
-                        .overlay(Capsule().stroke(Palette.hairline, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Palette.hairline, lineWidth: 1))
                 )
             }
             .buttonStyle(.plain)
@@ -382,6 +410,8 @@ struct ChatTab: View {
                     }
                 }
                 .foregroundStyle(Palette.textTertiary)
+                .frame(height: Self.headerChipHeight)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             // В сжатых вариантах от подписей остаются одни значки — смысл
@@ -783,6 +813,7 @@ struct ChatTab: View {
                         .onSubmit { sendMessage() }
                 }
             }
+            .frame(minHeight: Self.composerSide, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Palette.card)
@@ -799,10 +830,10 @@ struct ChatTab: View {
             } label: {
                 IntactIcon(kind: .folder, size: 15)
                     .foregroundStyle(Palette.textSecondary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: Self.composerSide, height: Self.composerSide)
                     .background(Circle().fill(Palette.pill))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ComposerButtonStyle())
             .help(T("Прикрепить файл или папку", "Attach a file or folder"))
 
             if settings.geminiIntegrationEnabled && GeminiBridgeService.shared.isInstalled {
@@ -818,10 +849,10 @@ struct ChatTab: View {
                 } label: {
                     IntactIcon(kind: .aiStar, size: 14)
                         .foregroundStyle(Palette.textSecondary)
-                        .frame(width: 36, height: 36)
+                        .frame(width: Self.composerSide, height: Self.composerSide)
                         .background(Circle().fill(Palette.pill))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ComposerButtonStyle())
                 .help(T("Отправить в приложение Gemini на Mac", "Send to Gemini app on Mac"))
             }
 
@@ -841,12 +872,12 @@ struct ChatTab: View {
                             .foregroundStyle(Palette.accent)
                     }
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: Self.composerSide, height: Self.composerSide)
                 .background(
                     Circle().fill(isChatRecording && controller.state == .recording ? Palette.iconDanger : Palette.accent.opacity(0.12))
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ComposerButtonStyle())
             .help(isChatRecording ? T("Остановить и отправить запрос", "Stop and send the request") : T("Голосовой запрос в чат (нажмите для записи)", "Voice request into chat (click to record)"))
 
             // Кнопка отправки текста — во время генерации превращается в «Стоп»
@@ -857,12 +888,12 @@ struct ChatTab: View {
             } label: {
                 IntactIcon(kind: chat.isGenerating ? .stop : .send, size: 14)
                     .foregroundStyle(canSend || chat.isGenerating ? .white : Palette.textTertiary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: Self.composerSide, height: Self.composerSide)
                     .background(
                         Circle().fill(canSend || chat.isGenerating ? Palette.accent : Palette.pill)
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ComposerButtonStyle())
             .disabled(!canSend && !chat.isGenerating)
             .help(chat.isGenerating ? T("Остановить генерацию", "Stop generating") : T("Отправить", "Send"))
             .animation(.spring(response: 0.22), value: canSend)

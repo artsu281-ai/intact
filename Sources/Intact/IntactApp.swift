@@ -158,6 +158,8 @@ struct MenuContent: View {
         Button(T("Настройки…", "Settings…")) { SettingsWindow.shared.show() }
             .keyboardShortcut(",")
 
+        Button(T("Мастер настройки…", "Setup guide…")) { OnboardingWindow.shared.show() }
+
         updateButton
 
         Button(T("Выйти", "Quit")) { NSApp.terminate(nil) }
@@ -190,7 +192,7 @@ struct MenuContent: View {
     }
 
     private var statusLine: String {
-        if !ModelManager.shared.hasAnyModelInstalled {
+        if !ModelManager.shared.hasAnyModelInstalled && !GeminiBridgeService.isAppAvailable {
             return "⚠︎ " + T("Модель не установлена", "No model installed")
         }
         switch controller.state {
@@ -256,7 +258,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Если моделей ещё нет (первый запуск) — сразу открываем окно моделей для скачивания
-        if !ModelManager.shared.hasAnyModelInstalled {
+        // Новому пользователю — пошаговая настройка вместо каталога моделей.
+        let onboarding = OnboardingWindow.needed || OnboardingView.preview
+        if onboarding {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { OnboardingWindow.shared.show() }
+        } else if !ModelManager.shared.hasAnyModelInstalled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 MainWindow.shared.show(section: .models)
             }
@@ -291,8 +297,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Оба разрешения нужны для разного, и запросить надо оба:
         // чтение клавиши — «Мониторинг ввода», вставка текста — «Универсальный доступ».
-        if !Permissions.inputMonitoring { Permissions.requestInputMonitoring() }
-        if !Permissions.accessibility { Permissions.requestAccessibility() }
+        // Пока идёт первая настройка, запросы делает она сама — по одному и с пояснением.
+        if !onboarding {
+            if !Permissions.inputMonitoring { Permissions.requestInputMonitoring() }
+            if !Permissions.accessibility { Permissions.requestAccessibility() }
+        }
         if !Permissions.allGranted { watchForAccessibility() }
     }
 

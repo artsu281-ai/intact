@@ -237,37 +237,57 @@ public final class PipelineManager: ObservableObject {
             return
         }
 
-        // Значения по умолчанию
+        // Значения по умолчанию. Gemini — основной движок: он точнее и ничего не
+        // качает; без приложения остаётся локальный Whisper.
+        let engine: STTEngineType = GeminiBridgeService.isAppAvailable ? .geminiNative : .whisperLocal
+        let brand = engine.badgeName
         self.pipelines = [
             VoicePipeline(
                 id: "raw_whisper",
-                name: "Whisper Voice",
+                name: "\(brand) Voice",
                 enabled: true,
                 trigger: .modifierKey(.leftOption), // Левый Option — чистая диктовка (как есть)
-                sttEngine: .whisperLocal,
+                sttEngine: engine,
                 postProcessing: .none,
-                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Voice"
+                uiBadge: "\(brand) Voice"
             ),
             VoicePipeline(
                 id: "ai_cleanup",
-                name: "Whisper Cleanup",
+                name: "\(brand) Cleanup",
                 enabled: true,
                 trigger: .modifierKey(.rightOption), // Правый Option — обработка / причёсывание
-                sttEngine: .whisperLocal,
+                sttEngine: engine,
                 postProcessing: .cleanup,
-                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Cleanup"
+                uiBadge: "\(brand) Cleanup"
             ),
             VoicePipeline(
                 id: "ai_task",
-                name: "Whisper Answer",
+                name: "\(brand) Answer",
                 enabled: true,
                 trigger: .modifierKey(.rightCommand), // Правый Command — вопрос / задача к ИИ
-                sttEngine: .whisperLocal,
+                sttEngine: engine,
                 postProcessing: .promptAnswer,
-                uiBadge: "\(STTEngineType.whisperLocal.badgeName) Answer"
+                uiBadge: "\(brand) Answer"
             )
         ]
         save()
+    }
+
+    /// Мастер первой настройки: если Gemini появился уже после создания
+    /// пайплайнов, а пользователь их не трогал, переводим их на Gemini.
+    /// Изменённые вручную пайплайны не затрагиваем.
+    public func preferGeminiIfUntouched() {
+        guard GeminiBridgeService.isAppAvailable else { return }
+        let defaults: Set<String> = ["raw_whisper", "ai_cleanup", "ai_task"]
+        let touched = pipelines.contains { !defaults.contains($0.id) || $0.sttEngine != .whisperLocal }
+        guard !touched, pipelines.count == defaults.count else { return }
+        for i in pipelines.indices {
+            pipelines[i].sttEngine = .geminiNative
+            pipelines[i].name = pipelines[i].name.replacingOccurrences(of: "Whisper", with: "Gemini")
+            pipelines[i].uiBadge = pipelines[i].uiBadge.replacingOccurrences(of: "Whisper", with: "Gemini")
+        }
+        save()
+        onChange?()
     }
 
     public func save() {

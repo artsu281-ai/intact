@@ -242,16 +242,13 @@ struct ModelsHub: View {
                 fitOnly.toggle()
             } label: {
                 HStack(spacing: 6) {
-                    IntactIcon(kind: fitOnly ? .radioOn : .radioOff, size: 13)
+                    IntactIcon(kind: fitOnly ? .radioOn : .radioOff, size: 13, monochrome: true)
                     Text(T("Только то, что влезет", "Only what fits"))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
                 }
-                .foregroundStyle(fitOnly ? Palette.accent : Palette.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5.5)
-                .background(Capsule().fill(fitOnly ? Palette.accent.opacity(0.10) : Palette.pill))
+                .foregroundStyle(fitOnly ? Palette.accent : Palette.textPrimary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.intact(.neutral))
             .help(T("Скрыть модели, которые не поместятся в \(String(format: "%.0f", Hardware.physicalMemoryGB)) ГБ памяти", "Hide models that will not fit into \(String(format: "%.0f", Hardware.physicalMemoryGB)) GB of memory"))
 
             PillButton(title: T("Папки", "Folders"), icon: .folder) {
